@@ -17,6 +17,10 @@ edition= "2021"
 path = "src/lib.rs"
 
 
+[[examples]]
+name = "mnist_fashion"
+path = "examples/mnist_fashion.rs"
+
 [dependencies]
 # default is version spec is ^ meaning can update up to max non null version number
 # cargo doc --no-deps avoid dependencies doc generation
@@ -52,6 +56,11 @@ lazy_static = { version = "1.4"}
 log = { version = "0.4"}
 env_logger = { version = "0.10"}
 
+byteorder = {version = "1.4"}
+
 # no more interaction bug with intel-mkl
-anyhow = {version = "1.0.58"}
+anyhow = {version = "1.0"}
 katexit = {version = "0.1"}
+
+[dev-dependencies]
+ndarray = {version = "0.15"}

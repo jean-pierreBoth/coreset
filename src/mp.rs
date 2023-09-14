@@ -9,8 +9,6 @@
 #![allow(unused)]
 use anyhow::{anyhow, Result};
 
-use parking_lot::{RwLock, Mutex, RwLockReadGuard};
-use std::sync::Arc;
 use rayon::prelude::*;
 
 use rand_xoshiro::Xoshiro256PlusPlus;
@@ -19,6 +17,63 @@ use rand_xoshiro::rand_core::SeedableRng;
 use rand::distributions::{Distribution,Uniform};
 
 use hnsw_rs::dist::*;
+
+/// a facility is a center in coreset approximation
+pub struct Facility<T: Send+Sync+Clone> {
+    /// rank 
+    dataid : usize,
+
+    position : Vec<T>,
+}
+
+impl <T:Send+Sync+Clone> Facility<T> {
+    ///
+    pub fn new(dataid : usize, position : &Vec<T>) -> Self {
+        Facility{dataid, position : (*position).clone()}
+    }
+
+    pub fn get_position(&self) -> &Vec<T> {
+        &self.position
+    }
+
+    pub fn get_id(&self) -> usize {
+        self.dataid
+    }
+}  // end of impl block Facility
+
+//==================================================================================
+
+
+/// describes the list of facility (or centers created)
+pub struct Facilities<T : Send+Sync+Clone> {
+    centers : Vec<Facility<T>>
+}
+
+impl <T:Send+Sync+Clone> Facilities<T> {
+
+    /// to be allocated , size should be log(nb_data)
+    pub fn new(size : usize) -> Self {
+        let centers = Vec::<Facility<T>>::with_capacity(size);
+        Facilities{centers}
+    }
+
+    // return true if there is a facility around point at distance less than dmax
+    fn match_point<Dist : Distance<T>>(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
+        //
+        for f in &self.centers {
+            if distance.eval(f.get_position(), point) <= dmax {
+                return true;
+            }
+        }
+        return false;
+    } // end of match_facility
+
+    fn insert(&mut self, facility : Facility<T>) {
+        self.centers.push(facility);
+    }
+} // end of impl block Facilities
+
+//==================================================================================
 
 struct MettuPlaxton <'b, T: Send+Sync> {
     //
@@ -33,7 +88,7 @@ struct MettuPlaxton <'b, T: Send+Sync> {
 
 
 
-impl <'b, T:Send+Sync> MettuPlaxton<'b,T> {
+impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
     pub fn new(data : &'b Vec<Vec<T>>) -> Self {
         let nb_data = data.len();
@@ -45,8 +100,10 @@ impl <'b, T:Send+Sync> MettuPlaxton<'b,T> {
     // estimate cardinal around point in a radius of 2^-j. 
     // sample K = c * 2^{-j} * n log n points to estimate N = |B(point , 2−j )|
     // return n * N /K
+    // running time O(r * n * log(n)).
     // to be called in //
-    fn estimate_ball_cardinal<Dist : Distance<T>>(&self, (ip, point) : (usize,  &Vec<T>), distance : Dist) -> (usize, f64) {
+    fn estimate_ball_cardinal<Dist : Distance<T>>(&self, (ip, point) : (usize,  &Vec<T>), distance : &Dist) -> (usize, f32) 
+        where Dist : Sync {
         //
         let c = 100.;
         let mut j_tmp = self.j;
@@ -55,7 +112,7 @@ impl <'b, T:Send+Sync> MettuPlaxton<'b,T> {
         let mut iter_num = 0;
         rng.jump();
         let unif = Uniform::<usize>::new(0, self.nb_data);
-        let r : f64 = loop {
+        let r : f32 = loop {
             let mut r_test = 1.0f32/ 2_u32.pow(j_tmp) as f32;
             let nb_sample_f : f64 = c * (self.nb_data as f64 * r_test as f64) * self.j as f64;
             let nb_sample : u32 = nb_sample_f.trunc() as u32;
@@ -71,7 +128,8 @@ impl <'b, T:Send+Sync> MettuPlaxton<'b,T> {
             // 
             if nb_in >= 2_usize.pow(j_tmp) {
                 log::debug!("estimate_ball_cardinal for point {:?} ; nb_iter = {:?}", ip, iter_num);
-                break (self.nb_data * nb_in) as f64 /  nb_sample as f64;
+                // an estimator of radius is 1/2^j
+                break (self.nb_data * nb_in) as f32 /  nb_sample as f32;
             }
             else {
                 if j_tmp < 1 {
@@ -86,8 +144,29 @@ impl <'b, T:Send+Sync> MettuPlaxton<'b,T> {
     }
 
 
-    fn estimate_radii<Dist : Distance<T>>(&self) -> Result<Vec<Vec<(usize, f32)>>, anyhow::Error >{
 
-        return Err(anyhow!("not yet implemented"));
-    }
+    /// construct centers (facilities) for distance 
+    pub fn construct_centers<Dist : Distance<T>>(&self, distance : &Dist)
+         where Dist : Send + Sync + Clone {
+        //
+        let mut facilities = Facilities::<T>::new(self.j as usize);
+        // estimate radii in //
+        let cardinals : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), distance)).collect();
+        // sort radii
+        let mut radii : Vec<(usize,f32)> = cardinals.iter().map(|(i,c)|  (*i, 1./c)).collect();
+        radii.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
+        assert!(radii.first().unwrap().1 <= radii.last().unwrap().1);
+        // facility allocation, loop on data, check for existing facility around each point
+        for p in radii.iter() {
+            let matched = facilities.match_point::<Dist>(&self.data[p.0],  2. * p.1, distance);
+            if !matched {
+                // we inset a facility
+                let facility = Facility::new(p.0, &self.data[p.0]);
+                facilities.insert(facility);
+                log::debug!("inserted facility at {:?}, radius : {:.3e}", p.0, p.1);
+            }
+        }
+    } // end of construct_centers
+
+
 } // end of impl block
