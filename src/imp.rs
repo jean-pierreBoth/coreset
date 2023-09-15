@@ -129,7 +129,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
                 // sample and compute distance to point ip
                 let k = unif.sample(&mut rng);
                 let dist = distance.eval(point, &self.data[k]);
-                if dist  < r_test {
+                if dist  <= r_test {
                     nb_in += 1;
                 }
             }
