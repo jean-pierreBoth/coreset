@@ -5,6 +5,9 @@
 //! 
 //!  The data we will run on are essentially Vec<T> where T can be anything as long as we have a distance on Vec<T> provided by the hnsw crate
 //!  see [hnsw-dist](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html)
+//! 
+//! Data or Distance must be scaled so that nearest neighbour of a point are at a distance really less than 1. as uniform cost is an explicit hypothesis 
+//! of the paper.
 
 #![allow(unused)]
 use anyhow::{anyhow, Result};
@@ -75,7 +78,7 @@ impl <T:Send+Sync+Clone> Facilities<T> {
 
 //==================================================================================
 
-struct MettuPlaxton <'b, T: Send+Sync> {
+pub struct MettuPlaxton <'b, T: Send+Sync> {
     //
     nb_data : usize,
     //
@@ -96,6 +99,9 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
         MettuPlaxton{data, nb_data, j, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
     }
 
+    pub fn get_nb_data(&self) -> usize {
+        self.nb_data
+    }
 
     // estimate cardinal around point in a radius of 2^-j. 
     // sample K = c * 2^{-j} * n log n points to estimate N = |B(point , 2−j )|
@@ -105,29 +111,31 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
     fn estimate_ball_cardinal<Dist : Distance<T>>(&self, (ip, point) : (usize,  &Vec<T>), distance : &Dist) -> (usize, f32) 
         where Dist : Sync {
         //
-        let c = 100.;
+        let c = 2.;
         let mut j_tmp = self.j;
         // at beginning nb_sample = c * self.j i.e c * log(nb_data) and double at each iteration
         let mut rng = self.rng.clone();
         let mut iter_num = 0;
+        let mut nb_point_done = 0;
         rng.jump();
         let unif = Uniform::<usize>::new(0, self.nb_data);
         let r : f32 = loop {
             let mut r_test = 1.0f32/ 2_u32.pow(j_tmp) as f32;
             let nb_sample_f : f64 = c * (self.nb_data as f64 * r_test as f64) * self.j as f64;
             let nb_sample : u32 = nb_sample_f.trunc() as u32;
+            log::trace!("estimate_ball_cardinal nb_sample : {:?}", nb_sample);
             let mut nb_in = 0;
             for i in 0..nb_sample {
                 // sample and compute distance to point ip
                 let k = unif.sample(&mut rng);
                 let dist = distance.eval(point, &self.data[k]);
-                if dist  <= r_test {
+                if dist  < r_test {
                     nb_in += 1;
                 }
             }
             // 
             if nb_in >= 2_usize.pow(j_tmp) {
-                log::debug!("estimate_ball_cardinal for point {:?} ; nb_iter = {:?}", ip, iter_num);
+                log::debug!("estimate_ball_cardinal for point {:?} ; nb_iter = {:?}, cardinal : {:?}", ip, iter_num, nb_in);
                 // an estimator of radius is 1/2^j
                 break (self.nb_data * nb_in) as f32 /  nb_sample as f32;
             }
@@ -146,12 +154,13 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
     /// construct centers (facilities) for distance 
-    pub fn construct_centers<Dist : Distance<T>>(&self, distance : &Dist)
-         where Dist : Send + Sync + Clone {
+    pub fn construct_centers<Dist : Distance<T>>(&self, distance : &Dist) -> Facilities<T>
+         where Dist : Send + Sync {
         //
         let mut facilities = Facilities::<T>::new(self.j as usize);
         // estimate radii in //
         let cardinals : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), distance)).collect();
+        log::debug!("estimate_ball_cardinal done");
         // sort radii
         let mut radii : Vec<(usize,f32)> = cardinals.iter().map(|(i,c)|  (*i, 1./c)).collect();
         radii.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
@@ -166,6 +175,8 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
                 log::debug!("inserted facility at {:?}, radius : {:.3e}", p.0, p.1);
             }
         }
+        //
+        return facilities;
     } // end of construct_centers
 
 

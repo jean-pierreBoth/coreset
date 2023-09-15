@@ -143,6 +143,7 @@ pub fn read_label_file(io_in: &mut dyn Read) -> Array1<u8>{
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
 
+use coreset::prelude::*;
 
 const MNIST_FASHION_DIR : &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
 
@@ -177,7 +178,7 @@ pub fn main() {
         images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         for k in 0..nbimages {
             // we convert to float normalized 
-            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32/255.).collect();
+            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32/(255.* 28. * 28.)).collect();
             images_as_v.push(v);
         }
     } // drop mnist_train_data
@@ -213,8 +214,15 @@ pub fn main() {
     } // drop mnist_test_data
 
     // test mettu-plaxton algo
-    
-
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
+    //
+    let mpalgo = MettuPlaxton::<f32>::new(&images_as_v);
+    let distance = DistL2{};
+    let _facilities = mpalgo.construct_centers(&distance);
+    //
+    let cpu_time: Duration = cpu_start.elapsed();
+    println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
 } // end of main
 
 
