@@ -34,7 +34,7 @@ impl <T: Send+Sync> Bmor<T> {
         let centers = Vec::<(usize,Vec<T>)>::with_capacity(nb_centers_bound.trunc() as usize);
         let phase_cost_upper = 1.;
         let f_scale = phase_cost_upper/ (k as f32 * (1. + nbdata.ilog2() as f32));
-        Bmor{k, nbdata_expected : nbdata, phase : 0, beta, phase_cost_upper, gamma, centers, f_scale}
+        Bmor{k, nbdata_expected : nbdata, phase : 0, beta, phase_cost_upper, gamma, centers, f_scale : f_scale.into()}
     }
 
 
