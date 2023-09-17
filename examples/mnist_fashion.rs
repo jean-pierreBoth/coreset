@@ -219,10 +219,20 @@ pub fn main() {
     //
     let mpalgo = MettuPlaxton::<f32>::new(&images_as_v);
     let distance = DistL2{};
-    let _facilities = mpalgo.construct_centers(&distance);
+    let mut facilities = mpalgo.construct_centers(&distance);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
+    //
+    mpalgo.compute_cost(&mut facilities, &images_as_v, &distance);
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_cloned_facility(i).unwrap();
+        facility.log();
+        let label = labels[facility.get_dataid()];
+        log::info!("label is : {:?}", label)
+
+    }
 } // end of main
 
 

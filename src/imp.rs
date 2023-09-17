@@ -23,7 +23,9 @@ use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 use hnsw_rs::dist::*;
 
 use crate::scale::*;
+use crate::facility::*;
 
+/* 
 /// a facility is a center in coreset approximation
 pub struct Facility<T: Send+Sync+Clone> {
     /// rank 
@@ -94,6 +96,9 @@ impl <T:Send+Sync+Clone> Facilities<T> {
         }
     }
 } // end of impl block Facilities
+
+*/
+
 
 //==================================================================================
 
@@ -188,7 +193,6 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
         let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), distance, d_median)).collect();
         log::debug!("estimate_ball_cardinal done");
         // sort radii
-//        let mut radii : Vec<(usize,f32)> = cardinals.iter().map(|(i,c)|  (*i, 1./c)).collect();
         radii.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
         assert!(radii.first().unwrap().1 <= radii.last().unwrap().1);
         // facility allocation, loop on data, check for existing facility around each point
@@ -205,24 +209,36 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
         return facilities;
     } // end of construct_centers
 
+
+
+
     // affect each point to a facility.
-    pub fn compute_cost<Dist : Distance<T>>(&self, centers : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+    pub fn compute_cost<Dist : Distance<T>>(&self, facilities : &mut Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
         where Dist : Send + Sync {
             //
-        let nb_facility = centers.get_nb_facility();
+        log::info!("MettuPlaxton computing costs ...");
+        let nb_facility = facilities.len();
         for i in 0..data.len() {
             let mut affectation = Vec::<(usize, f32)>::with_capacity(nb_facility);
             for j in 0..nb_facility {
-                let (jf,dist) = (j, distance.eval(&data[i], centers.get_facility(j).unwrap().get_position()));
+                let facility = facilities.get_facility(j).unwrap().read();
+                let (jf,dist) = (j, distance.eval(&data[i], facility.get_position()));
                 affectation.push((jf,dist));
             }
             // sort
             affectation.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
             // point i is affected to affectation[0]
-            
-        }
+            let f_rank = affectation[0].0;
+            let dist = affectation[0].1;
+            let mut facility = facilities.get_facility(f_rank).unwrap();
+            facility.write().insert(1., dist);
 
-    } // end of centers
+        }
+        //
+        for i in 0..nb_facility{
+            facilities.get_facility(i).unwrap().read().log();
+        }
+    } // end of compute_cost
 
 
 
