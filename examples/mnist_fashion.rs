@@ -178,7 +178,7 @@ pub fn main() {
         images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         for k in 0..nbimages {
             // we convert to float normalized 
-            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32/(255.* 28. * 28.)).collect();
+            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32).collect();
             images_as_v.push(v);
         }
     } // drop mnist_train_data
