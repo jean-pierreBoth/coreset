@@ -18,8 +18,11 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::SeedableRng;
 
 use rand::distributions::{Distribution,Uniform};
+use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 
 use hnsw_rs::dist::*;
+
+use crate::scale::*;
 
 /// a facility is a center in coreset approximation
 pub struct Facility<T: Send+Sync+Clone> {
@@ -27,12 +30,14 @@ pub struct Facility<T: Send+Sync+Clone> {
     dataid : usize,
 
     position : Vec<T>,
+
+    weight : f64,
 }
 
 impl <T:Send+Sync+Clone> Facility<T> {
     ///
     pub fn new(dataid : usize, position : &Vec<T>) -> Self {
-        Facility{dataid, position : (*position).clone()}
+        Facility{dataid, position : (*position).clone(), weight: 0.}
     }
 
     pub fn get_position(&self) -> &Vec<T> {
@@ -60,6 +65,11 @@ impl <T:Send+Sync+Clone> Facilities<T> {
         Facilities{centers}
     }
 
+    /// return number of facility
+    pub fn get_nb_facility(&self) -> usize {
+        return self.centers.len()
+    }
+
     // return true if there is a facility around point at distance less than dmax
     fn match_point<Dist : Distance<T>>(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
         //
@@ -73,6 +83,15 @@ impl <T:Send+Sync+Clone> Facilities<T> {
 
     fn insert(&mut self, facility : Facility<T>) {
         self.centers.push(facility);
+    }
+
+    pub fn get_facility(&self, rank : usize) -> Option<&Facility<T>> {
+        if rank >= self.centers.len() {
+            return None;
+        }
+        else {
+            return Some(&self.centers[rank]);
+        }
     }
 } // end of impl block Facilities
 
@@ -96,6 +115,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
     pub fn new(data : &'b Vec<Vec<T>>) -> Self {
         let nb_data = data.len();
         let j = data.len().ilog2() as u32;
+        //
         MettuPlaxton{data, nb_data, j, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
     }
 
@@ -108,11 +128,12 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
     // return n * N /K
     // running time O(r * n * log(n)).
     // to be called in //
-    fn estimate_ball_cardinal<Dist : Distance<T>>(&self, (ip, point) : (usize,  &Vec<T>), distance : &Dist) -> (usize, f32) 
+    fn estimate_ball_cardinal<Dist : Distance<T>>(&self, (ip, point) : (usize,  &Vec<T>), distance : &Dist, scale : f32) -> (usize, f32) 
         where Dist : Sync {
         //
         let c = 2.;
-        let mut j_tmp = self.j;
+        let j_shift = scale.log2() as usize;
+        let mut j_tmp = self.j ;
         // at beginning nb_sample = c * self.j i.e c * log(nb_data) and double at each iteration
         let mut rng = self.rng.clone();
         let mut iter_num = 0;
@@ -120,11 +141,11 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
         rng.jump();
         let unif = Uniform::<usize>::new(0, self.nb_data);
         let r : f32 = loop {
-            let mut r_test = 1.0f32/ 2_u32.pow(j_tmp) as f32;
-            let nb_sample_f : f64 = c * (self.nb_data as f64 * r_test as f64) * self.j as f64;
+            let mut r_test = scale / 2_u32.pow(j_tmp) as f32;
+            let nb_sample_f : f32 = c * (self.nb_data as f32 * r_test / scale) / self.j as f32;
             let nb_sample : u32 = nb_sample_f.trunc() as u32;
             log::trace!("estimate_ball_cardinal nb_sample : {:?}", nb_sample);
-            let mut nb_in = 0;
+            let mut nb_in = 1;  // count center in!
             for i in 0..nb_sample {
                 // sample and compute distance to point ip
                 let k = unif.sample(&mut rng);
@@ -135,9 +156,9 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
             }
             // 
             if nb_in >= 2_usize.pow(j_tmp) {
-                log::debug!("estimate_ball_cardinal for point {:?} ; nb_iter = {:?}, cardinal : {:?}", ip, iter_num, nb_in);
+                log::debug!("estimate_ball_cardinal for point {:?} ; nb_iter = {:?}, cardinal : {:?}, radius : {:.3e}", ip, iter_num, nb_in, r_test);
                 // an estimator of radius is 1/2^j
-                break (self.nb_data * nb_in) as f32 /  nb_sample as f32;
+                break r_test;
             }
             else {
                 if j_tmp < 1 {
@@ -156,13 +177,18 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
     /// construct centers (facilities) for distance 
     pub fn construct_centers<Dist : Distance<T>>(&self, distance : &Dist) -> Facilities<T>
          where Dist : Send + Sync {
+        // get scales
+        let q_dist = scale_estimation(1_000_000, self.data, distance);
+        let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
+        let d_median = q_dist.query(0.999).unwrap().1;
+        log::info!("dist median : {:.3e}",d_median);
         //
         let mut facilities = Facilities::<T>::new(self.j as usize);
         // estimate radii in //
-        let cardinals : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), distance)).collect();
+        let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), distance, d_median)).collect();
         log::debug!("estimate_ball_cardinal done");
         // sort radii
-        let mut radii : Vec<(usize,f32)> = cardinals.iter().map(|(i,c)|  (*i, 1./c)).collect();
+//        let mut radii : Vec<(usize,f32)> = cardinals.iter().map(|(i,c)|  (*i, 1./c)).collect();
         radii.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
         assert!(radii.first().unwrap().1 <= radii.last().unwrap().1);
         // facility allocation, loop on data, check for existing facility around each point
@@ -178,6 +204,26 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
         //
         return facilities;
     } // end of construct_centers
+
+    // affect each point to a facility.
+    pub fn compute_cost<Dist : Distance<T>>(&self, centers : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+        where Dist : Send + Sync {
+            //
+        let nb_facility = centers.get_nb_facility();
+        for i in 0..data.len() {
+            let mut affectation = Vec::<(usize, f32)>::with_capacity(nb_facility);
+            for j in 0..nb_facility {
+                let (jf,dist) = (j, distance.eval(&data[i], centers.get_facility(j).unwrap().get_position()));
+                affectation.push((jf,dist));
+            }
+            // sort
+            affectation.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
+            // point i is affected to affectation[0]
+            
+        }
+
+    } // end of centers
+
 
 
 } // end of impl block

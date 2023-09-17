@@ -52,7 +52,7 @@ impl<T: Send+Sync> Facility<T> {
 pub struct BmorState<T:Send+Sync> {
     // nb iterations (phases)
     phase : usize,
-    // at each phse we have an upper bound for cost.
+    // at each phase we have an upper bound for cost.
     phase_cost_upper : f32,
     // current centers, associated to rank in stream (or in data) and weight (nb points in facility)
     centers : Vec<Facility<T>>,
@@ -149,9 +149,13 @@ impl Bmor {
         self.process_weighted_block(&mut state, &weighted_data);
     } // end of process_block
 
+
+
     // This method can do block processing as dispatched by 
     // recurring processing
     pub fn process_weighted_block<T : Send + Sync + Clone>(&mut self, state : &mut BmorState<T>, data : &Vec<(f32,&Vec<T>)>) {
+        //
+        log::debug!("entering process_weighted_block, pahse : {:?}", state.get_phase());
         //
         for d in data {
             let add_res = self.add_data(state, &d.1, d.0);
@@ -165,10 +169,9 @@ impl Bmor {
                 weighted_data  =  state.centers.iter().map(|f| (f.get_weight(), f.get_center().clone())).collect();
                 let weighted_ref_data : Vec<(f32,&Vec<T>)> = weighted_data.iter().map(|wd| (wd.0, &wd.1)  ).collect();
                 self.process_weighted_block(state, &weighted_ref_data);
-                // clear facilites
             }
         }
-    } // end of batch_process_weighted
+    } // end of process_weighted_block
 
 
     // This function return true except if we got beyond bound for cost or number of facilities
