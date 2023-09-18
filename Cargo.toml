@@ -62,5 +62,7 @@ byteorder = {version = "1.4"}
 anyhow = {version = "1.0"}
 katexit = {version = "0.1"}
 
-[dev-dependencies]
 ndarray = {version = "0.15"}
+
+[dev-dependencies]
+linfa-clustering = {version = "0.6"}

@@ -1,13 +1,9 @@
-//! Structure and functions to read MNIST fashion database
+//! Structure and functions to read MNIST digits database
 //! To run the examples change the line :  
 //! 
-//! const MNIST_FASHION_DIR : &'static str = "/home.1/jpboth/Data/Fashion-MNIST/";
+//! const MNIST_DIGITS_DIR : &'static str = "/home/jpboth/Data/MNIST/";
 //! 
-//! The data can be downloaded in the same format as the FASHION database from:  
-//! 
-//! <https://github.com/zalandoresearch/fashion-mnist/tree/master/data/fashion>
-//! 
-
+//! to whatever directory you downloaded the [MNIST digits data](http://yann.lecun.com/exdb/mnist/)
 
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -16,17 +12,15 @@ use std::fs::OpenOptions;
 use std::path::PathBuf;
 
 
-use std::io::Cursor;
-use byteorder::{BigEndian, ReadBytesExt};
 
 
 
 use hnsw_rs::prelude::*;
 
 
-/// A struct to load/store for Fashion Mnist in the same format as [MNIST data](http://yann.lecun.com/exdb/mnist/)  
-/// stores labels (i.e : FASHION between 0 and 9) coming from file train-labels-idx1-ubyte      
-/// and objects as 28*28 images with values between 0 and 255 coming from train-images-idx3-ubyte
+/// A struct to load/store [MNIST data](http://yann.lecun.com/exdb/mnist/)  
+/// stores labels (i.e : digits between 0 and 9) coming from file train-labels-idx1-ubyte      
+/// and hand written characters as 28*28 images with values between 0 and 255 coming from train-images-idx3-ubyte
 pub struct MnistData {
     _image_filename : String,
     _label_filename : String,
@@ -54,7 +48,7 @@ impl MnistData {
         } )
     } // end of new for MnistData
 
-    /// returns labels of images. lables\[k\] is the label of the k th image.
+    /// returns labels of images. lables[k] is the label of the k th image.
     pub fn get_labels(&self) -> &Array1::<u8> {
         &self.labels
     }
@@ -67,28 +61,32 @@ impl MnistData {
 } // end of impl MnistData
 
 
-
 pub fn read_image_file(io_in: &mut dyn Read) -> Array3::<u8> {
     // read 4 bytes magic
+    let magic : u32;
     // to read 32 bits in network order!
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let magic = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();
+    let toread : u32 = 0;
+    let it_slice = unsafe {::std::slice::from_raw_parts_mut((&toread as *const u32) as *mut u8, ::std::mem::size_of::<u32>() )};
+    io_in.read_exact(it_slice).unwrap();
+    magic = u32::from_be(toread);
     assert_eq!(magic, 2051);
     // read nbitems
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbitem =  Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();
+    let nbitem : u32;
+    let it_slice = unsafe {::std::slice::from_raw_parts_mut((&toread as *const u32) as *mut u8, ::std::mem::size_of::<u32>() )};
+    io_in.read_exact(it_slice).unwrap();
+    nbitem = u32::from_be(toread);
     assert!(nbitem == 60000 || nbitem == 10000);
     //  read nbrow
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbrow = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();
+    let nbrow : u32;
+    let it_slice = unsafe {::std::slice::from_raw_parts_mut((&toread as *const u32) as *mut u8, ::std::mem::size_of::<u32>() )};
+    io_in.read_exact(it_slice).unwrap();
+    nbrow = u32::from_be(toread); 
     assert_eq!(nbrow, 28);   
     // read nbcolumns
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbcolumn = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();     
+    let nbcolumn : u32;
+    let it_slice = unsafe {::std::slice::from_raw_parts_mut((&toread as *const u32) as *mut u8, ::std::mem::size_of::<u32>() )};
+    io_in.read_exact(it_slice).unwrap();
+    nbcolumn = u32::from_be(toread);     
     assert_eq!(nbcolumn,28);   
     // for each item, read a row of nbcolumns u8
     let mut images = Array3::<u8>::zeros((nbrow as usize , nbcolumn as usize, nbitem as usize));
@@ -118,22 +116,25 @@ pub fn read_image_file(io_in: &mut dyn Read) -> Array3::<u8> {
 
 
 pub fn read_label_file(io_in: &mut dyn Read) -> Array1<u8>{
+    let magic : u32;
     // to read 32 bits in network order!
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let magic = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();     
+    let toread : u32 = 0;
+    let it_slice = unsafe {::std::slice::from_raw_parts_mut((&toread as *const u32) as *mut u8, ::std::mem::size_of::<u32>() )};
+    io_in.read_exact(it_slice).unwrap();
+    magic = u32::from_be(toread);
     assert_eq!(magic, 2049);
-    // read nbitems
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbitem = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap(); 
-    assert!(nbitem == 60000 || nbitem == 10000);
-    let mut labels_vec = Vec::<u8>::new();
-    labels_vec.resize(nbitem as usize, 0);
-    io_in.read_exact(&mut labels_vec).unwrap();
-    let labels = Array1::from(labels_vec);
-    labels
-}  // end of fn read_label
+     // read nbitems
+     let nbitem : u32;
+     let it_slice = unsafe {::std::slice::from_raw_parts_mut((&toread as *const u32) as *mut u8, ::std::mem::size_of::<u32>() )};
+     io_in.read_exact(it_slice).unwrap();
+     nbitem = u32::from_be(toread);   
+     assert!(nbitem == 60000 || nbitem == 10000);
+     let mut labels_vec = Vec::<u8>::new();
+     labels_vec.resize(nbitem as usize, 0);
+     io_in.read_exact(&mut labels_vec).unwrap();
+     let labels = Array1::from(labels_vec);
+     labels
+    }  // end of fn read_label
 
 //============================================================================================
 
@@ -145,13 +146,13 @@ use cpu_time::ProcessTime;
 
 use coreset::prelude::*;
 
-const MNIST_FASHION_DIR : &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
+const MNIST_DIGITS_DIR : &'static str = "/home/jpboth/Data/ANN/MNIST/";
 
 pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
     //
-    let mut image_fname = String::from(MNIST_FASHION_DIR);
+    let mut image_fname = String::from(MNIST_DIGITS_DIR);
     image_fname.push_str("train-images-idx3-ubyte");
     let image_path = PathBuf::from(image_fname.clone());
     let image_file_res = OpenOptions::new().read(true).open(&image_path);
@@ -159,7 +160,7 @@ pub fn main() {
         println!("could not open image file : {:?}", image_fname);
         return;
     }
-    let mut label_fname = String::from(MNIST_FASHION_DIR);
+    let mut label_fname = String::from(MNIST_DIGITS_DIR);
     label_fname.push_str("train-labels-idx1-ubyte");
     let label_path = PathBuf::from(label_fname.clone());
     let label_file_res = OpenOptions::new().read(true).open(&label_path);
@@ -177,13 +178,12 @@ pub fn main() {
         //
         images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         for k in 0..nbimages {
-            // we convert to float normalized 
-            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32 / (28. * 28.)).collect();
+            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32).collect();
             images_as_v.push(v);
         }
     } // drop mnist_train_data
     // now read test data
-    let mut image_fname = String::from(MNIST_FASHION_DIR);
+    let mut image_fname = String::from(MNIST_DIGITS_DIR);
     image_fname.push_str("t10k-images-idx3-ubyte");
     let image_path = PathBuf::from(image_fname.clone());
     let image_file_res = OpenOptions::new().read(true).open(&image_path);
@@ -191,7 +191,7 @@ pub fn main() {
         println!("could not open image file : {:?}", image_fname);
         return;
     }
-    let mut label_fname = String::from(MNIST_FASHION_DIR);
+    let mut label_fname = String::from(MNIST_DIGITS_DIR);
     label_fname.push_str("t10k-labels-idx1-ubyte");
     let label_file_res = OpenOptions::new().read(true).open(&label_path);
     if label_file_res.is_err() {
@@ -206,14 +206,14 @@ pub fn main() {
         let mut test_images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         //
         for k in 0..nbimages {
-            let v : Vec<f32> = test_images.slice(s![.., .., k]).iter().map(|v| *v as f32 / (28.*28.)).collect();
+            let v : Vec<f32> = test_images.slice(s![.., .., k]).iter().map(|v| *v as f32).collect();
             test_images_as_v.push(v);
         }
         labels.append(&mut test_labels);
         images_as_v.append(&mut test_images_as_v);
     } // drop mnist_test_data
 
-    //
+   //
     // test mettu-plaxton algo
     //
     let cpu_start = ProcessTime::now();
@@ -236,10 +236,10 @@ pub fn main() {
         log::info!("label is : {:?}", label)
 
     }
-
+    //
     let (cost, labels_distribution) = facilities.dispatch_labels(&images_as_v , &labels, &distance);
     log::info!("global cost : {:.3e}", cost);
-    //
+
     for i in 0..labels_distribution.len() {
         log::info!("\n\n facility : {:?}", i);
         let map = &labels_distribution[i];
@@ -247,7 +247,7 @@ pub fn main() {
             println!("key: {key} val: {val}");
         }
     }
-} // end of main
+}  // end of main digits
 
 
 //============================================================================================
@@ -264,8 +264,9 @@ use super::*;
 // test and compare some values obtained with Julia loading
 
 #[test]
-fn test_load_mnist_fashion() {
-    let mut image_fname = String::from(MNIST_FASHION_DIR);
+
+fn test_load_mnist() {
+    let mut image_fname = String::from(MNIST_DIGITS_DIR);
     image_fname.push_str("train-images-idx3-ubyte");
     let image_path = PathBuf::from(image_fname.clone());
     let image_file_res = OpenOptions::new().read(true).open(&image_path);
@@ -274,7 +275,7 @@ fn test_load_mnist_fashion() {
         return;
     }
 
-    let mut label_fname = String::from(MNIST_FASHION_DIR);
+    let mut label_fname = String::from(MNIST_DIGITS_DIR);
     label_fname.push_str("train-labels-idx1-ubyte");
     let label_path = PathBuf::from(label_fname.clone());
     let label_file_res = OpenOptions::new().read(true).open(&label_path);
@@ -283,9 +284,15 @@ fn test_load_mnist_fashion() {
         return;
     }
 
-    let _mnist_data  = MnistData::new(image_fname, label_fname).unwrap();
+    let mnist_data  = MnistData::new(image_fname, label_fname).unwrap();
+    assert_eq!(0x3c, *mnist_data.images.get([9,14,9]).unwrap());
+    assert_eq!(0xfd, mnist_data.images[(14 , 9, 9)]);
     // check some value of the tenth images
 
+    // check first and last labels
+    assert_eq!(5, mnist_data.labels[0]);
+    assert_eq!(8, mnist_data.labels[mnist_data.labels.len()-1]);
+    assert_eq!(1,1);
 } // end test_load
 
 

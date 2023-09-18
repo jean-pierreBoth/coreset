@@ -14,6 +14,9 @@ This crate will provide median [$\alpha$,$\beta$] approximation in **metric spac
         [arxiv-v3](https://arxiv.org/abs/1612.00889)
 
 
+## Examples
+
+
 ## License
 
 Licensed under either of

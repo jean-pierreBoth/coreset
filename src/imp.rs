@@ -3,6 +3,9 @@
 //!       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
 //!       [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
 //! 
+//!  The algorithm computes an $\alpha$, $\beta$ k-median approximation that can be used as input
+//!  to coreset computatons.
+//! 
 //!  The data we will run on are essentially Vec<T> where T can be anything as long as we have a distance on Vec<T> provided by the hnsw crate
 //!  see [hnsw-dist](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html)
 //! 
@@ -25,83 +28,10 @@ use hnsw_rs::dist::*;
 use crate::scale::*;
 use crate::facility::*;
 
-/* 
-/// a facility is a center in coreset approximation
-pub struct Facility<T: Send+Sync+Clone> {
-    /// rank 
-    dataid : usize,
-
-    position : Vec<T>,
-
-    weight : f64,
-}
-
-impl <T:Send+Sync+Clone> Facility<T> {
-    ///
-    pub fn new(dataid : usize, position : &Vec<T>) -> Self {
-        Facility{dataid, position : (*position).clone(), weight: 0.}
-    }
-
-    pub fn get_position(&self) -> &Vec<T> {
-        &self.position
-    }
-
-    pub fn get_id(&self) -> usize {
-        self.dataid
-    }
-}  // end of impl block Facility
 
 //==================================================================================
 
-
-/// describes the list of facility (or centers created)
-pub struct Facilities<T : Send+Sync+Clone> {
-    centers : Vec<Facility<T>>
-}
-
-impl <T:Send+Sync+Clone> Facilities<T> {
-
-    /// to be allocated , size should be log(nb_data)
-    pub fn new(size : usize) -> Self {
-        let centers = Vec::<Facility<T>>::with_capacity(size);
-        Facilities{centers}
-    }
-
-    /// return number of facility
-    pub fn get_nb_facility(&self) -> usize {
-        return self.centers.len()
-    }
-
-    // return true if there is a facility around point at distance less than dmax
-    fn match_point<Dist : Distance<T>>(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
-        //
-        for f in &self.centers {
-            if distance.eval(f.get_position(), point) <= dmax {
-                return true;
-            }
-        }
-        return false;
-    } // end of match_facility
-
-    fn insert(&mut self, facility : Facility<T>) {
-        self.centers.push(facility);
-    }
-
-    pub fn get_facility(&self, rank : usize) -> Option<&Facility<T>> {
-        if rank >= self.centers.len() {
-            return None;
-        }
-        else {
-            return Some(&self.centers[rank]);
-        }
-    }
-} // end of impl block Facilities
-
-*/
-
-
-//==================================================================================
-
+///
 pub struct MettuPlaxton <'b, T: Send+Sync> {
     //
     nb_data : usize,
@@ -179,13 +109,13 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
 
-    /// construct centers (facilities) for distance 
+    /// construct centers (facilities) for a given distance and returns allocated facilities (or centers)
     pub fn construct_centers<Dist : Distance<T>>(&self, distance : &Dist) -> Facilities<T>
          where Dist : Send + Sync {
         // get scales
         let q_dist = scale_estimation(1_000_000, self.data, distance);
         let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
-        let d_median = q_dist.query(0.999).unwrap().1;
+        let d_median = q_dist.query(0.5).unwrap().1;
         log::info!("dist median : {:.3e}",d_median);
         //
         let mut facilities = Facilities::<T>::new(self.j as usize);
@@ -213,7 +143,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
     // affect each point to a facility.
-    pub fn compute_cost<Dist : Distance<T>>(&self, facilities : &mut Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+    pub fn compute_cost_serial<Dist : Distance<T>>(&self, facilities : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
         where Dist : Send + Sync {
             //
         log::info!("MettuPlaxton computing costs ...");
@@ -235,11 +165,65 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
         }
         //
-        for i in 0..nb_facility{
+        let mut total_weight = 0.;
+        log::info!("nb facilities  : {:?}", nb_facility);
+        for i in 0..nb_facility {
+            let facility = facilities.get_facility(i).unwrap().read();
+            total_weight += facility.get_weight();
             facilities.get_facility(i).unwrap().read().log();
         }
-    } // end of compute_cost
+        log::info!("weight dispatched into facilities : {:.5e}", total_weight);
+    } // end of compute_cost_serial
 
+
+
+    // affect each point to a facility.
+    pub fn compute_cost_parallel<Dist : Distance<T>>(&self, facilities : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+        where Dist : Send + Sync {
+            //
+        log::info!("MettuPlaxton computing costs ...");
+        //
+        let nb_facility = facilities.len();
+        let affect = | i : usize| -> u8 {
+            let mut affectation = Vec::<(usize, f32)>::with_capacity(nb_facility);
+            for j in 0..nb_facility {
+                let facility = facilities.get_facility(j).unwrap().read();
+                let (jf,dist) = (j, distance.eval(&data[i], facility.get_position()));
+                affectation.push((jf,dist));
+            }
+            // sort
+            affectation.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
+            // point i is affected to affectation[0]
+            let f_rank = affectation[0].0;
+            let dist = affectation[0].1;
+            let mut facility = facilities.get_facility(f_rank).unwrap();
+            facility.write().insert(1., dist);
+            //
+            return 1;           
+        };
+        //
+        let res : Vec<u8>= (0..data.len()).into_par_iter().map(|i| affect(i)).collect();
+        //
+        //
+        for i in 0..nb_facility {
+            facilities.get_facility(i).unwrap().read().log();
+        }
+    } // end of  compute_cost  
+
+
+
+    pub fn compute_cost<Dist : Distance<T>>(&self, facilities : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+    where Dist : Send + Sync {
+        //
+        if data.len() > 1_000_000 {
+            self.compute_cost_parallel(facilities, data, distance);
+        }
+        else {
+            self.compute_cost_serial(facilities, data, distance);
+        }
+        //
+        facilities.cross_distances(distance);
+    } // end of compute_cost
 
 
 } // end of impl block
