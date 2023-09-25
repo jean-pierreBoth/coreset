@@ -19,7 +19,7 @@ pub fn scale_estimation<T, Dist : Distance<T>>(nbsample : usize, data : &Vec<Vec
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
     let nbdata = data.len();
     let unif = Uniform::<usize>::new(0, nbdata);
-    let couples : Vec<(usize,usize)> = (0..nbsample).into_iter().map(|_| (unif.sample(&mut rng),unif.sample(&mut rng)) ).collect();
+    let couples : Vec<(usize,usize)> = (0..nbsample).into_iter().map(|_| (unif.sample(&mut rng),unif.sample(&mut rng)) ).filter(|c| c.0 != c.1).collect();
     let dvec : Vec<f32> = couples.into_par_iter().map( |(it1,it2)| distance.eval(&data[it1],&data[it2])).collect();
     //
     let mut q_dist = CKMS::<f32>::new(0.01);

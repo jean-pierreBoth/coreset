@@ -27,7 +27,7 @@ path = "examples/mnist_fashion.rs"
 #
 
 
-clap = { version = "4.2", features = ["derive"] }
+clap = { version = "4.4", features = ["derive"] }
 
 
 # for //
@@ -38,8 +38,10 @@ num_cpus = {version = "1.8.0"}
 cpu-time = {version = "1.0"}
 
 
-# hnsw_rs = {git = "https://github.com/jean-pierreBoth/hnswlib-rs"}
-hnsw_rs = {path = "../hnswlib-rs", features = ["simdeez_f"]}
+#hnsw_rs = {git = "https://github.com/jean-pierreBoth/hnswlib-rs", features = ["simdeez_f"]}
+hnsw_rs = {version = "0.2", features = ["simdeez_f"]}
+
+#hnsw_rs = {path = "../hnswlib-rs", features = ["simdeez_f"]}
 
 # rand utilis
 rand = {version = "0.8"}

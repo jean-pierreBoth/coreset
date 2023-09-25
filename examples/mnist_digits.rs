@@ -219,14 +219,14 @@ pub fn main() {
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     //
-    let mpalgo = MettuPlaxton::<f32>::new(&images_as_v);
     let distance = DistL2{};
-    let facilities = mpalgo.construct_centers(&distance);
+    let mpalgo = MettuPlaxton::<f32, DistL2>::new(&images_as_v, distance);
+    let facilities = mpalgo.construct_centers();
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    mpalgo.compute_cost(&facilities, &images_as_v, &distance);
+    mpalgo.compute_cost(&facilities, &images_as_v);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();
@@ -237,7 +237,7 @@ pub fn main() {
 
     }
     //
-    let (cost, labels_distribution) = facilities.dispatch_labels(&images_as_v , &labels, &distance);
+    let (cost, labels_distribution) = facilities.dispatch_labels(&images_as_v , &labels);
     log::info!("global cost : {:.3e}", cost);
 
     for i in 0..labels_distribution.len() {

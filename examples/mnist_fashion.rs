@@ -3,6 +3,8 @@
 //! 
 //! const MNIST_FASHION_DIR : &'static str = "/home.1/jpboth/Data/Fashion-MNIST/";
 //! 
+//! command : mnist_fashion  --algo imp or bmor.
+//! 
 //! The data can be downloaded in the same format as the FASHION database from:  
 //! 
 //! <https://github.com/zalandoresearch/fashion-mnist/tree/master/data/fashion>
@@ -137,8 +139,107 @@ pub fn read_label_file(io_in: &mut dyn Read) -> Array1<u8>{
 
 //============================================================================================
 
+#[derive(Copy,Clone)]
+pub enum Algo {
+    IMP,
+    BMOR,
+}
+pub struct MnistParams {
+    algo : Algo
+} // end of MnistParams
+
+impl MnistParams {
+    pub fn new(algo : Algo) -> Self {
+        MnistParams{algo}
+    }
+    //
+    pub fn get_algo(&self) -> Algo { self.algo}
+}
+
+fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
+    //
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
+    // 
+    let mpalgo = MettuPlaxton::<f32,Dist>::new(&images, distance);
+    let facilities = mpalgo.construct_centers();
+    //
+    let cpu_time: Duration = cpu_start.elapsed();
+    println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
+    //
+    mpalgo.compute_cost(&facilities, &images);
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_cloned_facility(i).unwrap();
+        log::info!("\n\n facility : {:?}", i);
+        facility.log();
+        let label = labels[facility.get_dataid()];
+        log::info!("label is : {:?}", label)
+
+    }
+
+    let (cost, labels_distribution) = facilities.dispatch_labels(&images , labels);
+    log::info!("global cost : {:.3e}", cost);
+    //
+    for i in 0..labels_distribution.len() {
+        log::info!("\n\n facility : {:?}", i);
+        let map = &labels_distribution[i];
+        for (key, val) in map.iter() {
+            println!("key: {key} val: {val}");
+        }
+    }
+}
+
+//========================================================
 
 
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
+    //
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
+    //
+    let beta = 2.;
+    let gamma = 2.;
+    let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
+    bmor_algo.process_block(images);
+    //
+    let cpu_time: Duration = cpu_start.elapsed();
+     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
+}
+
+//========================================================
+
+pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
+    log::debug!("in parse_cmd");
+    if matches.contains_id("algo") {
+        println!("decoding argument algo");
+        let algoname = matches.get_one::<String>("algo").expect("");
+        log::debug!(" got algo : {:?}", algoname);
+        match algoname.as_str() {
+            "imp" => {
+                let params = MnistParams::new(Algo::IMP);
+                return Ok(params);
+            },
+            "bmor" => {
+                let params = MnistParams::new(Algo::BMOR);
+                return Ok(params);
+            }
+            //
+            _           => {
+                log::error!(" algo must be imp or bmor");
+                std::process::exit(1);
+            }
+        }
+    }
+    //
+    return Err(anyhow::anyhow!("bad command"));
+} // end of parse_cmd
+
+
+
+//========================================================
+
+use clap::{Arg, ArgMatches, ArgAction, Command};
 
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
@@ -150,6 +251,20 @@ const MNIST_FASHION_DIR : &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
 pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
+    //
+    let matches = Command::new("mnist_fashion")
+    //        .subcommand_required(true)
+            .arg_required_else_help(true)
+            .arg(Arg::new("algo")
+                .required(true)
+                .long("algo")    
+                .action(ArgAction::Set)
+                .value_parser(clap::value_parser!(String))
+                .required(true)
+                .help("expecting a algo option imp, bmor "))
+        .get_matches();
+    //
+    let mnist_params = parse_cmd(&matches).unwrap();
     //
     let mut image_fname = String::from(MNIST_FASHION_DIR);
     image_fname.push_str("train-images-idx3-ubyte");
@@ -214,38 +329,16 @@ pub fn main() {
     } // drop mnist_test_data
 
     //
-    // test mettu-plaxton algo
+    // test mettu-plaxton or bmor algo
     //
-    let cpu_start = ProcessTime::now();
-    let sys_now = SystemTime::now();
-    //
-    let mpalgo = MettuPlaxton::<f32>::new(&images_as_v);
-    let distance = DistL2{};
-    let facilities = mpalgo.construct_centers(&distance);
-    //
-    let cpu_time: Duration = cpu_start.elapsed();
-    println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
-    //
-    mpalgo.compute_cost(&facilities, &images_as_v, &distance);
-    let nb_facility = facilities.len();
-    for i in 0..nb_facility {
-        let facility = facilities.get_cloned_facility(i).unwrap();
-        log::info!("\n\n facility : {:?}", i);
-        facility.log();
-        let label = labels[facility.get_dataid()];
-        log::info!("label is : {:?}", label)
-
-    }
-
-    let (cost, labels_distribution) = facilities.dispatch_labels(&images_as_v , &labels, &distance);
-    log::info!("global cost : {:.3e}", cost);
-    //
-    for i in 0..labels_distribution.len() {
-        log::info!("\n\n facility : {:?}", i);
-        let map = &labels_distribution[i];
-        for (key, val) in map.iter() {
-            println!("key: {key} val: {val}");
+    let distance = DistL2::default();
+    match mnist_params.get_algo() {
+        Algo::IMP   => {
+            marrupaxton(&mnist_params, &images_as_v, &labels, distance)
         }
+        Algo::BMOR   => {
+            bmor(&mnist_params, &images_as_v, &labels, distance)
+        }   
     }
 } // end of main
 

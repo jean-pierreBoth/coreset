@@ -32,7 +32,7 @@ use crate::facility::*;
 //==================================================================================
 
 ///
-pub struct MettuPlaxton <'b, T: Send+Sync> {
+pub struct MettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
     //
     nb_data : usize,
     //
@@ -40,18 +40,20 @@ pub struct MettuPlaxton <'b, T: Send+Sync> {
     // j is integer value of log data.len()
     j       : u32,
     //
+    distance : Dist,
+    //
     rng : Xoshiro256PlusPlus,
 } // end of struct MettuPlaxton
 
 
 
-impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
+impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
-    pub fn new(data : &'b Vec<Vec<T>>) -> Self {
+    pub fn new(data : &'b Vec<Vec<T>>, distance : Dist) -> Self {
         let nb_data = data.len();
         let j = data.len().ilog2() as u32;
         //
-        MettuPlaxton{data, nb_data, j, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
+        MettuPlaxton{data, nb_data, j, distance, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
     }
 
     pub fn get_nb_data(&self) -> usize {
@@ -63,7 +65,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
     // return n * N /K
     // running time O(r * n * log(n)).
     // to be called in //
-    fn estimate_ball_cardinal<Dist : Distance<T>>(&self, (ip, point) : (usize,  &Vec<T>), distance : &Dist, scale : f32) -> (usize, f32) 
+    fn estimate_ball_cardinal(&self, (ip, point) : (usize,  &Vec<T>), scale : f32) -> (usize, f32) 
         where Dist : Sync {
         //
         let c = 2.;
@@ -84,7 +86,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
             for i in 0..nb_sample {
                 // sample and compute distance to point ip
                 let k = unif.sample(&mut rng);
-                let dist = distance.eval(point, &self.data[k]);
+                let dist = self.distance.eval(point, &self.data[k]);
                 if dist  <= r_test {
                     nb_in += 1;
                 }
@@ -110,24 +112,24 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
     /// construct centers (facilities) for a given distance and returns allocated facilities (or centers)
-    pub fn construct_centers<Dist : Distance<T>>(&self, distance : &Dist) -> Facilities<T>
-         where Dist : Send + Sync {
+    pub fn construct_centers(&self) -> Facilities<T, Dist>
+         where Dist : Send + Sync + Clone {
         // get scales
-        let q_dist = scale_estimation(1_000_000, self.data, distance);
+        let q_dist = scale_estimation(1_000_000, self.data, &self.distance);
         let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
         let d_median = q_dist.query(0.5).unwrap().1;
         log::info!("dist median : {:.3e}",d_median);
         //
-        let mut facilities = Facilities::<T>::new(self.j as usize);
+        let mut facilities = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
         // estimate radii in //
-        let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), distance, d_median)).collect();
+        let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), d_median)).collect();
         log::debug!("estimate_ball_cardinal done");
         // sort radii
         radii.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
         assert!(radii.first().unwrap().1 <= radii.last().unwrap().1);
         // facility allocation, loop on data, check for existing facility around each point
         for p in radii.iter() {
-            let matched = facilities.match_point::<Dist>(&self.data[p.0],  2. * p.1, distance);
+            let matched = facilities.match_point(&self.data[p.0],  2. * p.1, &self.distance);
             if !matched {
                 // we inset a facility
                 let facility = Facility::new(p.0, &self.data[p.0]);
@@ -143,7 +145,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
     // affect each point to a facility.
-    pub fn compute_cost_serial<Dist : Distance<T>>(&self, facilities : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+    pub fn compute_cost_serial(&self, facilities : &Facilities<T, Dist>, data : &Vec<Vec<T>>, distance : &Dist)
         where Dist : Send + Sync {
             //
         log::info!("MettuPlaxton computing costs ...");
@@ -178,7 +180,7 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
     // affect each point to a facility.
-    pub fn compute_cost_parallel<Dist : Distance<T>>(&self, facilities : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+    pub fn compute_cost_parallel(&self, facilities : &Facilities<T, Dist>, data : &Vec<Vec<T>>, distance : &Dist)
         where Dist : Send + Sync {
             //
         log::info!("MettuPlaxton computing costs ...");
@@ -212,17 +214,17 @@ impl <'b, T:Send+Sync+Clone> MettuPlaxton<'b,T> {
 
 
 
-    pub fn compute_cost<Dist : Distance<T>>(&self, facilities : &Facilities<T>, data : &Vec<Vec<T>>, distance : &Dist)
+    pub fn compute_cost(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>)
     where Dist : Send + Sync {
         //
         if data.len() > 1_000_000 {
-            self.compute_cost_parallel(facilities, data, distance);
+            self.compute_cost_parallel(facilities, data, &self.distance);
         }
         else {
-            self.compute_cost_serial(facilities, data, distance);
+            self.compute_cost_serial(facilities, data, &self.distance);
         }
         //
-        facilities.cross_distances(distance);
+        facilities.cross_distances(&self.distance);
     } // end of compute_cost
 
 

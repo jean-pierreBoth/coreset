@@ -1,5 +1,7 @@
 //! implement facility management
 
+use anyhow::*;
+
 use ndarray::Array2;
 use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 
@@ -28,8 +30,8 @@ pub struct Facility<T: Send+Sync + Clone> {
 
 impl<T: Send+Sync+Clone> Facility<T> {
 
-    pub fn new(d_rank : usize, center : &Vec<T>) -> Self {
-        Facility{d_rank,center : center.clone(), weight : 0., cost : 0.}
+    pub fn new(d_rank : usize, center : &[T]) -> Self {
+        Facility{d_rank,center : center.to_vec(), weight : 0., cost : 0.}
     }
 
     pub fn get_position(&self) -> &Vec<T> {
@@ -63,22 +65,30 @@ impl<T: Send+Sync+Clone> Facility<T> {
 /// describes the list of facility (or centers created)
 /// As we want parallel access, running concurrently on all data we need Arc RwLock stuff
 #[derive(Clone)]
-pub struct Facilities<T : Send+Sync+Clone> {
-    centers : Vec<Arc<RwLock<Facility<T>>>>
+pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
+    centers : Vec<Arc<RwLock<Facility<T>>>>,
+    //
+    distance : Dist,
 }
 
-impl <T:Send+Sync+Clone> Facilities<T> {
+impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
 
     /// to be allocated , size should be log(nb_data)
-    pub fn new(size : usize) -> Self {
+    pub fn new(size : usize, distance : Dist) -> Self {
         let centers = Vec::<Arc<RwLock<Facility<T>>>>::with_capacity(size);
-        Facilities{centers}
+        Facilities{centers, distance}
     }
 
     /// return number of facility
     pub fn len(&self) -> usize {
         return self.centers.len()
     }
+
+    /// total weight already inserted
+    pub fn get_weight(&self) -> f32 {
+        return self.centers.iter().map(|f| f.read().get_weight()).sum()
+    }
+
 
     // useful in algorithm bmor when we need to reinitialize
     pub(crate) fn clear(&mut self) {
@@ -93,7 +103,7 @@ impl <T:Send+Sync+Clone> Facilities<T> {
 
 
     // return true if there is a facility around point at distance less than dmax
-    pub fn match_point<Dist : Distance<T>>(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
+    pub fn match_point(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
         //
         for f in &self.centers {
             if distance.eval(f.read().get_position(), point) <= dmax {
@@ -107,6 +117,8 @@ impl <T:Send+Sync+Clone> Facilities<T> {
     ///
     pub(crate) fn insert(&mut self, facility : Facility<T>) {
         self.centers.push(Arc::new(RwLock::new(facility)));
+        //
+        log::debug!(" facility insertion nb facilities : {}", self.centers.len());
     }
 
 
@@ -133,28 +145,38 @@ impl <T:Send+Sync+Clone> Facilities<T> {
 
 
     /// return rank of nearest facility
-    pub fn get_nearest_facility<Dist : Distance<T>>(&self, data : &[T], distance : &Dist) -> (usize, f32) {
+    pub fn get_nearest_facility(&self, data : &[T]) -> anyhow::Result<(usize, f32)> {
         let mut dist = f32::INFINITY;
         let mut rank_f : i32 = -1;
+        if self.centers.len() == 0 {
+            return Err(anyhow!("Empty facility"));
+        }
+        // can be // if many centers
         for i in 0..self.centers.len() {
             let f_i = self.get_facility(i).unwrap().read();
             let center_i = f_i.get_position(); 
-            let d_i = distance.eval(center_i, data);
+            let d_i = self.distance.eval(center_i, data);
             if d_i <= dist {
                 dist = d_i;
                 rank_f = i as i32;
             }
         }
         //
-        return (rank_f as usize, dist);
+        return Ok((rank_f as usize, dist));
     } // end of get_nearest_facility
 
+    /// a function to log info on dist and cost inside facilities
+    pub fn log(&self) {
+        for f in &self.centers {
+            f.read().log()
+        }
+    } // end of log 
 
 
     /// If we have labelled data we can store labels counts affected to each facility
     /// This function returns total cost and a vector of counts for eacl label occuring in a Facility
     /// Can be useful to check homogneity or clustering
-    pub fn dispatch_labels<Dist : Distance<T>>(&self, data : &Vec<Vec<T>>, labels : &Vec<u8> , distance :  &Dist) -> (f64, Vec::<HashMap<u8, u32>>) {
+    pub fn dispatch_labels(&self, data : &Vec<Vec<T>>, labels : &Vec<u8>) -> (f64, Vec::<HashMap<u8, u32>>) {
         //
         assert_eq!(data.len(), labels.len());
         //
@@ -166,7 +188,7 @@ impl <T:Send+Sync+Clone> Facilities<T> {
         }
         //
         for i in 0..data.len() {
-            let rank_dist = self.get_nearest_facility(&data[i], distance);
+            let rank_dist = self.get_nearest_facility(&data[i]).unwrap();
             global_cost += rank_dist.1 as f64;
             if let Some(count) = label_distribution[rank_dist.0].get_mut(&labels[i]) {
                 *count += 1;
@@ -182,7 +204,7 @@ impl <T:Send+Sync+Clone> Facilities<T> {
 
         // TODO: useful?
     /// computes distances between facility
-    pub fn cross_distances<Dist : Distance<T>>(&self, distance : &Dist) {
+    pub fn cross_distances(&self, distance : &Dist) {
         let nb_facility = self.centers.len();
         let mut distances = Array2::<f32>::zeros((nb_facility , nb_facility));
         let mut q_dist = CKMS::<f32>::new(0.01);
@@ -199,7 +221,7 @@ impl <T:Send+Sync+Clone> Facilities<T> {
             }
         }
         //
-        log::info!("\n cross facility distanes quantiles");
+        log::info!("\n cross facility distances quantiles");
 
         println!("\n distance quantiles at 0.05 : {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} , 0.9 : {:.2e}", 
         q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1, q_dist.query(0.9).unwrap().1);
