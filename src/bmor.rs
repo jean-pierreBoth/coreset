@@ -28,7 +28,7 @@ pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
     // nb iterations (phases)
     phase : usize,
     //
-    li : f32,
+    li : f64,
     // at each phase we have an upper bound for cost.
     phase_cost_upper : f64,
     // upper bound on number of facilities
@@ -44,7 +44,7 @@ pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
     //
     rng : Xoshiro256PlusPlus,
     //
-    unif : Uniform::<f32>,
+    unif : Uniform::<f64>,
 } // end of 
 
 
@@ -52,10 +52,10 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
 
     pub(crate) fn new(k : usize, nbdata : usize, phase : usize, alloc_size : usize, upper_cost : f64, facility_bound : usize, distance : Dist) -> Self {
         let centers = Facilities::<T, Dist>::new(alloc_size, distance);
-        let unif = Uniform::<f32>::new(0., 1.);
+        let unif = Uniform::<f64>::new(0., 1.);
         let rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
         let oneplogn = (1 + nbdata.ilog2()) as usize * k;
-        let li = 1.0f32;
+        let li = 1.0f64;
         BmorState{oneplogn, phase, li, phase_cost_upper : upper_cost, facility_bound, centers, absolute_weight : 0., total_cost : 0., nb_inserted : 0, rng, unif}
     }
 
@@ -72,7 +72,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
         self.phase
     }
 
-    pub(crate) fn get_li(&self) -> f32 {
+    pub(crate) fn get_li(&self) -> f64 {
         self.li
     }
 
@@ -81,7 +81,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
         self.nb_inserted
     }
 
-    pub(crate) fn get_unif_sample(&mut self) -> f32 {
+    pub(crate) fn get_unif_sample(&mut self) -> f64 {
         self.unif.sample(&mut self.rng)
     }
 
@@ -117,7 +117,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
 
     /// possibly create a new facility, otherwise update costs.
     /// return true if all is OK, false if costs or number of facilities got too large
-    fn update(&mut self, rank_id : usize, point : &[T], weight : f32) -> bool {
+    fn update(&mut self, rank_id : usize, point : &[T], weight : f64) -> bool {
         //
         log::debug!("in BmorState::update rank_id: {:?}", rank_id);
         //
@@ -134,7 +134,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
             nearest_facility = nearest_center.0.clone();
         }
         // take into account f factor
-        if self.get_unif_sample() < (weight * dist_to_nearest * self.oneplogn as f32 / self.li) {
+        if self.get_unif_sample() < (weight * dist_to_nearest as f64 * self.oneplogn as f64 / self.li) {
             // we create a new facility
             let mut new_f = Facility::<T>::new(rank_id, point);
             new_f.insert(weight, dist_to_nearest);
@@ -164,7 +164,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
     pub(crate) fn reinit(&mut self, li : f64, phase_cost_upper : f64) {
         self.phase += 1;
         self.phase_cost_upper = phase_cost_upper as f64;
-        self.li = li as f32;
+        self.li = li;
         self.centers.clear();
         self.absolute_weight = 0.;
         self.total_cost = 0.;
@@ -218,7 +218,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0,  nb_centers_bound as usize, 
                     upper_cost as f64, nb_centers_bound, self.distance.clone());
         //
-        let weighted_data: Vec<(f32, &Vec<T>)> = data.iter().map( |v| (1.,v)).collect();
+        let weighted_data: Vec<(f64, &Vec<T>)> = data.iter().map( |v| (1.,v)).collect();
         self.process_weighted_block(&mut state, &weighted_data);
         state.log();
         state.get_facilities().log();
@@ -228,7 +228,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
     // This method can do block processing as dispatched by 
     // recurring processing
-    pub fn process_weighted_block(&self, state : &mut BmorState<T, Dist>, data : &Vec<(f32,&Vec<T>)>) {
+    pub fn process_weighted_block(&self, state : &mut BmorState<T, Dist>, data : &Vec<(f64,&Vec<T>)>) {
         //
         log::debug!("entering process_weighted_block, phase : {:?}", state.get_phase());
         //
@@ -242,9 +242,9 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
                 let old_state = state.clone();
                 state.reinit(self.beta * old_state.get_li() as f64, self.beta * old_state.get_phase_cost_bound());
                 // recycle facilitites in process addind them
-                let weighted_data : Vec<(f32,Vec<T>)>;
+                let weighted_data : Vec<(f64,Vec<T>)>;
                 weighted_data = state.centers.get_vec().iter().map(|f| (f.read().get_weight(), f.read().get_position().clone())).collect();
-                let weighted_ref_data : Vec<(f32,&Vec<T>)> = weighted_data.iter().map(|wd| (wd.0, &wd.1)  ).collect();
+                let weighted_ref_data : Vec<(f64,&Vec<T>)> = weighted_data.iter().map(|wd| (wd.0, &wd.1)  ).collect();
                 self.process_weighted_block(state, &weighted_ref_data);
             }
         }
@@ -252,14 +252,15 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
 
     // This function return true except if we got beyond bound for cost or number of facilities
-    pub fn add_data(&self, state : &mut BmorState<T, Dist>, rank_id : usize, data : &Vec<T>, weight : f32) -> bool {
+    pub fn add_data(&self, state : &mut BmorState<T, Dist>, rank_id : usize, data : &Vec<T>, weight : f64) -> bool {
         let facilities = state.get_mut_facilities();
         // get nearest facility or open facility
         if facilities.len() <= 0 {
-            log::debug!("Bmor::add_data creating facility");
+            log::debug!("Bmor::add_data creating facility with weight : {:.3e}", weight);
             let mut new_f = Facility::<T>::new(0, data);
             new_f.insert(weight, 0.);
             facilities.insert(new_f);
+            state.absolute_weight += weight as f64;
             return true;
         }
         // we already have a facility we update state

@@ -22,9 +22,9 @@ pub struct Facility<T: Send+Sync + Clone> {
     // facility location
     center : Vec<T>,
     // weight (how many points it represents)
-    weight : f32,
+    weight : f64,
     //
-    cost : f32,
+    cost : f64,
     //
 }
 
@@ -44,13 +44,13 @@ impl<T: Send+Sync+Clone> Facility<T> {
     }
 
     /// return sum of points' weight dipatched to this center
-    pub fn get_weight(&self) -> f32 {
+    pub fn get_weight(&self) -> f64 {
         self.weight
     }
 
-    pub(crate) fn insert(&mut self, weight : f32, dist : f32) {
+    pub(crate) fn insert(&mut self, weight : f64, dist : f32) {
         self.weight += weight;
-        self.cost += dist * weight;
+        self.cost += dist as f64 * weight;
     }
 
     pub fn log(&self) {
@@ -85,7 +85,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
     }
 
     /// total weight already inserted
-    pub fn get_weight(&self) -> f32 {
+    pub fn get_weight(&self) -> f64 {
         return self.centers.iter().map(|f| f.read().get_weight()).sum()
     }
 
@@ -167,9 +167,13 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
 
     /// a function to log info on dist and cost inside facilities
     pub fn log(&self) {
+        let mut total_weight = 0.;
         for f in &self.centers {
-            f.read().log()
+            let f_access = f.read();
+            total_weight += f_access.get_weight();
+            f_access.log();
         }
+        log::info!(" sum of facilities weight : {:.3e}", total_weight);
     } // end of log 
 
 
