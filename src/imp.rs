@@ -132,7 +132,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
             let matched = facilities.match_point(&self.data[p.0],  2. * p.1, &self.distance);
             if !matched {
                 // we inset a facility
-                let facility = Facility::new(p.0, &self.data[p.0]);
+                let facility = Facility::new(p.0, &self.data[p.0], 1.);
                 facilities.insert(facility);
                 log::debug!("inserted facility at {:?}, radius : {:.3e}", p.0, p.1);
             }

@@ -115,7 +115,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
     } // end of get_nearest_center
 
 
-    /// possibly create a new facility, otherwise update costs.
+    /// insert into an already existing facility
     /// return true if all is OK, false if costs or number of facilities got too large
     fn update(&mut self, rank_id : usize, point : &[T], weight : f64) -> bool {
         //
@@ -135,19 +135,19 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
         }
         // take into account f factor
         if self.get_unif_sample() < (weight * dist_to_nearest as f64 * self.oneplogn as f64 / self.li) {
-            // we create a new facility
-            let mut new_f = Facility::<T>::new(rank_id, point);
-            new_f.insert(weight, dist_to_nearest);
+            // we create a new facility. No cost increment
+            let new_f = Facility::<T>::new(rank_id, point, weight);
             self.centers.insert(new_f);
-            log::debug!("in BmorState::update rank_id: {:?}, creating new facility, nb_facilities : {}", rank_id, self.centers.len());
+            log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
         }
         else {
             log::debug!("in BmorState::update rank_id: {:?}, inserting in old facility dist : {:.3e}", rank_id, dist_to_nearest);
             nearest_facility.write().insert(weight, dist_to_nearest);
+            self.total_cost += weight.abs() as f64 * dist_to_nearest as f64;
         }
-        // we increments costs and weights
+        // we increments weight monitoring and number of insertions
         self.absolute_weight += weight.abs() as f64;
-        self.total_cost += weight.abs() as f64 * dist_to_nearest as f64;
+        self.nb_inserted += 1;
         // check if we are above constraints
         if self.total_cost > self.phase_cost_upper || self.centers.len() > self.facility_bound {
             log::info!("constraint violation");
@@ -175,6 +175,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
         log::info!("\n nb facilities : {:?}", self.centers.len());
         log::info!("\n weight : {:.3e}   cost {:.3e}", self.get_weight(), self.get_cost());
         log::info!("\n nb facility max : {:?}, upper cost bound : {:.3e}", self.facility_bound, self.get_phase_cost_bound());
+        log::info!("\n nb total insertion : {:?}  nb_phases: {:?}", self.get_nb_inserted(), self.phase + 1);
     }
 } // end of impl block BmorState
 
@@ -215,10 +216,10 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         //
         let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
-        let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0,  nb_centers_bound as usize, 
+        let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
                     upper_cost as f64, nb_centers_bound, self.distance.clone());
         //
-        let weighted_data: Vec<(f64, &Vec<T>)> = data.iter().map( |v| (1.,v)).collect();
+        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],i)).collect();
         self.process_weighted_block(&mut state, &weighted_data);
         state.log();
         state.get_facilities().log();
@@ -228,23 +229,25 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
     // This method can do block processing as dispatched by 
     // recurring processing
-    pub fn process_weighted_block(&self, state : &mut BmorState<T, Dist>, data : &Vec<(f64,&Vec<T>)>) {
+    pub fn process_weighted_block(&self, state : &mut BmorState<T, Dist>, data : &Vec<(f64,&Vec<T>, usize)>) {
         //
-        log::debug!("entering process_weighted_block, phase : {:?}", state.get_phase());
+        log::debug!("entering process_weighted_block, phase : {:?}, nb data : {}", state.get_phase(), data.len());
         //
         for d in data {
             // TODO: now we use rank as rank_id (sufficicent for ordered ids)
-            let add_res = self.add_data(state, state.nb_inserted, &d.1, d.0);
-            state.nb_inserted += 1;
+            log::debug!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
+            let add_res = self.add_data(state, d.2, &d.1, d.0);
             if !add_res {
                 // allocate new state
-                log::debug!("merging facilities, incrementing upper bound for cost, nb_facilities : {:?}", state.get_facilities().len());
+                log::debug!("recycling facilities, incrementing upper bound for cost, nb_facilities : {:?}", state.get_facilities().len());
                 let old_state = state.clone();
+                // recycle facilitites in process adding them
+                let weighted_data : Vec<(f64,Vec<T>, usize)>;
+                weighted_data = state.centers.get_vec().iter().map(|f| (f.read().get_weight(), f.read().get_position().clone(), f.read().get_dataid())).collect();
+                assert!(weighted_data.len() > 0);
+                let weighted_ref_data : Vec<(f64,&Vec<T>, usize)> = weighted_data.iter().map(|wd| (wd.0, &wd.1, wd.2)  ).collect();
+                assert!(weighted_ref_data.len() > 0);
                 state.reinit(self.beta * old_state.get_li() as f64, self.beta * old_state.get_phase_cost_bound());
-                // recycle facilitites in process addind them
-                let weighted_data : Vec<(f64,Vec<T>)>;
-                weighted_data = state.centers.get_vec().iter().map(|f| (f.read().get_weight(), f.read().get_position().clone())).collect();
-                let weighted_ref_data : Vec<(f64,&Vec<T>)> = weighted_data.iter().map(|wd| (wd.0, &wd.1)  ).collect();
                 self.process_weighted_block(state, &weighted_ref_data);
             }
         }
@@ -252,19 +255,22 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
 
     // This function return true except if we got beyond bound for cost or number of facilities
-    pub fn add_data(&self, state : &mut BmorState<T, Dist>, rank_id : usize, data : &Vec<T>, weight : f64) -> bool {
+    // The data added can be a facility extracted during a preceding phase
+    pub(crate) fn add_data(&self, state : &mut BmorState<T, Dist>, rank_id : usize, data : &Vec<T>, weight : f64) -> bool {
         let facilities = state.get_mut_facilities();
         // get nearest facility or open facility
         if facilities.len() <= 0 {
-            log::debug!("Bmor::add_data creating facility with weight : {:.3e}", weight);
-            let mut new_f = Facility::<T>::new(0, data);
-            new_f.insert(weight, 0.);
+            log::debug!("Bmor::add_data creating facility rank_id : {} with weight : {:.3e}", rank_id, weight);
+            let new_f = Facility::<T>::new(rank_id, data, weight);
             facilities.insert(new_f);
+            // we update global state here in facility creation case
+            state.nb_inserted += 1;
             state.absolute_weight += weight as f64;
             return true;
         }
         // we already have a facility we update state
         let status = state.update(rank_id, data, weight);
+        //
         return status;
     }
 

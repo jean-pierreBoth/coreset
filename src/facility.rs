@@ -16,7 +16,7 @@ use hnsw_rs::dist::*;
 /// The struture stores the data point which serve as a center, the sum of points weight 
 /// attached to this point and the cost (distance between data points and center multiplied by point's weight)
 #[derive(Clone)]
-pub struct Facility<T: Send+Sync + Clone> {
+pub struct Facility<T: Send+Sync+Clone> {
     // rank in data
     d_rank : usize,
     // facility location
@@ -26,12 +26,14 @@ pub struct Facility<T: Send+Sync + Clone> {
     //
     cost : f64,
     //
-}
+} // end of Facility
+
+
 
 impl<T: Send+Sync+Clone> Facility<T> {
 
-    pub fn new(d_rank : usize, center : &[T]) -> Self {
-        Facility{d_rank,center : center.to_vec(), weight : 0., cost : 0.}
+    pub fn new(d_rank : usize, center : &[T], weight : f64) -> Self {
+        Facility{d_rank,center : center.to_vec(), weight, cost : 0.}
     }
 
     pub fn get_position(&self) -> &Vec<T> {
@@ -54,7 +56,7 @@ impl<T: Send+Sync+Clone> Facility<T> {
     }
 
     pub fn log(&self) {
-        log::info!("facility , d_rank : {:?}  weight : {:.5e},  cost : {:.3e}  cost/weight : {:5e}", self.d_rank, self.weight, self.cost, self.cost/self.weight);
+        log::info!("facility , d_rank : {:?}  weight : {:.4e},  cost : {:.3e}  cost/weight : {:.3e}", self.d_rank, self.weight, self.cost, self.cost/self.weight);
     }
 } // end of block Facility
 
@@ -81,12 +83,12 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
 
     /// return number of facility
     pub fn len(&self) -> usize {
-        return self.centers.len()
+        return self.centers.len();
     }
 
     /// total weight already inserted
     pub fn get_weight(&self) -> f64 {
-        return self.centers.iter().map(|f| f.read().get_weight()).sum()
+        return self.centers.iter().map(|f| f.read().get_weight()).sum();
     }
 
 
@@ -144,7 +146,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
     } // end of get_cloned_facility
 
 
-    /// return rank of nearest facility
+    /// return rank of nearest facility, returns rank of facility and distance to it
     pub fn get_nearest_facility(&self, data : &[T]) -> anyhow::Result<(usize, f32)> {
         let mut dist = f32::INFINITY;
         let mut rank_f : i32 = -1;
@@ -165,6 +167,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
         return Ok((rank_f as usize, dist));
     } // end of get_nearest_facility
 
+    
     /// a function to log info on dist and cost inside facilities
     pub fn log(&self) {
         let mut total_weight = 0.;
