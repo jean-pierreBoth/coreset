@@ -213,7 +213,7 @@ pub fn main() {
         images_as_v.append(&mut test_images_as_v);
     } // drop mnist_test_data
 
-   //
+    //
     // test mettu-plaxton algo
     //
     let cpu_start = ProcessTime::now();

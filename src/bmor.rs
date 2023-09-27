@@ -136,7 +136,8 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
         // take into account f factor
         if self.get_unif_sample() < (weight * dist_to_nearest as f64 * self.oneplogn as f64 / self.li) {
             // we create a new facility. No cost increment
-            let new_f = Facility::<T>::new(rank_id, point, weight);
+            let mut new_f = Facility::<T>::new(rank_id, point);
+            new_f.insert(weight as f64,dist_to_nearest);
             self.centers.insert(new_f);
             log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
         }
@@ -261,7 +262,8 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         // get nearest facility or open facility
         if facilities.len() <= 0 {
             log::debug!("Bmor::add_data creating facility rank_id : {} with weight : {:.3e}", rank_id, weight);
-            let new_f = Facility::<T>::new(rank_id, data, weight);
+            let mut new_f = Facility::<T>::new(rank_id, data);
+            new_f.insert(weight, 0.);
             facilities.insert(new_f);
             // we update global state here in facility creation case
             state.nb_inserted += 1;

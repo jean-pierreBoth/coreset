@@ -32,8 +32,13 @@ pub struct Facility<T: Send+Sync+Clone> {
 
 impl<T: Send+Sync+Clone> Facility<T> {
 
-    pub fn new(d_rank : usize, center : &[T], weight : f64) -> Self {
-        Facility{d_rank,center : center.to_vec(), weight, cost : 0.}
+    /// creates a facility, around a point characteristics,
+    /// TODO: set its  rank as an option
+    /// As the point could be different from data as in kmean we do not set weight.
+    /// So an explicit insertion with method insert must be done when creation facility is 
+    /// mean to also insert
+    pub fn new(d_rank : usize, center : &[T]) -> Self {
+        Facility{d_rank,center : center.to_vec(), weight : 0. , cost : 0.}
     }
 
     pub fn get_position(&self) -> &Vec<T> {
