@@ -213,7 +213,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     }
 
 
-    pub fn process_block(&self, data : &Vec<Vec<T>>) {
+    pub fn process_block(&self, data : &Vec<Vec<T>>) -> BmorState<T, Dist> {
         //
         let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
@@ -224,6 +224,8 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         self.process_weighted_block(&mut state, &weighted_data);
         state.log();
         state.get_facilities().log();
+        //
+        return state;
     } // end of process_block
 
 

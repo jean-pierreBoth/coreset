@@ -1,6 +1,6 @@
 # coreset
 
-This (future) crate is an exploration of median [$\alpha$,$\beta$] approximation in **metric spaces** and coreset construction based on the following papers:
+Some exploration of median [$\alpha$,$\beta$] approximation in **metric spaces** and coreset construction based on the following papers:
 
 - Facility Location in sublinear time.   
        Badoiu, Czumaj, Indyk, Sohler ICALP 2005

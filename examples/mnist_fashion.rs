@@ -167,7 +167,9 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    mpalgo.compute_cost(&facilities, &images);
+    let nb_f = facilities.len() as f64;
+    let proba = (nb_f - 10.) / (nb_f * nb_f);
+    mpalgo.compute_cost(&facilities, &images, proba);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();
@@ -193,7 +195,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 //========================================================
 
 
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
@@ -201,10 +203,26 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let beta = 2.;
     let gamma = 2.;
     let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
-    bmor_algo.process_block(images);
+    let state = bmor_algo.process_block(images);
     //
     let cpu_time: Duration = cpu_start.elapsed();
-     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
+    println!("bmor.process_block  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
+    //
+    let facilities = state.get_facilities();
+    let nb_f = facilities.len() as f64;
+    let ratio = (nb_f - 10.) / (nb_f * nb_f);
+    facilities.cross_distances(ratio);
+    //
+    let (cost, labels_distribution) = facilities.dispatch_labels(&images , labels);
+    log::info!("global cost : {:.3e}", cost);
+    //
+    for i in 0..labels_distribution.len() {
+        log::info!("\n\n facility : {:?}", i);
+        let map = &labels_distribution[i];
+        for (key, val) in map.iter() {
+            println!("key: {key} val: {val}");
+        }
+    }
 }
 
 //========================================================

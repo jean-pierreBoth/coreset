@@ -216,7 +216,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
 
         // TODO: useful?
     /// computes distances between facility
-    pub fn cross_distances(&self, distance : &Dist) {
+    pub fn cross_distances(&self, proba : f64) {
         let nb_facility = self.centers.len();
         let mut distances = Array2::<f32>::zeros((nb_facility , nb_facility));
         let mut q_dist = CKMS::<f32>::new(0.01);
@@ -227,7 +227,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
             for j in 0..nb_facility {
                 if i!=j {
                     let f_j = self.get_facility(j).unwrap().read();
-                    distances[[i,j]] = distance.eval(center_i, f_j.get_position());
+                    distances[[i,j]] = self.distance.eval(center_i, f_j.get_position());
                     q_dist.insert(distances[[i,j]]);
                 }
             }
@@ -238,14 +238,14 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
         println!("\n distance quantiles at 0.05 : {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} , 0.9 : {:.2e}", 
         q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1, q_dist.query(0.9).unwrap().1);
         log::debug!("\n cross distances : {:.3e}", distances);
-        let threshold =  q_dist.query(0.01).unwrap().1;
-        log::info!("mergeable threshold : {:.3e}", threshold);
+        let threshold =  q_dist.query(proba).unwrap().1;
+        log::info!("mergeable threshold at proba : {:.3e}: {:.3e}", proba, threshold);
         let mut nbmerge = 0;
         // search mergeable facilities
         for i in 0..nb_facility {
             for j in 0..nb_facility {
                 if i < j && distances[[i,j]] < threshold {
-                    log::info!("mergeable facilities : (i,j) : ({:?},{:?}) ", i,j);
+                    log::info!("mergeable facilities : (i,j) : ({:?},{:?}) dist : {:.3e} ", i,j, distances[[i,j]]);
                     nbmerge+= 1;
                 }
             }

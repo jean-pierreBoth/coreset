@@ -214,7 +214,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
 
-    pub fn compute_cost(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>)
+    pub fn compute_cost(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>, proba : f64)
     where Dist : Send + Sync {
         //
         if data.len() > 1_000_000 {
@@ -224,7 +224,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
             self.compute_cost_serial(facilities, data, &self.distance);
         }
         //
-        facilities.cross_distances(&self.distance);
+        facilities.cross_distances(proba);
     } // end of compute_cost
 
 

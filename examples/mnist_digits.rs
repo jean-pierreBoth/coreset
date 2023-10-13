@@ -226,7 +226,8 @@ pub fn main() {
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    mpalgo.compute_cost(&facilities, &images_as_v);
+    let proba = (10./facilities.len() as f64) *  (10./facilities.len() as f64);
+    mpalgo.compute_cost(&facilities, &images_as_v, proba);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();
