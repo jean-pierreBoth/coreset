@@ -1,19 +1,24 @@
-//! Implementation of the Mettu-Plaxton algorithm as analyzed in 
-//!  Facility Location in sublinear time 
+//!  This module implement building blocks used a black box in coreset constructions.
+//!  The algorithms compute an (alfa, beta) k-median approximation  used as input
+//!  to coreset computations.
+//! 
+//! The module implements of the Mettu-Plaxton algorithm as analyzed in 
+//!  1. Facility Location in sublinear time.   
 //!       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
-//!       [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
+//!       see [Badoiu](https://people.csail.mit.edu/indyk/fl.pdf).  
+//!       This paper builds upon the following: 
+//!        
 //! 
 //! 
-//!  Optimal Time bounds for approximate Clustering 
-//!     Mettu-Plaxton 2004.  [mettu-plaxton-2](https://link.springer.com/article/10.1023/b:mach.0000033114.18632.e0)
+//!  2. The online median problem,  
+//!         Mettu-Plaxton Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).  
 //! 
 //! 
-//!  The algorithm computes an $\alpha$, $\beta$ k-median approximation that can be used as input
-//!  to coreset computations. The  Badoiu paper and Mettu-Plaxtion 2004 paper builds upon the Mettu-Plaxton paper : 
-//!  The online median problem. SIAM J. Computing 2003.
+//!  3. Optimal Time bounds for approximate Clustering   
+//!     Mettu-Plaxton 2004.  see [mettu-plaxton-2](https://link.springer.com/article/10.1023/b:mach.0000033114.18632.e0).  
 //! 
-//!  The data we will run on are essentially Vec<T>where T can be anything as long as we have a distance on Vec<T> provided by the hnsw crate
-//!  see [hnsw-dist](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html)
+//!  The data we will run on  Vec\<T\> where T can be anything as long as the hnsw crate provides on these vectors.  
+//!  (see [hnsw_rs](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html))
 //! 
 //! Data or Distance must be scaled so that nearest neighbour of a point are at a distance really less than 1. as uniform cost is an explicit hypothesis 
 //! of the paper.
@@ -39,8 +44,10 @@ use crate::facility::*;
 //==================================================================================
 
 
-/// Mettu-Plaxton algorithm with Indyk simplification as described in  [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
-/// If data have weights attached, we split the data in subsets of approximately equal weights as suggested in :  
+/// Mettu-Plaxton algorithm with Indyk simplification as described in  [indyk](https://people.csail.mit.edu/indyk/fl.pdf).  
+/// This algorithm suppose uniform weights on data.  
+/// 
+/// If data have weights attached, data can be split in subsets of approximately equal weights as in
 /// Chen K., On Coresets Kmedian Clustering MetricSpaces And Applications 2009 Siam J. Computing
 pub struct MettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
     //
@@ -132,7 +139,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
         let d_median = q_dist.query(0.5).unwrap().1;
         log::info!("dist median : {:.3e}",d_median);
         //
-        let mut facilities = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
+        let mut facilities: Facilities<T, Dist> = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
         // estimate radii in //
         let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), d_median)).collect();
         log::debug!("estimate_ball_cardinal done");
@@ -246,11 +253,11 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 //======================================================================================
 
 
-/// Mettu-Plaxton online median algorithm Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)
+/// Mettu-Plaxton online median algorithm Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).  
+/// This algorithm can handle weighted data but its complexity is O(n²).  
 /// 
-/// This algorithm can handle weighted data but its complexity is O(n²) so it 
-/// is more adapted to final processing of Coreset algorithms (bmor algos   
-/// or blackbox in Chen K., On Coresets Kmedian ClusteringM etricSpaces And Applications 2009 Siam J. Computing)
+/// It is adapted to final processing of Coreset algorithms (bmor module algos   
+/// or blackbox as in Chen K., On Coresets Kmedian ClusteringM etricSpaces And Applications 2009 Siam J. Computing)
 pub struct WeightedMettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
     //
     nb_data : usize,
@@ -267,7 +274,7 @@ pub struct WeightedMettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
 } // end of struct WeightedMettuPlaxton
 
 
-impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync> WeightedMettuPlaxton<'b,T, Dist> {
+impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedMettuPlaxton<'b,T, Dist> {
 
     /// initialization for unweighted data
     pub fn new(data : &'b Vec<Vec<T>>, weights : &'b Vec<f32>, distance : Dist) -> Self {
@@ -378,19 +385,45 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync> WeightedMettuPlax
 
 
     //
-    // for each point compute ball around it of given value
-    // corresponds to step 1 of algorithm 2.1 paper [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)
     //
-    fn compute_value_balls(&self, value : f32, dists : &Vec<RwLock<Vec<f32>>>) {
-        let radii : Vec<f32> = (0..self.nb_data).into_iter().map(|i| self.compute_ball_radius( i, value, &dists[i])).collect();
-    }
+    fn compute_balls_at_value(&self, value : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<T, Dist> {
+        // for each point compute ball around it of given value
+        // corresponds to step 1 of algorithm 2.1 paper [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)        
+        let mut radii : Vec<(usize, f32)> = (0..self.nb_data).into_iter().map(|i| (i, self.compute_ball_radius( i, value, &dists[i]))).collect();
+        // sort by increasing radius (step 2 of algo)
+        radii.sort_unstable_by(|a,b| a.1.partial_cmp(&b.1).unwrap());
+        // radii[4] corresponds to point of original index radii[4].0 and so distance to its neighbours are given by dists[radii[4].0]
+        let mut facilities: Facilities<T, Dist> = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
+        // we can do step 3 and 4 of algo 2.1
+        for p in radii.iter() {
+            let matched = facilities.match_point(&self.data[p.0],  2. * p.1, &self.distance);
+            if !matched {
+                // we insert a facility
+                let facility = Facility::new(p.0, &self.data[p.0]);
+                facilities.insert(facility);
+                log::debug!("inserted facility at {:?}, radius : {:.3e}", p.0, p.1);
+            }
+        }
+        return facilities;
+    } // end of compute_balls_at_value
 
-    // split in blocks of roughly equal weights and make an unweighted  MettuPlaxton problem for each
-    // then we can run a weighted algorithm on the union of results.
-    fn weightsplit(&self) -> Result<Vec<MettuPlaxton<'b, T, Dist>> > {
 
-        return Err(anyhow!("not yet implemented"));
-    } // end of  weightsplit
+    /// 
+    pub fn construct_centers(&self) -> Facilities<T, Dist> {
+        let dists : Vec<RwLock<Vec<f32>>> = self.compute_all_dists();
+        // initialize value to something coherent with distance scales. 
+        // get scales
+        // TODO: higher value should reduce number of facilities ...
+        let q_dist = scale_estimation(1_000_000, self.data, &self.distance);
+        let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
+        let d_median = q_dist.query(0.5).unwrap().1;
+        log::info!("dist median : {:.3e}",d_median);
+        let facilities = self.compute_balls_at_value(d_median, &dists);
+        //
+        return facilities;
+    } // end of construct_centers
+
+
 
 
 
