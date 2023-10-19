@@ -3,10 +3,16 @@
 //!       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
 //!       [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
 //! 
-//!  The algorithm computes an $\alpha$, $\beta$ k-median approximation that can be used as input
-//!  to coreset computatons.
 //! 
-//!  The data we will run on are essentially Vec<T> where T can be anything as long as we have a distance on Vec<T> provided by the hnsw crate
+//!  Optimal Time bounds for approximate Clustering 
+//!     Mettu-Plaxton 2004.  [mettu-plaxton-2](https://link.springer.com/article/10.1023/b:mach.0000033114.18632.e0)
+//! 
+//! 
+//!  The algorithm computes an $\alpha$, $\beta$ k-median approximation that can be used as input
+//!  to coreset computations. The  Badoiu paper and Mettu-Plaxtion 2004 paper builds upon the Mettu-Plaxton paper : 
+//!  The online median problem. SIAM J. Computing 2003.
+//! 
+//!  The data we will run on are essentially Vec<T>where T can be anything as long as we have a distance on Vec<T> provided by the hnsw crate
 //!  see [hnsw-dist](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html)
 //! 
 //! Data or Distance must be scaled so that nearest neighbour of a point are at a distance really less than 1. as uniform cost is an explicit hypothesis 
@@ -16,6 +22,7 @@
 use anyhow::{anyhow, Result};
 
 use rayon::prelude::*;
+use parking_lot::RwLock;
 
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::SeedableRng;
@@ -31,7 +38,10 @@ use crate::facility::*;
 
 //==================================================================================
 
-///
+
+/// Mettu-Plaxton algorithm with Indyk simplification as described in  [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
+/// If data have weights attached, we split the data in subsets of approximately equal weights as suggested in :  
+/// Chen K., On Coresets Kmedian Clustering MetricSpaces And Applications 2009 Siam J. Computing
 pub struct MettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
     //
     nb_data : usize,
@@ -49,12 +59,14 @@ pub struct MettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
 
 impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
+    /// initialization for unweighted data
     pub fn new(data : &'b Vec<Vec<T>>, distance : Dist) -> Self {
-        let nb_data = data.len();
-        let j = data.len().ilog2() as u32;
+        let nb_data: usize = data.len();
+        let j: u32 = data.len().ilog2() as u32;
         //
-        MettuPlaxton{data, nb_data, j, distance, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
+        MettuPlaxton{nb_data, data, j, distance, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
     }
+
 
     pub fn get_nb_data(&self) -> usize {
         self.nb_data
@@ -229,3 +241,157 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
 } // end of impl block
+
+
+//======================================================================================
+
+
+/// Mettu-Plaxton online median algorithm Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)
+/// 
+/// This algorithm can handle weighted data but its complexity is O(n²) so it 
+/// is more adapted to final processing of Coreset algorithms (bmor algos   
+/// or blackbox in Chen K., On Coresets Kmedian ClusteringM etricSpaces And Applications 2009 Siam J. Computing)
+pub struct WeightedMettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
+    //
+    nb_data : usize,
+    //
+    data : &'b Vec<Vec<T>>,
+    //
+    weights : &'b Vec<f32>,
+    // j is integer value of log data.len()
+    j       : u32,
+    //
+    distance : Dist,
+    //
+    rng : Xoshiro256PlusPlus,
+} // end of struct WeightedMettuPlaxton
+
+
+impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync> WeightedMettuPlaxton<'b,T, Dist> {
+
+    /// initialization for unweighted data
+    pub fn new(data : &'b Vec<Vec<T>>, weights : &'b Vec<f32>, distance : Dist) -> Self {
+        let nb_data: usize = data.len();
+        let j: u32 = data.len().ilog2() as u32;
+        //
+        WeightedMettuPlaxton{nb_data, data, weights, j, distance, rng : Xoshiro256PlusPlus::seed_from_u64(123)}
+    }
+
+
+    pub fn get_nb_data(&self) -> usize {
+        self.nb_data
+    }
+
+    // compute all cross distances
+    fn compute_all_dists(&self) -> Vec<RwLock<Vec<f32>>> {
+        let mut dists : Vec<RwLock<Vec<f32>>> = Vec::<RwLock<Vec<f32>>>::with_capacity(self.nb_data);
+        //
+        for i in 0..self.nb_data {
+            let d :Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
+            dists.push(RwLock::new(d));
+        }
+
+        let threshold = 1000;
+        let compute_for_i = | i : usize |  {
+            let mut dist_i : Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
+            for j in 0..i {
+                let dist = dists[j].read()[i];
+                let dist_i_j = if dist < 0. {
+                    self.distance.eval(&self.data[i], &self.data[j])
+                }
+                else {
+                    dist
+                };
+                dist_i[j] = dist_i_j;
+            }; // end of for j
+            *dists[i].write() = dist_i;
+            return 1;
+        };
+        //
+        let _res : Vec<i32> = (0..self.nb_data).into_par_iter().map(|i| compute_for_i(i)).collect();
+        // now we have all dists
+        return dists
+    } // end of compute_all_dists
+
+
+    fn compute_ball_radius(&self, ball : usize, value : f32, dists  : &RwLock<Vec<f32>>) -> f32 {
+        //
+        log::debug!("WeightedMettuPlaxton compute_ball_radius , value to match {:.3e}", value);
+        //
+        // we sort distances
+        let mut indexed_dist : Vec<(usize, f32)> = (0..self.nb_data).into_iter().zip(dists.read().iter()).map(|(i, f)| (i,*f)).collect();
+        indexed_dist.sort_unstable_by(|a,b| a.1.partial_cmp(&b.1).unwrap());
+        //
+        // first component store weight cumul , second component stores weight * dist cumul
+        //
+        let mut cumulated_values = Vec::<(f32,f32)>::with_capacity(self.get_nb_data());
+        cumulated_values.push((self.weights[0], indexed_dist[0].1 * self.weights[indexed_dist[0].0]));
+        for j in 1..self.get_nb_data() {
+            let weight = cumulated_values[j-1].0 + self.weights[indexed_dist[j-1].0];
+            let indexed_weight = cumulated_values[j-1].1 + indexed_dist[j].1 * self.weights[indexed_dist[j].0];
+            cumulated_values.push((weight,indexed_weight));
+        }
+        // compute value at ball centered a ball with radius indexed_dist[j].1 (see paper)
+        let value_at_j = |j : usize | -> f32 {
+            indexed_dist[j].1 * cumulated_values[j].0 - cumulated_values[j].1
+        };
+        // now we must find greatest j such that value_atj(j) <= value
+        // check last value
+        let upper_value = value_at_j(self.get_nb_data());
+        let radius : f32;
+        if upper_value <= value {
+            log::info!("value is too large upper_value : {:.3e}", upper_value);
+            // we can solve for a large r directly
+            radius =  value - upper_value;
+            std::panic!("not yet implemented");
+        }
+        else {
+            let mut upper_index = self.get_nb_data() - 1;
+            let mut lower_index = 0;
+            let mut middle_index = (upper_index + lower_index) / 2;
+            let mut value_at_upper = 0.;
+            let mut value_at_lower = 0.;
+            while upper_index - lower_index > 1 {
+                let value_at_middle = value_at_j(middle_index);
+                if value_at_middle > value {
+                    upper_index = middle_index;
+                    value_at_upper = value_at_middle;
+                }
+                else {
+                    lower_index = middle_index;
+                    value_at_lower = value_at_middle;
+                }
+                log::debug!("upper_index - lower_index : {:?}", upper_index - lower_index);
+            } // end while
+            radius = (value + cumulated_values[lower_index].1)/ cumulated_values[lower_index].0;
+            assert!(radius >= indexed_dist[lower_index].1);
+            assert!(radius < indexed_dist[upper_index].1);
+        } 
+        //
+        if radius > 0. {
+            return radius;
+        }
+        else {
+            std::panic!("error in compute_ball_radius");
+        }
+    } // end of compute_ball_radius
+
+
+    //
+    // for each point compute ball around it of given value
+    // corresponds to step 1 of algorithm 2.1 paper [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)
+    //
+    fn compute_value_balls(&self, value : f32, dists : &Vec<RwLock<Vec<f32>>>) {
+        let radii : Vec<f32> = (0..self.nb_data).into_iter().map(|i| self.compute_ball_radius( i, value, &dists[i])).collect();
+    }
+
+    // split in blocks of roughly equal weights and make an unweighted  MettuPlaxton problem for each
+    // then we can run a weighted algorithm on the union of results.
+    fn weightsplit(&self) -> Result<Vec<MettuPlaxton<'b, T, Dist>> > {
+
+        return Err(anyhow!("not yet implemented"));
+    } // end of  weightsplit
+
+
+
+} // end of impl WeightedMettuPlaxton
