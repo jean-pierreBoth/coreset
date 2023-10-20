@@ -291,6 +291,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
 
     // compute all cross distances
     fn compute_all_dists(&self) -> Vec<RwLock<Vec<f32>>> {
+        log::debug!("in WeightedMettuPlaxton::compute_all_dists");
+        //
         let mut dists : Vec<RwLock<Vec<f32>>> = Vec::<RwLock<Vec<f32>>>::with_capacity(self.nb_data);
         //
         for i in 0..self.nb_data {
@@ -301,7 +303,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         let threshold = 1000;
         let compute_for_i = | i : usize |  {
             let mut dist_i : Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
-            for j in 0..i {
+            for j in 0..self.nb_data {
+                // has symetric benn computed?
                 let dist = dists[j].read()[i];
                 let dist_i_j = if dist < 0. {
                     self.distance.eval(&self.data[i], &self.data[j])
@@ -324,27 +327,31 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     fn compute_ball_radius(&self, ball : usize, value : f32, dists  : &RwLock<Vec<f32>>) -> f32 {
         //
         log::debug!("WeightedMettuPlaxton compute_ball_radius , value to match {:.3e}", value);
+        log::debug!("WeightedMettuPlaxton compute_ball_radius , radii  {:?}", dists.read());
         //
         // we sort distances
         let mut indexed_dist : Vec<(usize, f32)> = (0..self.nb_data).into_iter().zip(dists.read().iter()).map(|(i, f)| (i,*f)).collect();
         indexed_dist.sort_unstable_by(|a,b| a.1.partial_cmp(&b.1).unwrap());
+        log::debug!("indexed_dist : {:?}",indexed_dist);
         //
         // first component store weight cumul , second component stores weight * dist cumul
         //
         let mut cumulated_values = Vec::<(f32,f32)>::with_capacity(self.get_nb_data());
         cumulated_values.push((self.weights[0], indexed_dist[0].1 * self.weights[indexed_dist[0].0]));
         for j in 1..self.get_nb_data() {
-            let weight = cumulated_values[j-1].0 + self.weights[indexed_dist[j-1].0];
+            let weight = cumulated_values[j-1].0 + self.weights[indexed_dist[j].0];
             let indexed_weight = cumulated_values[j-1].1 + indexed_dist[j].1 * self.weights[indexed_dist[j].0];
             cumulated_values.push((weight,indexed_weight));
         }
+        assert_eq!(cumulated_values.len(), self.get_nb_data());
+        log::debug!("cumulated_values :  {:?}" , cumulated_values);
         // compute value at ball centered a ball with radius indexed_dist[j].1 (see paper)
         let value_at_j = |j : usize | -> f32 {
             indexed_dist[j].1 * cumulated_values[j].0 - cumulated_values[j].1
         };
         // now we must find greatest j such that value_atj(j) <= value
         // check last value
-        let upper_value = value_at_j(self.get_nb_data());
+        let upper_value = value_at_j(self.get_nb_data() - 1);
         let radius : f32;
         if upper_value <= value {
             log::info!("value is too large upper_value : {:.3e}", upper_value);
@@ -359,6 +366,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
             let mut value_at_upper = 0.;
             let mut value_at_lower = 0.;
             while upper_index - lower_index > 1 {
+                log::debug!("lower : {:?}, upper : {:?}", lower_index, upper_index);
                 let value_at_middle = value_at_j(middle_index);
                 if value_at_middle > value {
                     upper_index = middle_index;
@@ -368,9 +376,11 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
                     lower_index = middle_index;
                     value_at_lower = value_at_middle;
                 }
+                middle_index = (upper_index + lower_index) / 2;
                 log::debug!("upper_index - lower_index : {:?}", upper_index - lower_index);
             } // end while
             radius = (value + cumulated_values[lower_index].1)/ cumulated_values[lower_index].0;
+            log::debug!("got radius : {:?}", radius);
             assert!(radius >= indexed_dist[lower_index].1);
             assert!(radius < indexed_dist[upper_index].1);
         } 
@@ -379,7 +389,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
             return radius;
         }
         else {
-            std::panic!("error in compute_ball_radius");
+            std::panic!("error in compute_ball_radius, radius : {:?}", radius);
         }
     } // end of compute_ball_radius
 
@@ -387,6 +397,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     //
     //
     fn compute_balls_at_value(&self, value : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<T, Dist> {
+        //
+        log::debug!("in WeightedMettuPlaxton::compute_balls_at_value");
         // for each point compute ball around it of given value
         // corresponds to step 1 of algorithm 2.1 paper [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)        
         let mut radii : Vec<(usize, f32)> = (0..self.nb_data).into_iter().map(|i| (i, self.compute_ball_radius( i, value, &dists[i]))).collect();
@@ -410,10 +422,14 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
 
     /// 
     pub fn construct_centers(&self) -> Facilities<T, Dist> {
+        //
+        log::debug!("in WeightedMettuPlaxton::construct_centers");
+        //
         let dists : Vec<RwLock<Vec<f32>>> = self.compute_all_dists();
         // initialize value to something coherent with distance scales. 
         // get scales
         // TODO: higher value should reduce number of facilities ...
+        log::debug!("   calling scale_estimation ...");
         let q_dist = scale_estimation(1_000_000, self.data, &self.distance);
         let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
         let d_median = q_dist.query(0.5).unwrap().1;
@@ -428,3 +444,77 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
 
 
 } // end of impl WeightedMettuPlaxton
+
+
+
+mod tests {
+
+    use super::*;
+    use rand::prelude::*;
+    use rand::distributions::*;
+    use rand_distr::{Normal, uniform::SampleUniform};
+    use rand_xoshiro::Xoshiro256PlusPlus;
+
+
+
+    fn log_init_test() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    // generate data according to 2 gaussian distributions and random uniform weights sampled in intervals.
+    fn generate_weighted_data(nbdata : usize) -> (Vec::<Vec<f32>>, Vec<f32>) {
+        //
+        let dim = 50;
+        let mut data = Vec::<Vec<f32>>::with_capacity(nbdata);
+        let mut weights = Vec::<f32>::with_capacity(nbdata);
+        //
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
+        //
+        // distributions
+        //
+        let n_mean1 = 2.;
+        let n_sigma1 = 1.;
+        let normal1 = Normal::new(n_mean1, n_sigma1).unwrap();
+        let unif1 = Uniform::<f32>::new(0.5, 3.);
+        //
+        let n_mean2 = 4.;
+        let n_sigma2 = 1.;
+        let normal2 = Normal::new(n_mean1, n_sigma1).unwrap();
+        let unif2 = Uniform::<f32>::new(0.5, 3.);  
+        //
+        // sample
+        //      
+        let half = nbdata/2;
+        for i in 0..half {
+            let d_tmp : Vec<f32> = (0..dim).into_iter().map(|_| normal1.sample(&mut rng)).collect();
+            data.push(d_tmp);
+            weights.push(unif1.sample(&mut rng));
+        }
+
+        for i in (half+1)..nbdata {
+            let d_tmp : Vec<f32> = (0..dim).into_iter().map(|_| normal2.sample(&mut rng)).collect();
+            data.push(d_tmp);
+            weights.push(unif2.sample(&mut rng));
+        }
+        // log::debug!("data : {:?}", data);
+        // log::debug!("weights : {:?}", weights);
+        //
+        return (data, weights);
+    } // end of generate_weighted_data
+
+#[test]
+    fn test_weight_mp() {
+        log_init_test();
+        //
+        log::info!("in test_weight_mp");
+        //
+        let (data, weights) = generate_weighted_data(10);
+        let distance = DistL2::default();
+        //
+        let wmp = WeightedMettuPlaxton::new(&data, &weights, distance);
+        let facilities = wmp.construct_centers();
+    } // end of test_weight_mp
+
+
+}  // end of mod tests
+

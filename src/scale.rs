@@ -12,13 +12,15 @@ use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 
 use hnsw_rs::dist::*;
 
-pub fn scale_estimation<T, Dist : Distance<T>>(nbsample : usize, data : &Vec<Vec<T>>, distance : &Dist) -> CKMS::<f32>
+pub fn scale_estimation<T, Dist : Distance<T>>(nbsample_arg : usize, data : &Vec<Vec<T>>, distance : &Dist) -> CKMS::<f32>
     where   Dist : Sync,
             T: Send+Sync {
                 //
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
     let nbdata = data.len();
     let unif = Uniform::<usize>::new(0, nbdata);
+    //
+    let nbsample = nbsample_arg.min(nbdata * nbdata); // useful for tests
     let couples : Vec<(usize,usize)> = (0..nbsample).into_iter().map(|_| (unif.sample(&mut rng),unif.sample(&mut rng)) ).filter(|c| c.0 != c.1).collect();
     let dvec : Vec<f32> = couples.into_par_iter().map( |(it1,it2)| distance.eval(&data[it1],&data[it2])).collect();
     //
