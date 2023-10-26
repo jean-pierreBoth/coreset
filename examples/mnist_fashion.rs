@@ -139,11 +139,6 @@ pub fn read_label_file(io_in: &mut dyn Read) -> Array1<u8>{
 
 //============================================================================================
 
-#[derive(Copy,Clone)]
-pub enum Algo {
-    IMP,
-    BMOR,
-}
 pub struct MnistParams {
     algo : Algo
 } // end of MnistParams
@@ -162,7 +157,8 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     let sys_now = SystemTime::now();
     // 
     let mpalgo = MettuPlaxton::<f32,Dist>::new(&images, distance);
-    let facilities = mpalgo.construct_centers();
+    let alfa = 1.;
+    let facilities = mpalgo.construct_centers(alfa);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());

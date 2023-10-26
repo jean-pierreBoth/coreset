@@ -140,6 +140,50 @@ pub fn read_label_file(io_in: &mut dyn Read) -> Array1<u8>{
 
 
 
+pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
+    log::debug!("in parse_cmd");
+    if matches.contains_id("algo") {
+        println!("decoding argument algo");
+        let algoname = matches.get_one::<String>("algo").expect("");
+        log::debug!(" got algo : {:?}", algoname);
+        match algoname.as_str() {
+            "imp" => {
+                let params = MnistParams::new(Algo::IMP);
+                return Ok(params);
+            },
+            "bmor" => {
+                let params = MnistParams::new(Algo::BMOR);
+                return Ok(params);
+            }
+            //
+            _           => {
+                log::error!(" algo must be imp or bmor");
+                std::process::exit(1);
+            }
+        }
+    }
+    //
+    return Err(anyhow::anyhow!("bad command"));
+} // end of parse_cmd
+
+//==================================================================================================
+
+
+pub struct MnistParams {
+    algo : Algo
+} // end of MnistParams
+
+impl MnistParams {
+    pub fn new(algo : Algo) -> Self {
+        MnistParams{algo}
+    }
+    //
+    pub fn get_algo(&self) -> Algo { self.algo}
+}
+
+//=================================================================================================
+
+use clap::{Arg, ArgMatches, ArgAction, Command};
 
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
@@ -151,6 +195,20 @@ const MNIST_DIGITS_DIR : &'static str = "/home/jpboth/Data/ANN/MNIST/";
 pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
+    //
+    let matches = Command::new("mnist_fashion")
+    //        .subcommand_required(true)
+            .arg_required_else_help(true)
+            .arg(Arg::new("algo")
+                .required(true)
+                .long("algo")    
+                .action(ArgAction::Set)
+                .value_parser(clap::value_parser!(String))
+                .required(true)
+                .help("expecting a algo option imp, bmor "))
+        .get_matches();
+    //
+    let _mnist_params = parse_cmd(&matches).unwrap();
     //
     let mut image_fname = String::from(MNIST_DIGITS_DIR);
     image_fname.push_str("train-images-idx3-ubyte");
@@ -219,14 +277,15 @@ pub fn main() {
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     //
-    let distance = DistL2{};
-    let mpalgo = MettuPlaxton::<f32, DistL2>::new(&images_as_v, distance);
-    let facilities = mpalgo.construct_centers();
+    let distance = DistL1{};
+    let mpalgo = MettuPlaxton::<f32, DistL1>::new(&images_as_v, distance);
+    let alfa = 1.;
+    let facilities = mpalgo.construct_centers(alfa);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    let proba = (10./facilities.len() as f64) *  (10./facilities.len() as f64);
+    let proba = 0.01;
     mpalgo.compute_cost(&facilities, &images_as_v, proba);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {

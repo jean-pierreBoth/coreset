@@ -221,6 +221,10 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
         let mut distances = Array2::<f32>::zeros((nb_facility , nb_facility));
         let mut q_dist = CKMS::<f32>::new(0.01);
 
+        if nb_facility <= 1 {
+            log::error!("facility::cross_distances, only one facility");
+            return;
+        }
         for i in 0..nb_facility {
             let f_i = self.get_facility(i).unwrap().read();
             let center_i = f_i.get_position();
@@ -235,8 +239,8 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
         //
         log::info!("\n cross facility distances quantiles");
 
-        println!("\n distance quantiles at 0.05 : {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} , 0.9 : {:.2e}", 
-        q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1, q_dist.query(0.9).unwrap().1);
+        println!("\n distance quantiles at  0.01 : {:.2e}, 0.05 :  {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} ", 
+        q_dist.query(0.01).unwrap().1, q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1);
         log::debug!("\n cross distances : {:.3e}", distances);
         let threshold =  q_dist.query(proba).unwrap().1;
         log::info!("mergeable threshold at proba : {:.3e}: {:.3e}", proba, threshold);

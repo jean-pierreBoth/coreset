@@ -131,17 +131,18 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
     /// construct centers (facilities) for a given distance and returns allocated facilities (or centers)
-    pub fn construct_centers(&self) -> Facilities<T, Dist>
+    pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist>
          where Dist : Send + Sync + Clone {
         // get scales
-        let q_dist = scale_estimation(1_000_000, self.data, &self.distance);
+        let q_dist = get_neighborhood_size(1_000_000, self.data, &self.distance);
         let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
-        let d_median = q_dist.query(0.5).unwrap().1;
-        log::info!("dist median : {:.3e}",d_median);
+        let threshold = q_dist.query(0.999).unwrap().1;
+        log::info!("dist medi : {:.3e}",threshold);
         //
         let mut facilities: Facilities<T, Dist> = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
         // estimate radii in //
-        let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), d_median)).collect();
+        let value_to_match = alfa * threshold;
+        let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), value_to_match)).collect();
         log::debug!("estimate_ball_cardinal done");
         // sort radii
         radii.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
@@ -324,9 +325,9 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     } // end of compute_all_dists
 
 
-    fn compute_ball_radius(&self, ball : usize, value : f32, dists  : &RwLock<Vec<f32>>) -> f32 {
+    fn compute_ball_radius(&self, ball : usize, alfa : f32, dists  : &RwLock<Vec<f32>>) -> f32 {
         //
-        log::debug!("WeightedMettuPlaxton compute_ball_radius , value to match {:.3e}", value);
+        log::debug!("\n\n WeightedMettuPlaxton compute_ball_radius , coeff value to match {:.3e}", alfa);
         log::debug!("WeightedMettuPlaxton compute_ball_radius , radii  {:?}", dists.read());
         //
         // we sort distances
@@ -349,6 +350,14 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         let value_at_j = |j : usize | -> f32 {
             indexed_dist[j].1 * cumulated_values[j].0 - cumulated_values[j].1
         };
+        //
+        let value = alfa * (indexed_dist[self.nb_data-1].1 * cumulated_values[self.nb_data-1].0 - cumulated_values[self.nb_data-1].1);
+        log::debug!("value to match : {:.2e}", value);
+        if log::log_enabled!(log::Level::Trace) {
+            let check : Vec<f32> = (0..self.get_nb_data()).into_iter().map(|j| value_at_j(j)).collect();
+            log::debug!("check : {:?}", check);
+        }
+        //
         // now we must find greatest j such that value_atj(j) <= value
         // check last value
         let upper_value = value_at_j(self.get_nb_data() - 1);
@@ -363,10 +372,10 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
             let mut upper_index = self.get_nb_data() - 1;
             let mut lower_index = 0;
             let mut middle_index = (upper_index + lower_index) / 2;
-            let mut value_at_upper = 0.;
+            let mut value_at_upper = upper_value;
             let mut value_at_lower = 0.;
             while upper_index - lower_index > 1 {
-                log::debug!("lower : {:?}, upper : {:?}", lower_index, upper_index);
+                log::trace!("lower index: {:?}, upper index : {:?} value lower : {:?}, value upper {:?}", lower_index, upper_index, value_at_lower, value_at_upper);
                 let value_at_middle = value_at_j(middle_index);
                 if value_at_middle > value {
                     upper_index = middle_index;
@@ -377,9 +386,9 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
                     value_at_lower = value_at_middle;
                 }
                 middle_index = (upper_index + lower_index) / 2;
-                log::debug!("upper_index - lower_index : {:?}", upper_index - lower_index);
             } // end while
-            radius = (value + cumulated_values[lower_index].1)/ cumulated_values[lower_index].0;
+            log::debug!("lower index : {:?}, upper index : {:?}, value lower  : {:?}, value upper : {:?} ", lower_index, upper_index,value_at_lower, value_at_upper);
+            radius = indexed_dist[lower_index].1 + (value - value_at_lower) / cumulated_values[lower_index].0;
             log::debug!("got radius : {:?}", radius);
             assert!(radius >= indexed_dist[lower_index].1);
             assert!(radius < indexed_dist[upper_index].1);
@@ -421,7 +430,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
 
 
     /// 
-    pub fn construct_centers(&self) -> Facilities<T, Dist> {
+    pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist> {
         //
         log::debug!("in WeightedMettuPlaxton::construct_centers");
         //
@@ -434,7 +443,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
         let d_median = q_dist.query(0.5).unwrap().1;
         log::info!("dist median : {:.3e}",d_median);
-        let facilities = self.compute_balls_at_value(d_median, &dists);
+        let value = alfa * d_median;
+        let facilities = self.compute_balls_at_value(value, &dists);
         //
         return facilities;
     } // end of construct_centers
@@ -508,11 +518,13 @@ mod tests {
         //
         log::info!("in test_weight_mp");
         //
-        let (data, weights) = generate_weighted_data(10);
+        let (data, weights) = generate_weighted_data(12);
         let distance = DistL2::default();
         //
         let wmp = WeightedMettuPlaxton::new(&data, &weights, distance);
-        let facilities = wmp.construct_centers();
+        //
+        let alfa = 0.25;
+        let facilities = wmp.construct_centers(alfa);
     } // end of test_weight_mp
 
 
