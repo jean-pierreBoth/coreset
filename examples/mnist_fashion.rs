@@ -173,14 +173,13 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
         facility.log();
         let label = labels[facility.get_dataid()];
         log::info!("label is : {:?}", label)
-
     }
 
-    let (cost, labels_distribution) = facilities.dispatch_labels(&images , labels);
+    let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     log::info!("global cost : {:.3e}", cost);
     //
     for i in 0..labels_distribution.len() {
-        log::info!("\n\n facility : {:?}", i);
+        log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
         let map = &labels_distribution[i];
         for (key, val) in map.iter() {
             println!("key: {key} val: {val}");
@@ -195,11 +194,12 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
-    //
-    let beta = 2.;
+    // if gamma increases, number of facilities increase.
+    // if beta increses , upper bound on cost increases fastern the number of phases decreases
+    let beta = 10.;
     let gamma = 2.;
     let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
-    let state = bmor_algo.process_block(images);
+    let state = bmor_algo.process_data(images);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("bmor.process_block  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
@@ -209,9 +209,18 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let ratio = (nb_f - 10.) / (nb_f * nb_f);
     facilities.cross_distances(ratio);
     //
-    let (cost, labels_distribution) = facilities.dispatch_labels(&images , labels);
+    let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     log::info!("global cost : {:.3e}", cost);
     //
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_cloned_facility(i).unwrap();
+        log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
+        facility.log();
+        let label = labels[facility.get_dataid()];
+        log::info!("label is : {:?}", label)
+    }
+    
     for i in 0..labels_distribution.len() {
         log::info!("\n\n facility : {:?}", i);
         let map = &labels_distribution[i];

@@ -119,7 +119,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
     /// return true if all is OK, false if costs or number of facilities got too large
     fn update(&mut self, rank_id : usize, point : &[T], weight : f64) -> bool {
         //
-        log::debug!("in BmorState::update rank_id: {:?}", rank_id);
+        log::trace!("in BmorState::update rank_id: {:?}", rank_id);
         //
         let dist_to_nearest : f32;
         let nearest_facility : Arc<RwLock<Facility<T>>>;
@@ -139,10 +139,10 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
             let mut new_f = Facility::<T>::new(rank_id, point);
             new_f.insert(weight as f64,dist_to_nearest);
             self.centers.insert(new_f);
-            log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
+            // log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
         }
         else {
-            log::debug!("in BmorState::update rank_id: {:?}, inserting in old facility dist : {:.3e}", rank_id, dist_to_nearest);
+            // log::debug!("in BmorState::update rank_id: {:?}, inserting in old facility dist : {:.3e}", rank_id, dist_to_nearest);
             nearest_facility.write().insert(weight, dist_to_nearest);
             self.total_cost += weight.abs() as f64 * dist_to_nearest as f64;
         }
@@ -212,8 +212,8 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         Bmor{k, nbdata_expected : nbdata, beta, gamma, distance, _t : PhantomData::<T> }
     }
 
-
-    pub fn process_block(&self, data : &Vec<Vec<T>>) -> BmorState<T, Dist> {
+    /// treat unweighted data
+    pub fn process_data(&self, data : &Vec<Vec<T>>) -> BmorState<T, Dist> {
         //
         let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
@@ -226,19 +226,37 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         state.get_facilities().log();
         //
         return state;
-    } // end of process_block
+    } // end of process_data
+
+
+
+    /// treat data with weights attached.
+    pub fn process_weight_data(&self, data : &Vec<(f64, Vec<T>)>) -> BmorState<T, Dist> {
+        //
+        let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
+        let upper_cost = self.gamma;
+        let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
+                    upper_cost as f64, nb_centers_bound, self.distance.clone());
+        //
+        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, &data[i].1 ,i)).collect();
+        self.process_weighted_block(&mut state, &weighted_data);
+        state.log();
+        state.get_facilities().log();
+        //
+        return state;
+    } // end of process_data
 
 
 
     // This method can do block processing as dispatched by 
     // recurring processing
-    pub fn process_weighted_block(&self, state : &mut BmorState<T, Dist>, data : &Vec<(f64,&Vec<T>, usize)>) {
+    fn process_weighted_block(&self, state : &mut BmorState<T, Dist>, data : &Vec<(f64,&Vec<T>, usize)>) {
         //
         log::debug!("entering process_weighted_block, phase : {:?}, nb data : {}", state.get_phase(), data.len());
         //
         for d in data {
             // TODO: now we use rank as rank_id (sufficicent for ordered ids)
-            log::debug!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
+            log::trace!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
             let add_res = self.add_data(state, d.2, &d.1, d.0);
             if !add_res {
                 // allocate new state

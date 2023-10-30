@@ -125,7 +125,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
     pub(crate) fn insert(&mut self, facility : Facility<T>) {
         self.centers.push(Arc::new(RwLock::new(facility)));
         //
-        log::debug!(" facility insertion nb facilities : {}", self.centers.len());
+        log::trace!("Facilities: facility insertion nb facilities : {}", self.centers.len());
     }
 
 
@@ -188,7 +188,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
     /// If we have labelled data we can store labels counts affected to each facility
     /// This function returns total cost and a vector of counts for eacl label occuring in a Facility
     /// Can be useful to check homogneity or clustering
-    pub fn dispatch_labels(&self, data : &Vec<Vec<T>>, labels : &Vec<u8>) -> (f64, Vec::<HashMap<u8, u32>>) {
+    pub fn dispatch_labels(&self, data : &Vec<Vec<T>>, labels : &Vec<u8>) -> (f64, Vec<f64>, Vec<HashMap<u8, u32>>) {
         //
         assert_eq!(data.len(), labels.len());
         //
@@ -209,8 +209,37 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
                 label_distribution[rank_dist.0].insert(labels[i], 1);
             }
         }
+        // We can compute entropy distribution
+        // TODO: to extend for weighted data
         //
-        return (global_cost, label_distribution);
+        let mut entropies = Vec::<f64>::with_capacity(nb_facility);
+        for i in 0..nb_facility {
+            let distribution = &label_distribution[i];
+            let mut mass = 0.;
+            let nb_label = distribution.len();
+            let mut weights = Vec::<f64>::with_capacity(nb_label);
+            let mut entropy = 0.;
+            for item in distribution {
+                weights.push(*item.1 as f64);
+                mass += *item.1 as f64;
+                entropy -= (*item.1 as f64) * (*item.1 as f64).ln();
+            }
+            entropy = entropy / mass + mass.ln();
+            entropies.push(entropy);
+        }
+        // Construct global weighted entropy measure 
+        let mut global_entropy = 0.;
+        let mut total_weight = 0.;
+        for i in 0..nb_facility{
+            let facility = self.centers[i].read();
+            let weight = facility.get_weight();
+            total_weight += weight;
+            global_entropy +=  weight * entropies[i];
+        }
+        global_entropy /= total_weight;
+        log::info!("mean of entropies : {:.3e}", global_entropy);
+        //
+        return (global_cost, entropies, label_distribution);
     } // end of dispatch_labels
 
 
