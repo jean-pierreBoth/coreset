@@ -27,7 +27,7 @@ pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
     oneplogn : usize,
     // nb iterations (phases)
     phase : usize,
-    //
+    // initial cost factor
     li : f64,
     // at each phase we have an upper bound for cost.
     phase_cost_upper : f64,
@@ -67,6 +67,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
     pub fn get_mut_facilities(&mut self) -> &mut Facilities<T, Dist> {
         return &mut self.centers
     }
+
     // get current phase num of processing
     pub(crate) fn get_phase(&self) -> usize {
         self.phase
@@ -80,6 +81,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
     pub(crate) fn get_nb_inserted(&self) -> usize {
         self.nb_inserted
     }
+
 
     pub(crate) fn get_unif_sample(&mut self) -> f64 {
         self.unif.sample(&mut self.rng)
@@ -225,20 +227,45 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         state.log();
         state.get_facilities().log();
         //
-        return state;
+        let state_2 = self.bmor_recur(&state);
+        //
+        return state_2;
     } // end of process_data
+
+
+    // We recur (once) to reduce number of facilities. To go from 1 + k * logn to 1 + k * log(log(n))
+    // TODO: we use bmor but imp or anything else could be used
+#[allow(unused)]
+    pub(crate) fn bmor_recur(&self, bmor_state : &BmorState<T, Dist>) -> BmorState<T, Dist> {
+        //
+        log::info!("\n bmor recurring");
+        // extract weighted data
+        let facilities = bmor_state.get_facilities();
+        let facility_data = facilities.into_weighted_data();
+        //
+        // allocate another Bmor state
+        //
+        let weighted_data: Vec<(f64, &Vec<T>)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1)).collect();
+        //
+        let state_2 = self.process_weighted_data(&weighted_data);
+        state_2.log();
+        state_2.get_facilities().log();
+        //
+        return state_2; 
+    } // end of bmor_recur
+
 
 
 
     /// treat data with weights attached.
-    pub fn process_weight_data(&self, data : &Vec<(f64, Vec<T>)>) -> BmorState<T, Dist> {
+    pub fn process_weighted_data(&self, data : &Vec<(f64, &Vec<T>)>) -> BmorState<T, Dist> {
         //
-        let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
+        let nb_centers_bound = (self.gamma * (1. + data.len().ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
-        let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
+        let mut state = BmorState::<T, Dist>::new(self.k, data.len(), 0, nb_centers_bound as usize, 
                     upper_cost as f64, nb_centers_bound, self.distance.clone());
         //
-        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, &data[i].1 ,i)).collect();
+        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
         self.process_weighted_block(&mut state, &weighted_data);
         state.log();
         state.get_facilities().log();

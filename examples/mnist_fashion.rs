@@ -194,8 +194,8 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
-    // if gamma increases, number of facilities increase.
-    // if beta increses , upper bound on cost increases fastern the number of phases decreases
+    // if gamma increases, number of facilities increases.
+    // if beta increases , upper bound on cost increases faster so the number of phases decreases
     let beta = 10.;
     let gamma = 2.;
     let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
@@ -217,8 +217,6 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
         let facility = facilities.get_cloned_facility(i).unwrap();
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
         facility.log();
-        let label = labels[facility.get_dataid()];
-        log::info!("label is : {:?}", label)
     }
     
     for i in 0..labels_distribution.len() {

@@ -243,6 +243,21 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
     } // end of dispatch_labels
 
 
+    /// extract facility centers and associated weight for possible other clustering step
+    pub fn into_weighted_data(&self) -> Vec<(f64, Vec<T>)> {
+        let nb_facility = self.len();
+        let mut weighted_data = Vec::<(f64, Vec<T>)>::with_capacity(nb_facility);
+        for i in 0..nb_facility {
+            let facility = self.get_facility(i).unwrap().read();
+            let weight = facility.get_weight();
+            let pos = facility.get_position();
+            weighted_data.push((weight, pos.clone()));
+        }
+        weighted_data
+    } // end of into_weighted_data
+
+
+
         // TODO: useful?
     /// computes distances between facility
     pub fn cross_distances(&self, proba : f64) {
