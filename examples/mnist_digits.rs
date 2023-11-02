@@ -229,12 +229,11 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let beta = 2.;
     let gamma = 2.;
     let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
-    let state = bmor_algo.process_data(images);
+    let facilities = bmor_algo.process_data(images);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("bmor.process_block  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    let facilities = state.get_facilities();
     let nb_f = facilities.len() as f64;
     let ratio = (nb_f - 10.) / (nb_f * nb_f);
     facilities.cross_distances(ratio);

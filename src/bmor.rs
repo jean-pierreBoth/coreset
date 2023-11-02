@@ -17,6 +17,7 @@ use rand::distributions::{Distribution,Uniform};
 
 use hnsw_rs::dist::*;
 
+use crate::prelude::*;
 use crate::facility::*;
 
 
@@ -204,7 +205,7 @@ pub struct Bmor<T, Dist> {
 
 
 impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist> 
-    where  Dist : Distance<T> + Clone + Sync {
+    where  Dist : Distance<T> + Clone + Sync + Send {
 
     /// - k: number of centers
     /// - nbdata : nb data expected,
@@ -215,7 +216,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     }
 
     /// treat unweighted data
-    pub fn process_data(&self, data : &Vec<Vec<T>>) -> BmorState<T, Dist> {
+    pub fn process_data(&self, data : &Vec<Vec<T>>) -> Facilities<T, Dist> {
         //
         let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
@@ -227,9 +228,27 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         state.log();
         state.get_facilities().log();
         //
-        let state_2 = self.bmor_recur(&state);
+        let second_pass = Algo::IMP;
         //
-        return state_2;
+        let facilities = match second_pass {
+            Algo::BMOR => {
+                let state_2 = self.bmor_recur(&state);
+                state_2.get_facilities().clone()
+            }
+            Algo::IMP => {
+                // TODO: mst change interface must reformat data 
+                log::info!("\n\n bmor doing final imp pass ...");
+                let facilities = state.get_facilities();
+                log::info!(" received nb facilites : {:?}", facilities.len());
+                let weighted_data  = facilities.get_weights_and_data();
+                let wmp = WeightedMettuPlaxton::<T, Dist>::new(&weighted_data.1, &weighted_data.0, self.distance.clone());
+                let alfa = 0.5;
+                let facilities = wmp.construct_centers(alfa);
+                facilities
+            }
+        };
+        //
+        return facilities;
     } // end of process_data
 
 

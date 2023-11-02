@@ -257,8 +257,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 /// Mettu-Plaxton online median algorithm Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).  
 /// This algorithm can handle weighted data but its complexity is O(n²).  
 /// 
-/// It is adapted to final processing of Coreset algorithms (bmor module algos   
-/// or blackbox as in Chen K., On Coresets Kmedian ClusteringM etricSpaces And Applications 2009 Siam J. Computing)
+/// It is adapted to final processing of Coreset algorithms where number of items to process has been log reduced (bmor module algos   
+/// or blackbox as in Chen K., On Coresets Kmedian Clustering Metric Spaces and Applications 2009 Siam J. Computing)
 pub struct WeightedMettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
     //
     nb_data : usize,
@@ -338,7 +338,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         // first component store weight cumul , second component stores weight * dist cumul
         //
         let mut cumulated_values = Vec::<(f32,f32)>::with_capacity(self.get_nb_data());
-        cumulated_values.push((self.weights[0], indexed_dist[0].1 * self.weights[indexed_dist[0].0]));
+        cumulated_values.push((self.weights[indexed_dist[0].0], indexed_dist[0].1 * self.weights[indexed_dist[0].0]));
         for j in 1..self.get_nb_data() {
             let weight = cumulated_values[j-1].0 + self.weights[indexed_dist[j].0];
             let indexed_weight = cumulated_values[j-1].1 + indexed_dist[j].1 * self.weights[indexed_dist[j].0];
@@ -351,9 +351,10 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
             indexed_dist[j].1 * cumulated_values[j].0 - cumulated_values[j].1
         };
         //
-        let value = alfa * (indexed_dist[self.nb_data-1].1 * cumulated_values[self.nb_data-1].0 - cumulated_values[self.nb_data-1].1);
+        let radius_index = self.nb_data.ilog2().max(1);
+        let value = alfa * value_at_j(radius_index.try_into().unwrap());
         log::debug!("value to match : {:.2e}", value);
-        if log::log_enabled!(log::Level::Trace) {
+        if log::log_enabled!(log::Level::Debug) {
             let check : Vec<f32> = (0..self.get_nb_data()).into_iter().map(|j| value_at_j(j)).collect();
             log::debug!("check : {:?}", check);
         }
@@ -361,9 +362,10 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         // now we must find greatest j such that value_atj(j) <= value
         // check last value
         let upper_value = value_at_j(self.get_nb_data() - 1);
+        log::debug!("imp::compute_ball_radius upper_value : {:.3e} value : {:.3e}", upper_value, value);
         let radius : f32;
         if upper_value <= value {
-            log::info!("value is too large upper_value : {:.3e}", upper_value);
+            log::info!("value is too large upper_value : {:.3e} value : {:.3e}", upper_value, value);
             // we can solve for a large r directly
             radius =  value - upper_value;
             std::panic!("not yet implemented");
@@ -403,9 +405,11 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     } // end of compute_ball_radius
 
 
+
     //
-    //
+    // TODO: to made //
     fn compute_balls_at_value(&self, value : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<T, Dist> {
+        //
         //
         log::debug!("in WeightedMettuPlaxton::compute_balls_at_value");
         // for each point compute ball around it of given value
@@ -420,31 +424,25 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
             let matched = facilities.match_point(&self.data[p.0],  2. * p.1, &self.distance);
             if !matched {
                 // we insert a facility
-                let facility = Facility::new(p.0, &self.data[p.0]);
+                let mut facility = Facility::new(p.0, &self.data[p.0]);
+                facility.insert(self.weights[p.0] as f64, p.1 as f32);
+                log::info!("inserting facility at {:?}, radius : {:.3e}, weight : {:.3e}", p.0, p.1, facility.get_weight());
                 facilities.insert(facility);
-                log::debug!("inserted facility at {:?}, radius : {:.3e}", p.0, p.1);
             }
         }
         return facilities;
     } // end of compute_balls_at_value
 
 
-    /// 
+    /// alfa governs the number of facilities we will get.
+    /// alfa = 0.5 is a good value. To reduce number of facilities produced decrease alfa.
     pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist> {
         //
         log::debug!("in WeightedMettuPlaxton::construct_centers");
         //
         let dists : Vec<RwLock<Vec<f32>>> = self.compute_all_dists();
-        // initialize value to something coherent with distance scales. 
-        // get scales
-        // TODO: higher value should reduce number of facilities ...
-        log::debug!("   calling scale_estimation ...");
-        let q_dist = scale_estimation(1_000_000, self.data, &self.distance);
-        let d_range = (q_dist.query(0.0001).unwrap().1, q_dist.query(0.95).unwrap().1);
-        let d_median = q_dist.query(0.5).unwrap().1;
-        log::info!("dist median : {:.3e}",d_median);
-        let value = alfa * d_median;
-        let facilities = self.compute_balls_at_value(value, &dists);
+        //
+        let facilities = self.compute_balls_at_value(alfa, &dists);
         //
         return facilities;
     } // end of construct_centers
@@ -523,7 +521,7 @@ mod tests {
         //
         let wmp = WeightedMettuPlaxton::new(&data, &weights, distance);
         //
-        let alfa = 0.25;
+        let alfa = 1.;
         let facilities = wmp.construct_centers(alfa);
     } // end of test_weight_mp
 

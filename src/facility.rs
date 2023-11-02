@@ -220,6 +220,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
             let mut weights = Vec::<f64>::with_capacity(nb_label);
             let mut entropy = 0.;
             for item in distribution {
+                assert!(*item.1 > 0);
                 weights.push(*item.1 as f64);
                 mass += *item.1 as f64;
                 entropy -= (*item.1 as f64) * (*item.1 as f64).ln();
@@ -230,14 +231,14 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
         // Construct global weighted entropy measure 
         let mut global_entropy = 0.;
         let mut total_weight = 0.;
-        for i in 0..nb_facility{
+        for i in 0..nb_facility {
             let facility = self.centers[i].read();
             let weight = facility.get_weight();
             total_weight += weight;
             global_entropy +=  weight * entropies[i];
         }
         global_entropy /= total_weight;
-        log::info!("mean of entropies : {:.3e}", global_entropy);
+        log::info!("mean of entropies : {:.3e}, total weight : {:.3e}", global_entropy, total_weight);
         //
         return (global_cost, entropies, label_distribution);
     } // end of dispatch_labels
@@ -256,6 +257,19 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
         weighted_data
     } // end of into_weighted_data
 
+
+    pub fn get_weights_and_data(&self) -> (Vec<f32>, Vec<Vec<T>>) {
+        let nb_facility = self.len();
+        let mut data = Vec::<Vec<T>>::with_capacity(nb_facility);
+        let mut weights = Vec::<f32>::with_capacity(nb_facility);
+        for i in 0..nb_facility {
+            let facility = self.get_facility(i).unwrap().read();
+            weights.push(facility.get_weight() as f32);
+            let pos = facility.get_position();
+            data.push(pos.clone());
+        }
+        (weights, data)       
+    }
 
 
         // TODO: useful?

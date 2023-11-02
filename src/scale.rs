@@ -13,6 +13,7 @@ use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 use hnsw_rs::dist::*;
 
 ///  returns quantiles on distances between points.
+#[allow(unused)]
 pub(crate) fn scale_estimation<T, Dist : Distance<T>>(nbsample_arg : usize, data : &Vec<Vec<T>>, distance : &Dist) -> CKMS::<f32>
     where   Dist : Sync,
             T: Send+Sync {
