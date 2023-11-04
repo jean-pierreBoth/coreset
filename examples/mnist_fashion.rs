@@ -160,14 +160,14 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     // 
     let mpalgo = MettuPlaxton::<f32,Dist>::new(&images, distance);
     let alfa = 1.;
-    let facilities = mpalgo.construct_centers(alfa);
+    let mut facilities = mpalgo.construct_centers(alfa);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
     let nb_f = facilities.len() as f64;
     let proba = (nb_f - 10.) / (nb_f * nb_f);
-    mpalgo.compute_cost(&facilities, &images, proba);
+    mpalgo.compute_distances(&mut facilities, &images, proba);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();

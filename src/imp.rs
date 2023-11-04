@@ -166,85 +166,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
 
-    // affect each point to a facility.
-    pub fn compute_cost_serial(&self, facilities : &Facilities<T, Dist>, data : &Vec<Vec<T>>, distance : &Dist)
-        where Dist : Send + Sync {
-            //
-        log::info!("MettuPlaxton computing costs ...");
-        let nb_facility = facilities.len();
-        for i in 0..data.len() {
-            let mut affectation = Vec::<(usize, f32)>::with_capacity(nb_facility);
-            for j in 0..nb_facility {
-                let facility = facilities.get_facility(j).unwrap().read();
-                let (jf,dist) = (j, distance.eval(&data[i], facility.get_position()));
-                affectation.push((jf,dist));
-            }
-            // sort
-            affectation.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
-            // point i is affected to affectation[0]
-            let f_rank = affectation[0].0;
-            let dist = affectation[0].1;
-            let mut facility = facilities.get_facility(f_rank).unwrap();
-            facility.write().insert(1., dist);
-
-        }
-        //
-        let mut total_weight = 0.;
-        log::info!("nb facilities  : {:?}", nb_facility);
-        for i in 0..nb_facility {
-            let facility = facilities.get_facility(i).unwrap().read();
-            total_weight += facility.get_weight();
-            facilities.get_facility(i).unwrap().read().log();
-        }
-        log::info!("weight dispatched into facilities : {:.5e}", total_weight);
-    } // end of compute_cost_serial
-
-
-
-    // affect each point to a facility.
-    pub fn compute_cost_parallel(&self, facilities : &Facilities<T, Dist>, data : &Vec<Vec<T>>, distance : &Dist)
-        where Dist : Send + Sync {
-            //
-        log::info!("MettuPlaxton computing costs ...");
-        //
-        let nb_facility = facilities.len();
-        let affect = | i : usize| -> u8 {
-            let mut affectation = Vec::<(usize, f32)>::with_capacity(nb_facility);
-            for j in 0..nb_facility {
-                let facility = facilities.get_facility(j).unwrap().read();
-                let (jf,dist) = (j, distance.eval(&data[i], facility.get_position()));
-                affectation.push((jf,dist));
-            }
-            // sort
-            affectation.sort_unstable_by(|it1, it2| it1.1.partial_cmp(&it2.1).unwrap());
-            // point i is affected to affectation[0]
-            let f_rank = affectation[0].0;
-            let dist = affectation[0].1;
-            let mut facility = facilities.get_facility(f_rank).unwrap();
-            facility.write().insert(1., dist);
-            //
-            return 1;           
-        };
-        //
-        let res : Vec<u8>= (0..data.len()).into_par_iter().map(|i| affect(i)).collect();
-        //
-        //
-        for i in 0..nb_facility {
-            facilities.get_facility(i).unwrap().read().log();
-        }
-    } // end of  compute_cost  
-
-
-
-    pub fn compute_cost(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>, proba : f64)
+    pub fn compute_distances(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>, proba : f64)
     where Dist : Send + Sync {
-        //
-        if data.len() > 1_000_000 {
-            self.compute_cost_parallel(facilities, data, &self.distance);
-        }
-        else {
-            self.compute_cost_serial(facilities, data, &self.distance);
-        }
         //
         facilities.cross_distances(proba);
     } // end of compute_cost

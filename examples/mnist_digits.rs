@@ -190,10 +190,10 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     //
     let mpalgo = MettuPlaxton::<f32, Dist>::new(&images, distance);
     let alfa = 1.;
-    let facilities = mpalgo.construct_centers(alfa);
+    let mut facilities = mpalgo.construct_centers(alfa);
     //
     let proba = 0.01;
-    mpalgo.compute_cost(&facilities, &images, proba);
+    mpalgo.compute_distances(&mut facilities, &images, proba);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();
@@ -209,8 +209,8 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     for i in 0..labels_distribution.len() {
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
         let map = &labels_distribution[i];
-        for (key, val) in map.iter() {
-            println!("key: {key} val: {val}");
+        for (label, val) in map.iter() {
+            println!("key: {label} val: {val}");
         }
     }
 }  // end of marrupaxton
