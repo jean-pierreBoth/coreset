@@ -49,7 +49,7 @@ pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
 } // end of 
 
 
-impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync> BmorState<T, Dist> {
+impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, Dist> {
 
     pub(crate) fn new(k : usize, nbdata : usize, phase : usize, alloc_size : usize, upper_cost : f64, facility_bound : usize, distance : Dist) -> Self {
         let centers = Facilities::<T, Dist>::new(alloc_size, distance);
@@ -198,6 +198,8 @@ pub struct Bmor<T, Dist> {
     gamma : f64,
     //
     distance : Dist,
+    /// end step used in reduciing the numger of facilities.
+    end_step : Option<Algo>, 
     //
     _t : PhantomData<T>,
 }  // end of struct Bmor
@@ -207,12 +209,14 @@ pub struct Bmor<T, Dist> {
 impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist> 
     where  Dist : Distance<T> + Clone + Sync + Send {
 
-    /// - k: number of centers
-    /// - nbdata : nb data expected,
+    /// - k: number of centers.  
+    /// - nbdata : nb data expected.  
     /// - gamma 
-    pub fn new(k: usize, nbdata : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
+    /// - end_step : optional. determines algorithm used to reduce the number of facilities created.
+    ///          
+    pub fn new(k: usize, nbdata : usize, beta : f64, gamma : f64, distance :  Dist, end_step : Option<Algo>) -> Self {
         // TODO: to be adapted?
-        Bmor{k, nbdata_expected : nbdata, beta, gamma, distance, _t : PhantomData::<T> }
+        Bmor{k, nbdata_expected : nbdata, beta, gamma, distance, end_step, _t : PhantomData::<T> }
     }
 
     /// treat unweighted data
@@ -228,21 +232,22 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         state.log();
         state.get_facilities().log();
         //
-        let second_pass = Algo::IMP;
-        //
-        let facilities = match second_pass {
-            Algo::BMOR => {
+        let facilities = match self.end_step {
+            None => {
+                state.get_facilities().clone()
+            }
+            Some(Algo::BMOR) => {
                 let state_2 = self.bmor_recur(&state);
                 state_2.get_facilities().clone()
             }
-            Algo::IMP => {
+            Some(Algo::IMP) => {
                 // TODO: mst change interface must reformat data 
                 log::info!("\n\n bmor doing final imp pass ...");
                 let facilities = state.get_facilities();
                 log::info!(" received nb facilites : {:?}", facilities.len());
                 let weighted_data  = facilities.get_weights_and_data();
                 let wmp = WeightedMettuPlaxton::<T, Dist>::new(&weighted_data.1, &weighted_data.0, self.distance.clone());
-                let alfa = 0.5;
+                let alfa = 0.45;
                 let facilities = wmp.construct_centers(alfa);
                 facilities
             }
@@ -252,7 +257,26 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     } // end of process_data
 
 
-    // We recur (once) to reduce number of facilities. To go from 1 + k * logn to 1 + k * log(log(n))
+
+    /// treat data with weights attached.
+    pub fn process_weighted_data(&self, data : &Vec<(f64, &Vec<T>)>) -> BmorState<T, Dist> {
+        //
+        let nb_centers_bound = (self.gamma * (1. + data.len().ilog2() as f64) * self.k as f64).trunc() as usize; 
+        let upper_cost = self.gamma;
+        let mut state = BmorState::<T, Dist>::new(self.k, data.len(), 0, nb_centers_bound as usize, 
+                    upper_cost as f64, nb_centers_bound, self.distance.clone());
+        //
+        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
+        self.process_weighted_block(&mut state, &weighted_data);
+        state.log();
+        state.get_facilities().log();
+        //
+        return state;
+    } // end of process_data
+
+
+
+    // We recur (once) to reduce number of facilities. To go from $1 + k * logn$ to $1 + k * log(log(n))$
     // TODO: we use bmor but imp or anything else could be used
 #[allow(unused)]
     pub(crate) fn bmor_recur(&self, bmor_state : &BmorState<T, Dist>) -> BmorState<T, Dist> {
@@ -274,23 +298,6 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     } // end of bmor_recur
 
 
-
-
-    /// treat data with weights attached.
-    pub fn process_weighted_data(&self, data : &Vec<(f64, &Vec<T>)>) -> BmorState<T, Dist> {
-        //
-        let nb_centers_bound = (self.gamma * (1. + data.len().ilog2() as f64) * self.k as f64).trunc() as usize; 
-        let upper_cost = self.gamma;
-        let mut state = BmorState::<T, Dist>::new(self.k, data.len(), 0, nb_centers_bound as usize, 
-                    upper_cost as f64, nb_centers_bound, self.distance.clone());
-        //
-        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
-        self.process_weighted_block(&mut state, &weighted_data);
-        state.log();
-        state.get_facilities().log();
-        //
-        return state;
-    } // end of process_data
 
 
 

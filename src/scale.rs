@@ -38,14 +38,15 @@ pub(crate) fn scale_estimation<T, Dist : Distance<T>>(nbsample_arg : usize, data
 }
 
 
-/// samples neighborhood radii
+/// sample neighborhood radii. 
 pub(crate) fn get_neighborhood_size<T, Dist : Distance<T>>(_nbsample_arg : usize, data : &Vec<Vec<T>>, distance : &Dist) -> CKMS::<f32> 
         where   Dist : Sync,
                 T    : Send+Sync {
         //
     let nbdata = data.len();
     let unif = Uniform::<usize>::new(0, nbdata); 
-    // we loop (with sampling) in nb data  and get an idea on neighbours distance
+    // we loop (with sampling) in nb data  and get an idea on neighbours distance for an overall nbdata complexity
+    // We use sqrt(nbpoint) as default neighborhood size
     let nb_sample : usize = (nbdata as f32).sqrt().trunc() as usize;
     let explore = |i : usize| -> (f32,f32) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(14547 + i as u64).clone();

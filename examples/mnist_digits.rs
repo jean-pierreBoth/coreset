@@ -12,7 +12,8 @@ use std::fs::OpenOptions;
 use std::path::PathBuf;
 
 
-
+use std::time::{Duration, SystemTime};
+use cpu_time::ProcessTime;
 
 
 use hnsw_rs::prelude::*;
@@ -185,15 +186,11 @@ impl MnistParams {
 
 fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
     //
-    let cpu_start = ProcessTime::now();
-    let sys_now = SystemTime::now();
+    log::info!("in marrupaxton");
     //
     let mpalgo = MettuPlaxton::<f32, Dist>::new(&images, distance);
     let alfa = 1.;
     let facilities = mpalgo.construct_centers(alfa);
-    //
-    let cpu_time: Duration = cpu_start.elapsed();
-    println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
     let proba = 0.01;
     mpalgo.compute_cost(&facilities, &images, proba);
@@ -204,7 +201,6 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
         facility.log();
         let label = labels[facility.get_dataid()];
         log::info!("label is : {:?}", label)
-
     }
     //
     let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , &labels);
@@ -221,18 +217,14 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 
 //=================================================================================================
 
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : Option<Algo>) {
     //
-    let cpu_start = ProcessTime::now();
-    let sys_now = SystemTime::now();
+    log::info!("in bmor");
     //
     let beta = 2.;
     let gamma = 2.;
-    let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
+    let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance, end_step);
     let facilities = bmor_algo.process_data(images);
-    //
-    let cpu_time: Duration = cpu_start.elapsed();
-    println!("bmor.process_block  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
     let nb_f = facilities.len() as f64;
     let ratio = (nb_f - 10.) / (nb_f * nb_f);
@@ -254,8 +246,6 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
 
 use clap::{Arg, ArgMatches, ArgAction, Command};
 
-use std::time::{Duration, SystemTime};
-use cpu_time::ProcessTime;
 
 use coreset::prelude::*;
 
@@ -339,16 +329,22 @@ pub fn main() {
         labels.append(&mut test_labels);
         images_as_v.append(&mut test_images_as_v);
     } // drop mnist_test_data
-
+    //
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
+    //
     let distance = DistL2::default();
     match mnist_params.get_algo() {
         Algo::IMP   => {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)
         }
         Algo::BMOR   => {
-            bmor(&mnist_params, &images_as_v, &labels, distance)
+            bmor(&mnist_params, &images_as_v, &labels, distance, Some(Algo::IMP));
         }   
     }
+    //
+    let cpu_time: Duration = cpu_start.elapsed();
+    println!("  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis());
 }  // end of main digits
 
 

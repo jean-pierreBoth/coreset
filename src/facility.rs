@@ -5,6 +5,8 @@ use anyhow::*;
 use ndarray::Array2;
 use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 
+use rayon::prelude::*;
+
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -78,7 +80,7 @@ pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
     distance : Dist,
 }
 
-impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
+impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> {
 
     /// to be allocated , size should be log(nb_data)
     pub fn new(size : usize, distance : Dist) -> Self {
@@ -185,18 +187,67 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
     } // end of log 
 
 
-    /// If we have labelled data we can store labels counts affected to each facility
-    /// This function returns total cost and a vector of counts for eacl label occuring in a Facility
-    /// Can be useful to check homogneity or clustering
-    pub fn dispatch_labels(&self, data : &Vec<Vec<T>>, labels : &Vec<u8>) -> (f64, Vec<f64>, Vec<HashMap<u8, u32>>) {
+
+    /// affect each point to its facility and compute cost of each facility
+    /// Not all algos maintain weight and cost consistently all the way, sometimes facilities are created without
+    /// searching all points in it. So we need to be able do do the dispatch afterwards.
+    /// This function returns global cost and vector of weight by facility
+    #[allow(unused)]
+    pub(crate) fn dispatch_data(&mut self, data : &Vec<Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
+        //
+        log::info!("in facilities::dispatch_data");
+        //
+        if weights.is_some() {
+            assert_eq!(data.len(), weights.unwrap().len());
+        }
+        //
+        let nb_facility = self.centers.len();
+        for i in 0..nb_facility {
+            self.centers[i].write().cost = 0.;
+            self.centers[i].write().weight = 0.;
+        }
+        //
+        let dispacth_i = | item : usize | {
+            // get facility rank and weight
+            let (facility, dist) = self.get_nearest_facility(&data[item]).unwrap();
+            let weight = if weights.is_none() { 1. } else { weights.unwrap()[item] as f64};
+            let cost_incr = dist as f64 * weight;
+            let mut facility = self.centers[facility].write();
+            facility.weight += weight;
+            facility.cost += cost_incr;
+        };
+        //
+        (0..data.len()).into_par_iter().for_each( |item| dispacth_i(item));
+        //
+        let mut global_cost = 0_f64;
+        let mut total_weight = 0.;
+        for i in 0..nb_facility {
+            global_cost += self.centers[i].read().cost;
+            total_weight += self.centers[i].read().weight;
+        }
+        //
+        log::info!("total weight collected in facilities : {:.3e}, total cost : {:.3e}", total_weight, global_cost);
+        //
+        global_cost
+    } // end of dispatch_data
+
+
+
+
+    /// If we have labelled data we can store labels counts affected to each facility.  
+    /// This function returns total cost and a vector of counts for each label occuring in a Facility.  
+    /// Can be useful to check homogeneity or clustering
+    /// Computes for each facililty label distribution, entropy of distribution.  
+    /// Returns global cost, Vector of label distribution entropy by facility and distribution as a HashMap
+    pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash>(&self, data : &Vec<Vec<T>>, labels : &Vec<L>) -> (f64, Vec<f64>, Vec<HashMap<L, u32>>) {
         //
         assert_eq!(data.len(), labels.len());
         //
         let mut global_cost = 0_f64;
         let nb_facility = self.centers.len();
-        let mut label_distribution = Vec::<HashMap<u8, u32>>::with_capacity(nb_facility);
+        let mut label_distribution = Vec::<HashMap<L, u32>>::with_capacity(nb_facility);
         for _ in 0..nb_facility {
-            label_distribution.push(HashMap::<u8, u32>::with_capacity(data.len() / (2* nb_facility)));
+            label_distribution.push(HashMap::<L, u32>::with_capacity(data.len() / (2* nb_facility)));
         }
         //
         for i in 0..data.len() {
@@ -246,6 +297,8 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> > Facilities<T, Dist> {
 
     /// extract facility centers and associated weight for possible other clustering step
     pub fn into_weighted_data(&self) -> Vec<(f64, Vec<T>)> {
+        log::info!("facility::into_weighted_data");
+        //
         let nb_facility = self.len();
         let mut weighted_data = Vec::<(f64, Vec<T>)>::with_capacity(nb_facility);
         for i in 0..nb_facility {

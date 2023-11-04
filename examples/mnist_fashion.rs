@@ -22,6 +22,8 @@ use std::io::Cursor;
 use byteorder::{BigEndian, ReadBytesExt};
 
 
+use std::time::{Duration, SystemTime};
+use cpu_time::ProcessTime;
 
 use hnsw_rs::prelude::*;
 
@@ -190,7 +192,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 //========================================================
 
 
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : Option<Algo>) {
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
@@ -198,7 +200,7 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     // if beta increases , upper bound on cost increases faster so the number of phases decreases
     let beta = 10.;
     let gamma = 2.;
-    let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
+    let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance, end_step);
     let facilities = bmor_algo.process_data(images);
     //
     let cpu_time: Duration = cpu_start.elapsed();
@@ -261,8 +263,6 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
 
 use clap::{Arg, ArgMatches, ArgAction, Command};
 
-use std::time::{Duration, SystemTime};
-use cpu_time::ProcessTime;
 
 use coreset::prelude::*;
 
@@ -351,15 +351,21 @@ pub fn main() {
     //
     // test mettu-plaxton or bmor algo
     //
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
+    //
     let distance = DistL2::default();
     match mnist_params.get_algo() {
         Algo::IMP   => {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)
         }
         Algo::BMOR   => {
-            bmor(&mnist_params, &images_as_v, &labels, distance)
+            bmor(&mnist_params, &images_as_v, &labels, distance, Some(Algo::IMP));
         }   
     }
+    //
+    let cpu_time: Duration = cpu_start.elapsed();
+    println!("  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis());
 } // end of main
 
 

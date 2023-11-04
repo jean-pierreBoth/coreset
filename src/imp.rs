@@ -157,6 +157,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
                 log::debug!("inserted facility at {:?}, radius : {:.3e}", p.0, p.1);
             }
         }
+        // We explicitly dispatch data to facilities as imp algo do not do it
+        facilities.dispatch_data(self.data, None);
         //
         return facilities;
     } // end of construct_centers
@@ -408,13 +410,14 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
 
     //
     // TODO: to made //
-    fn compute_balls_at_value(&self, value : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<T, Dist> {
-        //
+    // alfa is a coefficient to modulate number of facilities created. 0.5 seems a good guess.
+    // increasing alfa reduce the number of facilities and reducing alfa makes facility creation easier.
+    fn compute_balls_at_value(&self, alfa  : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<T, Dist> {
         //
         log::debug!("in WeightedMettuPlaxton::compute_balls_at_value");
         // for each point compute ball around it of given value
         // corresponds to step 1 of algorithm 2.1 paper [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)        
-        let mut radii : Vec<(usize, f32)> = (0..self.nb_data).into_iter().map(|i| (i, self.compute_ball_radius( i, value, &dists[i]))).collect();
+        let mut radii : Vec<(usize, f32)> = (0..self.nb_data).into_par_iter().map(|i| (i, self.compute_ball_radius( i, alfa, &dists[i]))).collect();
         // sort by increasing radius (step 2 of algo)
         radii.sort_unstable_by(|a,b| a.1.partial_cmp(&b.1).unwrap());
         // radii[4] corresponds to point of original index radii[4].0 and so distance to its neighbours are given by dists[radii[4].0]
@@ -430,12 +433,17 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
                 facilities.insert(facility);
             }
         }
+        // We explicitly dispatch data to facilities as imp algo do not do it
+        facilities.dispatch_data(self.data, Some(self.weights));
+        //
         return facilities;
     } // end of compute_balls_at_value
 
 
-    /// alfa governs the number of facilities we will get.
-    /// alfa = 0.5 is a good value. To reduce number of facilities produced decrease alfa.
+    /// alfa governs the cost of facility creation so the number of facilities we will get.
+    /// alfa = 0.5 is a good value.  
+    /// To reduce number of facilities produced increase alfa and inversely
+    /// reducing alfa increase the number of facilities 
     pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist> {
         //
         log::debug!("in WeightedMettuPlaxton::construct_centers");
