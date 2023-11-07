@@ -192,25 +192,20 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     let alfa = 1.;
     let mut facilities = mpalgo.construct_centers(alfa);
     //
-    mpalgo.compute_distances(&mut facilities, &images);
-    let nb_facility = facilities.len();
-    for i in 0..nb_facility {
-        let facility = facilities.get_cloned_facility(i).unwrap();
-        log::info!("\n\n facility : {:?}", i);
-        facility.log();
-        let label = labels[facility.get_dataid()];
-        log::info!("label is : {:?}", label)
-    }
-    //
     let (entropies, labels_distribution) = facilities.dispatch_labels(&images , &labels);
     //
-    for i in 0..labels_distribution.len() {
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_facility(i).unwrap();
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
+        facility.read().log();
         let map = &labels_distribution[i];
-        for (label, val) in map.iter() {
-            println!("key: {label} val: {val}");
-        }
+        for (key, val) in map.iter() {
+            println!("key: {key} val: {val}");
+        }        
     }
+    //
+    mpalgo.compute_distances(&mut facilities, &images);
 }  // end of marrupaxton
 
 //=================================================================================================
@@ -224,18 +219,21 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance, end_step);
     let facilities = bmor_algo.process_data(images);
     //
-    facilities.cross_distances();
-    //
     let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     //
-    for i in 0..labels_distribution.len() {
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_facility(i).unwrap();
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
+        facility.read().log();
         let map = &labels_distribution[i];
         for (key, val) in map.iter() {
             println!("key: {key} val: {val}");
-        }
+        }        
     }
-}
+    //
+    facilities.cross_distances();
+} // end of bmor
 
 //========================================================
 

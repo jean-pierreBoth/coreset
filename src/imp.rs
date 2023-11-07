@@ -6,7 +6,7 @@
 //!  1. Facility Location in sublinear time.   
 //!       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
 //!       see [Badoiu](https://people.csail.mit.edu/indyk/fl.pdf).  
-//!    This algorithm is restricted to unweighted data and builds upon the following paper:   
+//!    This algorithm is restricted to unweighted data and builds upon the following paper:     
 //!        
 //! 
 //!  2. The online median problem,  
@@ -15,6 +15,9 @@
 //! 
 //!  The data are of type Vec\<T\> where T can be anything as long as the hnsw crate provides on these vectors.  
 //!  (see [hnsw_rs](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html))
+//! 
+//!  The bmor [Bmor](crate::bmor::Bmor) is really faster but it can be eqsier to control the number of faciities allocated by 
+//!  the algorithms implemented in this module. see [construct_centers](self::MettuPlaxton::construct_centers())
 //! 
 
 #![allow(unused)]
@@ -40,9 +43,8 @@ use crate::facility::*;
 
 /// Mettu-Plaxton algorithm with Indyk simplification as described in  [indyk](https://people.csail.mit.edu/indyk/fl.pdf).  
 /// This algorithm suppose uniform weights on data.  
+/// For weihted data see [WeightedMettuPlaxton]
 /// 
-/// If data have weights attached, data can be split in subsets of approximately equal weights as in
-/// Chen K., On Coresets Kmedian Clustering MetricSpaces And Applications 2009 Siam J. Computing
 pub struct MettuPlaxton <'b, T: Send+Sync, Dist : Distance<T>> {
     //
     nb_data : usize,
@@ -125,6 +127,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
     /// construct centers (facilities) for a given distance and returns allocated facilities (or centers)
+    /// The parameter alfa drives the number of facilities created.
     pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist>
          where Dist : Send + Sync + Clone {
         // get scales
@@ -152,7 +155,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
             }
         }
         // We explicitly dispatch data to facilities as imp algo do not do it
-        facilities.dispatch_data(self.data, None);
+        let data_unweighted:  Vec<&Vec<T>> = self.data.iter().map( |d| d).collect();
+        facilities.dispatch_data(&data_unweighted, None);
         //
         return facilities;
     } // end of construct_centers
@@ -351,7 +355,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
             }
         }
         // We explicitly dispatch data to facilities as imp algo do not do it
-        facilities.dispatch_data(self.data, Some(self.weights));
+        let data_unweighted:  Vec<&Vec<T>> = self.data.iter().map( |d| d).collect();
+        facilities.dispatch_data(&data_unweighted, Some(self.weights));
         //
         return facilities;
     } // end of compute_balls_at_value
@@ -367,8 +372,12 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         //
         let dists : Vec<RwLock<Vec<f32>>> = self.compute_all_dists();
         //
-        let facilities = self.compute_balls_at_value(alfa, &dists);
+        let mut facilities = self.compute_balls_at_value(alfa, &dists);
         //
+        // We explicitly dispatch data to facilities as imp algo do not do it
+        let data_unweighted:  Vec<&Vec<T>> = self.data.iter().map( |d| d).collect();
+        facilities.dispatch_data(&data_unweighted, None);
+        //        
         return facilities;
     } // end of construct_centers
 

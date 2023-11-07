@@ -198,7 +198,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     /// searching all points in it. So we need to be able do do the dispatch afterwards.
     /// This function returns global cost and vector of weight by facility
     #[allow(unused)]
-    pub(crate) fn dispatch_data(&mut self, data : &Vec<Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
+    pub(crate) fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
         //
         log::info!("in facilities::dispatch_data");
         //
@@ -231,7 +231,8 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             total_weight += self.centers[i].read().weight;
         }
         //
-        log::info!("\n\n total weight collected in facilities : {:.3e}, total cost : {:.3e}", total_weight, global_cost);
+        println!("\n\n total weight collected in facilities : {:.3e}, total cost : {:.3e}", total_weight, global_cost);
+        println!("\n **************************************************************************");
         //
         global_cost
     } // end of dispatch_data
@@ -263,7 +264,6 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             }
         }
         // We can compute entropy distribution
-        // TODO: to extend for weighted data
         //
         let mut entropies = Vec::<f64>::with_capacity(nb_facility);
         for i in 0..nb_facility {
@@ -291,7 +291,8 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             global_entropy +=  weight * entropies[i];
         }
         global_entropy /= total_weight;
-        log::info!("\n\n mean of entropies : {:.3e}, total weight : {:.3e}", global_entropy, total_weight);
+        println!("\n\n mean of entropies : {:.3e}, total weight : {:.3e}", global_entropy, total_weight);
+        println!("\n **************************************************************************");
         //
         return (entropies, label_distribution);
     } // end of dispatch_labels
@@ -351,10 +352,10 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             }
         }
         //
-        log::info!("\n cross facility distances quantiles");
-
+        println!("\n inter facility distances quantiles : ");
         println!("\n distance quantiles at  0.01 : {:.2e}, 0.05 :  {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} ", 
         q_dist.query(0.01).unwrap().1, q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1);
+        //
         log::debug!("\n cross distances : {:.3e}", distances);
     } // end of cross_distances
 

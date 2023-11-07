@@ -78,7 +78,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
     }
 
     // get current phase num of processing
-    pub(crate) fn get_phase(&self) -> usize {
+    pub fn get_phase(&self) -> usize {
         self.phase
     }
 
@@ -168,8 +168,10 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
         self.nb_inserted += 1;
         // check if we are above constraints
         if self.total_cost > self.phase_cost_upper || self.centers.len() > self.facility_bound {
-            log::info!("constraint violation");
-            self.log();
+            if log::log_enabled!(log::Level::Debug) {
+                log::debug!("constraint violation");
+                self.log();
+            }
             return false
         }
         else {
@@ -256,8 +258,6 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     pub fn get_gamma(&self) -> f64 { self.gamma}
 
     /// treat unweighted data.  
-    /// The parameter alfa makes possible to modulate the number of final clusters.
-    /// A value around 0.5 is a good guess, lowering alfa increases the number of facilities and inversely.
     pub fn process_data(&self, data : &Vec<Vec<T>>) -> Facilities<T, Dist> {
         //
         let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
@@ -272,11 +272,12 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
             state.get_facilities().log();
         }
         //
+        let data_unweighted:  Vec<&Vec<T>> = data.iter().map( |d| d).collect();
         let facilities = match self.end_step {
             false => {
                 let facilities = state.get_facilities();
                 let mut facilities_ret = facilities.clone();
-                facilities_ret.dispatch_data(data, None);
+                facilities_ret.dispatch_data(&data_unweighted, None);
                 facilities_ret
             }
             true => {
@@ -284,7 +285,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
                 let state_2 = self.bmor_recur(&state);
                 let facilities = state_2.get_facilities();
                 let mut facilities_ret = facilities.clone();
-                facilities_ret.dispatch_data(data, None);
+                facilities_ret.dispatch_data(&data_unweighted, None);
                 facilities_ret
             }
         };
@@ -310,7 +311,22 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
             state.get_facilities().log();
         }
         //
-        return state;
+        let data_unweighted:  Vec<&Vec<T>> = data.iter().map( |(_,d)| *d).collect();
+        match self.end_step {
+            false => {
+                let facilities = state.get_mut_facilities();
+                facilities.dispatch_data(&data_unweighted, None);
+                return state;
+                
+            }
+            true => {
+                log::info!("\n\n bmor doing final bmor pass ...");
+                let mut state_2 = self.bmor_recur(&state);
+                let facilities = state_2.get_mut_facilities();
+                facilities.dispatch_data(&data_unweighted, None);
+                return state_2;
+            }
+        };
     } // end of process_data
 
 
@@ -333,7 +349,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         let bound_2 = (self.nbdata_expected.ilog2() as usize).ilog2() as usize;
         let nb_expected_data = weighted_data.len().min(bound_2);
         if bmor_state.get_nb_inserted() > self.k * (1 + nb_expected_data.ilog2() as usize) {
-            log::info!("setting expected nb data : {:?}", nb_expected_data);
+            log::debug!("reducing number of facilities: setting expected nb data : {:?}", nb_expected_data);
             let bmor_algo_2 : Bmor<T, Dist> = Bmor::new(self.get_k(), nb_expected_data , self.get_beta(), self.get_gamma(), 
                                     self.distance.clone(), false);
             //
