@@ -165,9 +165,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     let cpu_time: Duration = cpu_start.elapsed();
     println!("mpalgo.construct_centers  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    let nb_f = facilities.len() as f64;
-    let proba = (nb_f - 10.) / (nb_f * nb_f);
-    mpalgo.compute_distances(&mut facilities, &images, proba);
+    mpalgo.compute_distances(&mut facilities, &images);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();
@@ -177,8 +175,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
         log::info!("label is : {:?}", label)
     }
 
-    let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
-    log::info!("global cost : {:.3e}", cost);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     //
     for i in 0..labels_distribution.len() {
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
@@ -192,26 +189,23 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 //========================================================
 
 
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : Option<Algo>) {
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : bool) {
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     // if gamma increases, number of facilities increases.
     // if beta increases , upper bound on cost increases faster so the number of phases decreases
-    let beta = 10.;
+    let beta = 2.;
     let gamma = 2.;
-    let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance, end_step);
+    let bmor_algo: Bmor<f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance, end_step);
     let facilities = bmor_algo.process_data(images);
     //
     let cpu_time: Duration = cpu_start.elapsed();
     println!("bmor.process_block  sys time(s) {:?} cpu time {:?}", sys_now.elapsed().unwrap().as_secs(), cpu_time.as_secs());
     //
-    let nb_f = facilities.len() as f64;
-    let ratio = (nb_f - 10.) / (nb_f * nb_f);
-    facilities.cross_distances(ratio);
+    facilities.cross_distances();
     //
-    let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
-    log::info!("global cost : {:.3e}", cost);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
@@ -271,6 +265,8 @@ const MNIST_FASHION_DIR : &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
 pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
+    //
+    log::info!("running mnist_fashion");
     //
     let matches = Command::new("mnist_fashion")
     //        .subcommand_required(true)
@@ -360,7 +356,7 @@ pub fn main() {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)
         }
         Algo::BMOR   => {
-            bmor(&mnist_params, &images_as_v, &labels, distance, Some(Algo::IMP));
+            bmor(&mnist_params, &images_as_v, &labels, distance, true);
         }   
     }
     //

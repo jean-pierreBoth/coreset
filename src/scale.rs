@@ -46,8 +46,8 @@ pub(crate) fn get_neighborhood_size<T, Dist : Distance<T>>(_nbsample_arg : usize
     let nbdata = data.len();
     let unif = Uniform::<usize>::new(0, nbdata); 
     // we loop (with sampling) in nb data  and get an idea on neighbours distance for an overall nbdata complexity
-    // We use sqrt(nbpoint) as default neighborhood size
-    let nb_sample : usize = (nbdata as f32).sqrt().trunc() as usize;
+    // We use log(nbpoint) as default neighborhood size
+    let nb_sample : usize = 1.max(nbdata.ilog2() as usize);
     let explore = |i : usize| -> (f32,f32) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(14547 + i as u64).clone();
         let mut dvec : Vec<f32> = (0..nb_sample).into_iter().map(|_| {

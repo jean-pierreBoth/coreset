@@ -192,8 +192,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     let alfa = 1.;
     let mut facilities = mpalgo.construct_centers(alfa);
     //
-    let proba = 0.01;
-    mpalgo.compute_distances(&mut facilities, &images, proba);
+    mpalgo.compute_distances(&mut facilities, &images);
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
         let facility = facilities.get_cloned_facility(i).unwrap();
@@ -203,9 +202,8 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
         log::info!("label is : {:?}", label)
     }
     //
-    let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , &labels);
-    log::info!("global cost : {:.3e}", cost);
-
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , &labels);
+    //
     for i in 0..labels_distribution.len() {
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
         let map = &labels_distribution[i];
@@ -217,7 +215,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 
 //=================================================================================================
 
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : Option<Algo>) {
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : bool) {
     //
     log::info!("in bmor");
     //
@@ -226,12 +224,9 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let bmor_algo = Bmor::new(10, 70000, beta, gamma, distance, end_step);
     let facilities = bmor_algo.process_data(images);
     //
-    let nb_f = facilities.len() as f64;
-    let ratio = (nb_f - 10.) / (nb_f * nb_f);
-    facilities.cross_distances(ratio);
+    facilities.cross_distances();
     //
-    let (cost, entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
-    log::info!("global cost : {:.3e}", cost);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     //
     for i in 0..labels_distribution.len() {
         log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
@@ -254,6 +249,8 @@ const MNIST_DIGITS_DIR : &'static str = "/home/jpboth/Data/ANN/MNIST/";
 pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
+    //
+    log::info!("running mnist_fashion");
     //
     let matches = Command::new("mnist_fashion")
     //        .subcommand_required(true)
@@ -339,7 +336,7 @@ pub fn main() {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)
         }
         Algo::BMOR   => {
-            bmor(&mnist_params, &images_as_v, &labels, distance, Some(Algo::IMP));
+            bmor(&mnist_params, &images_as_v, &labels, distance, true);
         }   
     }
     //

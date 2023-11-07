@@ -1,6 +1,11 @@
-//! implement facility management
+//! implement facility management.  
+//! Each facility maintain weights of data itmes dispatched to it and cost contribution
+//! 
 
 use anyhow::*;
+
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
+
 
 use ndarray::Array2;
 use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
@@ -14,10 +19,10 @@ use std::collections::HashMap;
 
 use hnsw_rs::dist::*;
 
-/// A facility is a a center (or point in data) that correspond to a k medoid point
+/// A facility is a center (or point in data) that correspond to a k medoid point.  
 /// The struture stores the data point which serve as a center, the sum of points weight 
 /// attached to this point and the cost (distance between data points and center multiplied by point's weight)
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Facility<T: Send+Sync+Clone> {
     // rank in data
     d_rank : usize,
@@ -71,7 +76,8 @@ impl<T: Send+Sync+Clone> Facility<T> {
 //===================================================================================
 
 
-/// describes the list of facility (or centers created)
+/// Describes the list of facility (or centers created). 
+///  
 /// As we want parallel access, running concurrently on all data we need Arc RwLock stuff
 #[derive(Clone)]
 pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
@@ -111,7 +117,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     }
 
 
-    // return true if there is a facility around point at distance less than dmax
+    /// return true if there is a facility around point at distance less than dmax
     pub fn match_point(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
         //
         for f in &self.centers {
@@ -181,7 +187,6 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         for f in &self.centers {
             let f_access = f.read();
             total_weight += f_access.get_weight();
-            f_access.log();
         }
         log::info!(" sum of facilities weight : {:.3e}", total_weight);
     } // end of log 
@@ -226,7 +231,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             total_weight += self.centers[i].read().weight;
         }
         //
-        log::info!("total weight collected in facilities : {:.3e}, total cost : {:.3e}", total_weight, global_cost);
+        log::info!("\n\n total weight collected in facilities : {:.3e}, total cost : {:.3e}", total_weight, global_cost);
         //
         global_cost
     } // end of dispatch_data
@@ -236,14 +241,12 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
     /// If we have labelled data we can store labels counts affected to each facility.  
     /// This function returns total cost and a vector of counts for each label occuring in a Facility.  
-    /// Can be useful to check homogeneity or clustering
-    /// Computes for each facililty label distribution, entropy of distribution.  
-    /// Returns global cost, Vector of label distribution entropy by facility and distribution as a HashMap
-    pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash>(&self, data : &Vec<Vec<T>>, labels : &Vec<L>) -> (f64, Vec<f64>, Vec<HashMap<L, u32>>) {
+    /// It computes for each facililty label distribution, entropy of distribution and can be used to check clustering.    
+    /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
+    pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash>(&self, data : &Vec<Vec<T>>, labels : &Vec<L>) -> (Vec<f64>, Vec<HashMap<L, u32>>) {
         //
         assert_eq!(data.len(), labels.len());
         //
-        let mut global_cost = 0_f64;
         let nb_facility = self.centers.len();
         let mut label_distribution = Vec::<HashMap<L, u32>>::with_capacity(nb_facility);
         for _ in 0..nb_facility {
@@ -252,7 +255,6 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         //
         for i in 0..data.len() {
             let rank_dist = self.get_nearest_facility(&data[i]).unwrap();
-            global_cost += rank_dist.1 as f64;
             if let Some(count) = label_distribution[rank_dist.0].get_mut(&labels[i]) {
                 *count += 1;
             }
@@ -289,9 +291,9 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             global_entropy +=  weight * entropies[i];
         }
         global_entropy /= total_weight;
-        log::info!("mean of entropies : {:.3e}, total weight : {:.3e}", global_entropy, total_weight);
+        log::info!("\n\n mean of entropies : {:.3e}, total weight : {:.3e}", global_entropy, total_weight);
         //
-        return (global_cost, entropies, label_distribution);
+        return (entropies, label_distribution);
     } // end of dispatch_labels
 
 
@@ -311,6 +313,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     } // end of into_weighted_data
 
 
+    /// returns weights as a Vec\<f32\> and data. Same as [into_weighted_data](Self::into_weighted_data()) but in another format
     pub fn get_weights_and_data(&self) -> (Vec<f32>, Vec<Vec<T>>) {
         let nb_facility = self.len();
         let mut data = Vec::<Vec<T>>::with_capacity(nb_facility);
@@ -327,7 +330,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
         // TODO: useful?
     /// computes distances between facility
-    pub fn cross_distances(&self, proba : f64) {
+    pub fn cross_distances(&self) {
         let nb_facility = self.centers.len();
         let mut distances = Array2::<f32>::zeros((nb_facility , nb_facility));
         let mut q_dist = CKMS::<f32>::new(0.01);
@@ -353,19 +356,6 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         println!("\n distance quantiles at  0.01 : {:.2e}, 0.05 :  {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} ", 
         q_dist.query(0.01).unwrap().1, q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1);
         log::debug!("\n cross distances : {:.3e}", distances);
-        let threshold =  q_dist.query(proba).unwrap().1;
-        log::info!("mergeable threshold at proba : {:.3e}: {:.3e}", proba, threshold);
-        let mut nbmerge = 0;
-        // search mergeable facilities
-        for i in 0..nb_facility {
-            for j in 0..nb_facility {
-                if i < j && distances[[i,j]] < threshold {
-                    log::info!("mergeable facilities : (i,j) : ({:?},{:?}) dist : {:.3e} ", i,j, distances[[i,j]]);
-                    nbmerge+= 1;
-                }
-            }
-        }
-        log::info!("nb merge possible : {:?}", nbmerge);
     } // end of cross_distances
 
 } // end of impl block Facilities

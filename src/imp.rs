@@ -2,26 +2,20 @@
 //!  The algorithms compute an (alfa, beta) k-median approximation  used as input
 //!  to coreset computations.
 //! 
-//! The module implements of the Mettu-Plaxton algorithm as analyzed in 
+//! The module implements variants of the Mettu-Plaxton algorithm:
 //!  1. Facility Location in sublinear time.   
 //!       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
 //!       see [Badoiu](https://people.csail.mit.edu/indyk/fl.pdf).  
-//!       This paper builds upon the following: 
+//!    This algorithm is restricted to unweighted data and builds upon the following paper:   
 //!        
 //! 
-//! 
 //!  2. The online median problem,  
-//!         Mettu-Plaxton Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).  
+//!         Mettu-Plaxton Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).   
+//!    This algorithm accepts weighted data.
 //! 
-//! 
-//!  3. Optimal Time bounds for approximate Clustering   
-//!     Mettu-Plaxton 2004.  see [mettu-plaxton-2](https://link.springer.com/article/10.1023/b:mach.0000033114.18632.e0).  
-//! 
-//!  The data we will run on  Vec\<T\> where T can be anything as long as the hnsw crate provides on these vectors.  
+//!  The data are of type Vec\<T\> where T can be anything as long as the hnsw crate provides on these vectors.  
 //!  (see [hnsw_rs](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html))
 //! 
-//! Data or Distance must be scaled so that nearest neighbour of a point are at a distance really less than 1. as uniform cost is an explicit hypothesis 
-//! of the paper.
 
 #![allow(unused)]
 use anyhow::{anyhow, Result};
@@ -166,10 +160,10 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
 
-    pub fn compute_distances(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>, proba : f64)
+    pub fn compute_distances(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>)
     where Dist : Send + Sync {
         //
-        facilities.cross_distances(proba);
+        facilities.cross_distances();
     } // end of compute_cost
 
 
@@ -369,7 +363,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     /// reducing alfa increase the number of facilities 
     pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist> {
         //
-        log::debug!("in WeightedMettuPlaxton::construct_centers");
+        log::info!("in WeightedMettuPlaxton::construct_centers alfa : {:.3e}", alfa);
         //
         let dists : Vec<RwLock<Vec<f32>>> = self.compute_all_dists();
         //

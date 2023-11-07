@@ -1,9 +1,14 @@
-//! adaptation of Streaming k-means on well clustered data
-//! Braverman Meyerson Ostrovski Roytman ACM-SIAM 2011
+//! Adaptation of Streaming k-means on well clustered data.  
+//! Braverman Meyerson Ostrovski Roytman ACM-SIAM 2011 [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
+//! 
+//! We do not constrain the clustering output to be exactly some value k but let the number of clusters be
+//! the result of the main algorithms.   
+//! The final of number of facilities can be reduced by running an end step
+//! 
+//! This algorithm can process mnist fashion data in 1 second on a i9 laptop (without requiring heavy multithreading)
 //! 
 //! 
-//! 
-//! 
+
 
 use std::marker::PhantomData;
 
@@ -17,11 +22,11 @@ use rand::distributions::{Distribution,Uniform};
 
 use hnsw_rs::dist::*;
 
-use crate::prelude::*;
 use crate::facility::*;
 
 
-
+/// This structure stores the state of Bmor algorithm through iterations.
+/// In particular it stores allocated facilities.
 #[derive(Clone)]
 pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
     // (1+logn)k
@@ -57,10 +62,13 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
         let rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
         let oneplogn = (1 + nbdata.ilog2()) as usize * k;
         let li = 1.0f64;
+        //
+        log::info!("BmorState creation : facility bound : {:?}", facility_bound);
+        //
         BmorState{oneplogn, phase, li, phase_cost_upper : upper_cost, facility_bound, centers, absolute_weight : 0., total_cost : 0., nb_inserted : 0, rng, unif}
     }
 
-
+    /// returns facilities as computed by the algorithm
     pub fn get_facilities(&self) -> &Facilities<T, Dist> {
         return &self.centers
     }
@@ -90,6 +98,12 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
 
     pub(crate) fn get_phase_cost_bound(&self) -> f64 {
         self.phase_cost_upper
+    }
+
+    /// get upper bound  for number of facilities
+    #[allow(unused)]
+    pub(crate) fn get_facility_upper_bound(&self) -> usize {
+        self.facility_bound
     }
 
     /// get sum of absolute value of weights inserted
@@ -175,18 +189,31 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
     }
 
     pub(crate) fn log(&self) {
-        log::info!("\n\n BmorState::log_state");
-        log::info!("\n nb facilities : {:?}", self.centers.len());
-        log::info!("\n weight : {:.3e}   cost {:.3e}", self.get_weight(), self.get_cost());
-        log::info!("\n nb facility max : {:?}, upper cost bound : {:.3e}", self.facility_bound, self.get_phase_cost_bound());
+        log::debug!("\n\n BmorState::log_state");
+        log::debug!("\n nb facilities : {:?}", self.centers.len());
+        log::debug!("\n weight : {:.3e}   cost {:.3e}", self.get_weight(), self.get_cost());
+        log::debug!("\n nb facility max : {:?}, upper cost bound : {:.3e}", self.facility_bound, self.get_phase_cost_bound());
         log::info!("\n nb total insertion : {:?}  nb_phases: {:?}", self.get_nb_inserted(), self.phase + 1);
     }
 } // end of impl block BmorState
 
 
 
-
-
+#[cfg_attr(doc, katexit::katexit)]
+/// This structure gathers all parameters defining Bmor algorithm.
+/// The algorithm do iterations with at each step an acceptable upper bound cost and upper bound on number
+/// facilities. The upper bounds are increased if iteration constraints are not satisfied.
+/// 
+/// These upper bounds are defined using 2 parameters : $ \beta $ and $ \gamma $.  
+/// 
+/// let $k$ be the number of expected facilities (centers),  the upper bound on number facilities is
+/// defined by : $ (\gamma −1) \space k \space (1+ \log_2 n)$.  
+/// At each iteration $i$ the upper bound of cost $C_{i}$ is defined  by $ \beta * C_{i-1} $ and the allocation of a facility 
+/// is relaxed in a coherent way.
+/// As for large n the resulting number of allocated facilities can be larger than k it is possible to ask for an end step that 
+/// will reduce the number of facilities to less than $ (\gamma −1) \space k \space (1+ \log_2 \log_2 n)$
+/// 
+/// $\beta$ and $\gamma$ can be initialized by 2.
 pub struct Bmor<T, Dist> {
     // base number of centers expected
     k : usize,
@@ -199,7 +226,7 @@ pub struct Bmor<T, Dist> {
     //
     distance : Dist,
     /// end step used in reduciing the numger of facilities.
-    end_step : Option<Algo>, 
+    end_step : bool, 
     //
     _t : PhantomData<T>,
 }  // end of struct Bmor
@@ -212,17 +239,28 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// - k: number of centers.  
     /// - nbdata : nb data expected.  
     /// - gamma 
-    /// - end_step : optional. determines algorithm used to reduce the number of facilities created.
-    ///          
-    pub fn new(k: usize, nbdata : usize, beta : f64, gamma : f64, distance :  Dist, end_step : Option<Algo>) -> Self {
+    /// - end_step : if true a second step is done to further reduc the number of facilities.
+    ///         
+    pub fn new(k: usize, nbdata : usize, beta : f64, gamma : f64, distance :  Dist, end_step : bool) -> Self {
         // TODO: to be adapted?
         Bmor{k, nbdata_expected : nbdata, beta, gamma, distance, end_step, _t : PhantomData::<T> }
     }
 
-    /// treat unweighted data
+    /// return expected number of facilities (clusters)
+    pub fn get_k(&self) -> usize { self.k}
+
+    /// get_beta
+    pub fn get_beta(&self) -> f64 { self.beta} 
+
+    /// get gamma
+    pub fn get_gamma(&self) -> f64 { self.gamma}
+
+    /// treat unweighted data.  
+    /// The parameter alfa makes possible to modulate the number of final clusters.
+    /// A value around 0.5 is a good guess, lowering alfa increases the number of facilities and inversely.
     pub fn process_data(&self, data : &Vec<Vec<T>>) -> Facilities<T, Dist> {
         //
-        let nb_centers_bound = (self.gamma * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
+        let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
         let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
                     upper_cost as f64, nb_centers_bound, self.distance.clone());
@@ -230,28 +268,27 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],i)).collect();
         self.process_weighted_block(&mut state, &weighted_data);
         state.log();
-        state.get_facilities().log();
+        if log::log_enabled!(log::Level::Debug) {
+            state.get_facilities().log();
+        }
         //
         let facilities = match self.end_step {
-            None => {
-                state.get_facilities().clone()
-            }
-            Some(Algo::BMOR) => {
-                let state_2 = self.bmor_recur(&state);
-                state_2.get_facilities().clone()
-            }
-            Some(Algo::IMP) => {
-                // TODO: mst change interface must reformat data 
-                log::info!("\n\n bmor doing final imp pass ...");
+            false => {
                 let facilities = state.get_facilities();
-                log::info!(" received nb facilites : {:?}", facilities.len());
-                let weighted_data  = facilities.get_weights_and_data();
-                let wmp = WeightedMettuPlaxton::<T, Dist>::new(&weighted_data.1, &weighted_data.0, self.distance.clone());
-                let alfa = 0.45;
-                let facilities = wmp.construct_centers(alfa);
-                facilities
+                let mut facilities_ret = facilities.clone();
+                facilities_ret.dispatch_data(data, None);
+                facilities_ret
+            }
+            true => {
+                log::info!("\n\n bmor doing final bmor pass ...");
+                let state_2 = self.bmor_recur(&state);
+                let facilities = state_2.get_facilities();
+                let mut facilities_ret = facilities.clone();
+                facilities_ret.dispatch_data(data, None);
+                facilities_ret
             }
         };
+        //
         //
         return facilities;
     } // end of process_data
@@ -261,7 +298,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat data with weights attached.
     pub fn process_weighted_data(&self, data : &Vec<(f64, &Vec<T>)>) -> BmorState<T, Dist> {
         //
-        let nb_centers_bound = (self.gamma * (1. + data.len().ilog2() as f64) * self.k as f64).trunc() as usize; 
+        let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
         let upper_cost = self.gamma;
         let mut state = BmorState::<T, Dist>::new(self.k, data.len(), 0, nb_centers_bound as usize, 
                     upper_cost as f64, nb_centers_bound, self.distance.clone());
@@ -269,7 +306,9 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
         self.process_weighted_block(&mut state, &weighted_data);
         state.log();
-        state.get_facilities().log();
+        if log::log_enabled!(log::Level::Debug) {
+            state.get_facilities().log();
+        }
         //
         return state;
     } // end of process_data
@@ -278,7 +317,6 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
     // We recur (once) to reduce number of facilities. To go from $1 + k * logn$ to $1 + k * log(log(n))$
     // TODO: we use bmor but imp or anything else could be used
-#[allow(unused)]
     pub(crate) fn bmor_recur(&self, bmor_state : &BmorState<T, Dist>) -> BmorState<T, Dist> {
         //
         log::info!("\n bmor recurring");
@@ -286,15 +324,30 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         let facilities = bmor_state.get_facilities();
         let facility_data = facilities.into_weighted_data();
         //
-        // allocate another Bmor state
+        // allocate another Bmor state. TODO: change some parameters gamma ? 
+        //
+        log::info!("bmor_recur , nb facilities received : {:?}", facility_data.len());
         //
         let weighted_data: Vec<(f64, &Vec<T>)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1)).collect();
+        // we try to adapt to number of facilities and we impose a log reduction in input size for each step.
+        let bound_2 = (self.nbdata_expected.ilog2() as usize).ilog2() as usize;
+        let nb_expected_data = weighted_data.len().min(bound_2);
+        if bmor_state.get_nb_inserted() > self.k * (1 + nb_expected_data.ilog2() as usize) {
+            log::info!("setting expected nb data : {:?}", nb_expected_data);
+            let bmor_algo_2 : Bmor<T, Dist> = Bmor::new(self.get_k(), nb_expected_data , self.get_beta(), self.get_gamma(), 
+                                    self.distance.clone(), false);
+            //
+            let state_2 = bmor_algo_2.process_weighted_data(&weighted_data);
+            state_2.log();
+            state_2.get_facilities().log();
+            return state_2; 
+        }
+        else {
+            bmor_state.log();
+            bmor_state.get_facilities().log();
+            return bmor_state.clone(); 
+        }
         //
-        let state_2 = self.process_weighted_data(&weighted_data);
-        state_2.log();
-        state_2.get_facilities().log();
-        //
-        return state_2; 
     } // end of bmor_recur
 
 

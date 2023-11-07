@@ -8,7 +8,7 @@ extern crate lazy_static;
 
 pub mod prelude;
 
-pub mod scale;
+mod scale;
 pub mod facility;
 pub mod imp;
 pub mod bmor;
