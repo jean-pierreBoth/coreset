@@ -216,7 +216,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
 /// will reduce the number of facilities to less than $ (\gamma −1) \space k \space (1+ \log_2 \log_2 n)$
 /// 
 /// $\beta$ and $\gamma$ can be initialized by 2.
-pub struct Bmor<T, Dist> {
+pub struct Bmor<T:Send+Sync+Clone, Dist : Distance<T> > {
     // base number of centers expected
     k : usize,
     //
@@ -229,6 +229,8 @@ pub struct Bmor<T, Dist> {
     distance : Dist,
     /// end step used in reduciing the numger of facilities.
     end_step : bool, 
+    // store computation state 
+    state : Option<BmorState<T,Dist>>,
     //
     _t : PhantomData<T>,
 }  // end of struct Bmor
@@ -239,13 +241,14 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     where  Dist : Distance<T> + Clone + Sync + Send {
 
     /// - k: number of centers.  
-    /// - nbdata : nb data expected.  
+    /// - nbdata : nb data expected. As this algorithm can be used in streaming (successive calls to methods [process_data](Self::process_data()) or
+    ///     [process_weighted_data](Self::process_weighted_data())) the number of expected data can be larger than the length or arguments passed to these methods.
     /// - gamma 
     /// - end_step : if true a second step is done to further reduc the number of facilities.
     ///         
     pub fn new(k: usize, nbdata : usize, beta : f64, gamma : f64, distance :  Dist, end_step : bool) -> Self {
         // TODO: to be adapted?
-        Bmor{k, nbdata_expected : nbdata, beta, gamma, distance, end_step, _t : PhantomData::<T> }
+        Bmor{k, nbdata_expected : nbdata, beta, gamma, distance, end_step, state: None,  _t : PhantomData::<T> }
     }
 
     /// return expected number of facilities (clusters)
@@ -257,32 +260,38 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// get gamma
     pub fn get_gamma(&self) -> f64 { self.gamma}
 
-    /// treat unweighted data.  
-    pub fn process_data(&self, data : &Vec<Vec<T>>) -> Facilities<T, Dist> {
+    /// treat unweighted data.  This method can be called many times in case of data streaming 
+    pub fn process_data(&mut self, data : &Vec<Vec<T>>) -> Facilities<T, Dist> {
         //
-        let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
-        let upper_cost = self.gamma;
-        let mut state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
-                    upper_cost as f64, nb_centers_bound, self.distance.clone());
+        if self.state.is_none() {
+            let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
+            let upper_cost = self.gamma;
+            let state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
+                upper_cost as f64, nb_centers_bound, self.distance.clone()); 
+            self.state = Some(state);               
+        };
+        let mut work_state = self.state.as_ref().unwrap().clone();
         //
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],i)).collect();
-        self.process_weighted_block(&mut state, &weighted_data);
-        state.log();
+        self.process_weighted_block(&mut work_state, &weighted_data);
+        work_state.log();
         if log::log_enabled!(log::Level::Debug) {
-            state.get_facilities().log();
+            work_state.get_facilities().log();
         }
+        // now we must reset internal state
+        self.state = Some(work_state.clone());
         //
         let data_unweighted:  Vec<&Vec<T>> = data.iter().map( |d| d).collect();
         let facilities = match self.end_step {
             false => {
-                let facilities = state.get_facilities();
+                let facilities = work_state.get_facilities();
                 let mut facilities_ret = facilities.clone();
                 facilities_ret.dispatch_data(&data_unweighted, None);
                 facilities_ret
             }
             true => {
                 log::info!("\n\n bmor doing final bmor pass ...");
-                let state_2 = self.bmor_recur(&state);
+                let state_2 = self.bmor_recur(&work_state);
                 let facilities = state_2.get_facilities();
                 let mut facilities_ret = facilities.clone();
                 facilities_ret.dispatch_data(&data_unweighted, None);
@@ -297,36 +306,44 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
 
     /// treat data with weights attached.
-    pub fn process_weighted_data(&self, data : &Vec<(f64, &Vec<T>)>) -> BmorState<T, Dist> {
+    pub fn process_weighted_data(&mut self, data : &Vec<(f64, &Vec<T>)>) -> BmorState<T, Dist> {
         //
-        let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
-        let upper_cost = self.gamma;
-        let mut state = BmorState::<T, Dist>::new(self.k, data.len(), 0, nb_centers_bound as usize, 
-                    upper_cost as f64, nb_centers_bound, self.distance.clone());
-        //
+        if self.state.is_none() {
+            let nb_centers_bound = ((self.gamma - 1.) * (1. + self.nbdata_expected.ilog2() as f64) * self.k as f64).trunc() as usize; 
+            let upper_cost = self.gamma;
+            let state = BmorState::<T, Dist>::new(self.k, self.nbdata_expected, 0, nb_centers_bound as usize, 
+                upper_cost as f64, nb_centers_bound, self.distance.clone()); 
+            self.state = Some(state);               
+        };
+        let mut work_state = self.state.as_ref().unwrap().clone();        
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
-        self.process_weighted_block(&mut state, &weighted_data);
-        state.log();
+        self.process_weighted_block(&mut work_state, &weighted_data);
+        work_state.log();
         if log::log_enabled!(log::Level::Debug) {
-            state.get_facilities().log();
+            work_state.get_facilities().log();
         }
         //
         let data_unweighted:  Vec<&Vec<T>> = data.iter().map( |(_,d)| *d).collect();
-        match self.end_step {
+       let end_state =  match self.end_step {
             false => {
-                let facilities = state.get_mut_facilities();
+                let facilities = work_state.get_mut_facilities();
                 facilities.dispatch_data(&data_unweighted, None);
-                return state;
+                work_state
                 
             }
             true => {
                 log::info!("\n\n bmor doing final bmor pass ...");
-                let mut state_2 = self.bmor_recur(&state);
+                let mut state_2 = self.bmor_recur(&work_state);
                 let facilities = state_2.get_mut_facilities();
                 facilities.dispatch_data(&data_unweighted, None);
-                return state_2;
+                state_2
             }
         };
+        // now we must reset internal state
+        let return_state = end_state.clone();
+        self.state = Some(end_state); 
+        //
+        return return_state;       
     } // end of process_data
 
 
@@ -345,12 +362,14 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         log::info!("bmor_recur , nb facilities received : {:?}", facility_data.len());
         //
         let weighted_data: Vec<(f64, &Vec<T>)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1)).collect();
-        // we try to adapt to number of facilities and we impose a log reduction in input size for each step.
-        let bound_2 = (self.nbdata_expected.ilog2() as usize).ilog2() as usize;
-        let nb_expected_data = weighted_data.len().min(bound_2);
+        let _bound_2 = self.nbdata_expected.ilog2() as usize;
+        // we could to adapt to number of facilities and we could impose a log reduction in input size for each step.
+        // by bounding nb_expected_data with min(_bound_2)
+        // let nb_expected_data = weighted_data.len().min(_bound_2);
+        let nb_expected_data = weighted_data.len();
         if bmor_state.get_nb_inserted() > self.k * (1 + nb_expected_data.ilog2() as usize) {
             log::debug!("reducing number of facilities: setting expected nb data : {:?}", nb_expected_data);
-            let bmor_algo_2 : Bmor<T, Dist> = Bmor::new(self.get_k(), nb_expected_data , self.get_beta(), self.get_gamma(), 
+            let mut bmor_algo_2 : Bmor<T, Dist> = Bmor::new(self.get_k(), nb_expected_data , self.get_beta(), self.get_gamma(), 
                                     self.distance.clone(), false);
             //
             let state_2 = bmor_algo_2.process_weighted_data(&weighted_data);
