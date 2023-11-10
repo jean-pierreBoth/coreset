@@ -62,6 +62,14 @@ impl<T: Send+Sync+Clone> Facility<T> {
         self.weight
     }
 
+    #[cfg_attr(doc, katexit::katexit)]
+    /// return cost carried by this facility $f$ i.e :  
+    ///    $ cost(f) = \sum_{p \in f} w(p) * dist(p,f) $
+    pub fn get_cost(&self) -> f64 {
+        self.cost
+    }
+
+    // This function increments weight and cost related to a facility
     pub(crate) fn insert(&mut self, weight : f64, dist : f32) {
         self.weight += weight;
         self.cost += dist as f64 * weight;
@@ -182,23 +190,33 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
     
     /// a function to log info on dist and cost inside facilities
-    pub fn log(&self) {
+    /// - level = 0, will log total weight and total cost summed over facilities
+    /// - level = 1 it will log weight and cost of each facility.
+    pub fn log(&self, level : usize) {
         let mut total_weight = 0.;
+        let mut total_cost = 0.;
         for f in &self.centers {
             let f_access = f.read();
+        if level == 1 {
+                f_access.log();
+            }
+            total_cost += f_access.get_cost();
             total_weight += f_access.get_weight();
         }
-        log::info!(" sum of facilities weight : {:.3e}", total_weight);
+        log::info!("\n\n sum of facilities weight : {:.3e}, total cost : {:.3e}", total_weight, total_cost);
+        log::info!("\n *************************************************");
     } // end of log 
 
 
 
-    /// affect each point to its facility and compute cost of each facility
+    /// affect each point to its facility and compute cost of each facility.  
     /// Not all algos maintain weight and cost consistently all the way, sometimes facilities are created without
-    /// searching all points in it. So we need to be able do do the dispatch afterwards.
+    /// searching all points in it. So we need to be able do the dispatch afterwards.  
+    /// **Bmor algorithm dispatch points on the fly so it computes an upper bound of the cost**  
+    /// The function can nevertheless be called a posteriori to get a tighter bound on cost**
     /// This function returns global cost and vector of weight by facility
     #[allow(unused)]
-    pub(crate) fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
+    pub fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
         //
         log::info!("in facilities::dispatch_data");
         //
@@ -242,7 +260,8 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
     /// If we have labelled data we can store labels counts affected to each facility.  
     /// This function returns total cost and a vector of counts for each label occuring in a Facility.  
-    /// It computes for each facililty label distribution, entropy of distribution and can be used to check clustering.    
+    /// It computes for each facililty label distribution, entropy of distribution and can be used to check clustering. 
+    /// **This methods can be called after processing all the data**.     
     /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
     pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash>(&self, data : &Vec<Vec<T>>, labels : &Vec<L>) -> (Vec<f64>, Vec<HashMap<L, u32>>) {
         //

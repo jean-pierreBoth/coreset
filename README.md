@@ -20,7 +20,20 @@ Some exploration of median [$\alpha$,$\beta$] approximation in **metric spaces**
 
 Examples provided are the standard Mnist-digits and Mnist-fashion.
 
-        
+## Results
+
+### Streaming k-means on well clustered data
+
+This algorithm runs on both Mnist data in 1 second on a i9 laptop.
+The mean entropy of labels distributions (10 labels) in each cluster found is between 0.82 for the digits example and 0.84 for the fashion example.
+
+The cost is the mean of L2 distance of each of the 70000 images to its nearest facility. The distance is normalized by the number of pixels (coded in the range [0..256])
+
+|  mnist       |  mean entropy  |    cost      |  nb facility | 
+|  :---:       |  :---:         |    :---:     |     :---:    |
+|   digits     |    0.82        |     2.13     |      69      |
+|   fashion    |    0.837       |     1.25     |      75      |
+    
 
 ## License
 
