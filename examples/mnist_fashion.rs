@@ -178,14 +178,25 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 //========================================================
 
 
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist, end_step : bool) {
+fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
     //
     // if gamma increases, number of facilities increases.
     // if beta increases , upper bound on cost increases faster so the number of phases decreases
     let beta = 2.;
     let gamma = 2.;
-    let mut bmor_algo: Bmor<f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance, end_step);
-    let facilities = bmor_algo.process_data(images);
+    let mut bmor_algo: Bmor<f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance);
+    //
+    let res = bmor_algo.process_data(images);
+    if res.is_err() {
+        std::panic!("bmor failed");
+    }
+    //
+    // do we ask for a supplementary contraction pass
+    let contraction = true;
+    let mut facilities = bmor_algo.end_data(contraction);
+    //
+    let data_refs = images.iter().map(|v| v).collect();
+    facilities.dispatch_data(&data_refs, None);
     //
     let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
     //
@@ -336,7 +347,7 @@ pub fn main() {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)
         }
         Algo::BMOR   => {
-            bmor(&mnist_params, &images_as_v, &labels, distance, true);
+            bmor(&mnist_params, &images_as_v, &labels, distance);
         }   
     }
     //

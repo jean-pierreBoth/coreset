@@ -174,7 +174,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         if self.centers.len() == 0 {
             return Err(anyhow!("Empty facility"));
         }
-        // can be // if many centers
+        // TODO: can be // if many centers
         for i in 0..self.centers.len() {
             let f_i = self.get_facility(i).unwrap().read();
             let center_i = f_i.get_position(); 
@@ -213,7 +213,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     /// Not all algos maintain weight and cost consistently all the way, sometimes facilities are created without
     /// searching all points in it. So we need to be able do the dispatch afterwards.  
     /// **Bmor algorithm dispatch points on the fly so it computes an upper bound of the cost**  
-    /// The function can nevertheless be called a posteriori to get a tighter bound on cost**
+    /// **The function can nevertheless be called a posteriori to get a tighter bound on cost**  
     /// This function returns global cost and vector of weight by facility
     #[allow(unused)]
     pub fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
@@ -230,7 +230,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             self.centers[i].write().weight = 0.;
         }
         //
-        let dispacth_i = | item : usize | {
+        let dispatch_i = | item : usize | {
             // get facility rank and weight
             let (facility, dist) = self.get_nearest_facility(&data[item]).unwrap();
             let weight = if weights.is_none() { 1. } else { weights.unwrap()[item] as f64};
@@ -240,7 +240,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             facility.cost += cost_incr;
         };
         //
-        (0..data.len()).into_par_iter().for_each( |item| dispacth_i(item));
+        (0..data.len()).into_par_iter().for_each( |item| dispatch_i(item));
         //
         let mut global_cost = 0_f64;
         let mut total_weight = 0.;
@@ -264,6 +264,8 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     /// **This methods can be called after processing all the data**.     
     /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
     pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash>(&self, data : &Vec<Vec<T>>, labels : &Vec<L>) -> (Vec<f64>, Vec<HashMap<L, u32>>) {
+        //
+        log::info!("dispatch_labels");
         //
         assert_eq!(data.len(), labels.len());
         //
