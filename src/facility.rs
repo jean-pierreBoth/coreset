@@ -259,41 +259,76 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     /// If we have labelled data we can store labels counts affected to each facility.  
-    /// This function returns total cost and a vector of counts for each label occuring in a Facility.  
+    /// This function dispatch data and lables into facilities and returns total cost and a vector of counts for each label occuring in a Facility.  
     /// It computes for each facililty label distribution, entropy of distribution and can be used to check clustering. 
     /// **This methods can be called after processing all the data**.     
     /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
-    pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash>(&self, data : &Vec<Vec<T>>, labels : &Vec<L>) -> (Vec<f64>, Vec<HashMap<L, u32>>) {
+    pub fn dispatch_labels<L : PartialEq + Eq + Copy + std::hash::Hash + Sync + Send>(& mut self, data : &Vec<Vec<T>>, labels : &Vec<L>, weights : Option<&Vec<f32>>) -> (Vec<f64>, Vec<HashMap<L, u32>>) {
         //
         log::info!("dispatch_labels");
         //
+        type SafeHashMap<L> = Arc<RwLock<HashMap<L, u32>>>;
         assert_eq!(data.len(), labels.len());
         //
         let nb_facility = self.centers.len();
-        let mut label_distribution = Vec::<HashMap<L, u32>>::with_capacity(nb_facility);
-        for _ in 0..nb_facility {
-            label_distribution.push(HashMap::<L, u32>::with_capacity(data.len() / (2* nb_facility)));
+        let mut label_distribution = Vec::<SafeHashMap<L>>::with_capacity(nb_facility);
+
+        for i in 0..nb_facility {
+            // reinitialize weights and cost of facilities
+            self.centers[i].write().cost = 0.;
+            self.centers[i].write().weight = 0.;
+            // allocate hashmaps
+            let newmap = HashMap::<L, u32>::with_capacity(data.len() / (2* nb_facility));
+            label_distribution.push(Arc::new(RwLock::new(newmap)));
         }
         //
-        for i in 0..data.len() {
-            let rank_dist = self.get_nearest_facility(&data[i]).unwrap();
-            if let Some(count) = label_distribution[rank_dist.0].get_mut(&labels[i]) {
-                *count += 1;
+        let dispatch_i = | i : usize | {
+            // find facility
+            let (itemf, dist) = self.get_nearest_facility(&data[i]).unwrap();
+            // dispatch data
+            let weight = if weights.is_none() { 1. } else { weights.unwrap()[itemf] as f64};
+            let cost_incr = dist as f64 * weight;
+            {
+                let mut facility = self.centers[itemf].write();
+                facility.weight += weight;
+                facility.cost += cost_incr;
             }
-            else {
-                label_distribution[rank_dist.0].insert(labels[i], 1);
+            // dispatch label
+            {   // write lock
+                let mut distribution = label_distribution[itemf].write();
+                if let Some(count) = distribution.get_mut(&labels[i]) {
+                    *count += 1;
+                }
+                else {
+                    distribution.insert(labels[i], 1);
+                }
             }
+        };
+        //
+        log::info!("computing global cost and weights");
+        (0..data.len()).into_par_iter().for_each( |item| dispatch_i(item));
+        // recompute globlas cost and weight
+        let mut global_cost = 0_f64;
+        let mut total_weight = 0.;
+        for i in 0..nb_facility {
+            global_cost += self.centers[i].read().cost;
+            total_weight += self.centers[i].read().weight;
         }
+        //
+        println!("\n\n total weight collected in facilities : {:.3e}, total cost : {:.3e}", total_weight, global_cost);
+        println!("\n **************************************************************************");
+        //
         // We can compute entropy distribution
         //
+        log::info!("computing label distribution entropy");
         let mut entropies = Vec::<f64>::with_capacity(nb_facility);
         for i in 0..nb_facility {
-            let distribution = &label_distribution[i];
-            let mut mass = 0.;
+            let distribution = label_distribution[i].read();
+            let mut mass = 0.0f64;
             let nb_label = distribution.len();
             let mut weights = Vec::<f64>::with_capacity(nb_label);
             let mut entropy = 0.;
-            for item in distribution {
+            for item in distribution.iter() {
                 assert!(*item.1 > 0);
                 weights.push(*item.1 as f64);
                 mass += *item.1 as f64;
@@ -315,7 +350,12 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         println!("\n\n mean of entropies : {:.3e}, total weight : {:.3e}", global_entropy, total_weight);
         println!("\n **************************************************************************");
         //
-        return (entropies, label_distribution);
+        let mut simple_label_distribution = Vec::<HashMap<L,u32>>::with_capacity(nb_facility);
+        for i in 0..nb_facility {
+            simple_label_distribution.push(label_distribution[i].read().clone());
+        }
+        //
+        return (entropies, simple_label_distribution);
     } // end of dispatch_labels
 
 

@@ -192,7 +192,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
     let alfa = 1.;
     let mut facilities = mpalgo.construct_centers(alfa);
     //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , &labels);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , &labels, None);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
@@ -226,12 +226,8 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     // do we ask for a supplementary contraction pass
     let contraction = true;
     let mut facilities = bmor_algo.end_data(contraction);
-    //
-    //
-    let data_refs = images.iter().map(|v| v).collect();
-    facilities.dispatch_data(&data_refs, None);
     //    
-    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels, None);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
