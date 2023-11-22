@@ -2,6 +2,7 @@
 //! Braverman Meyerson Ostrovski Roytman ACM-SIAM 2011 [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 //! 
 //! **This algorithm can run in a streaming context**.  
+//! 
 //! We do not constrain the clustering output to be exactly some value k but let the number of clusters be
 //! the result of the main algorithms.   
 //! The final of number of facilities can be reduced by running an end step.  
@@ -209,18 +210,24 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
 
 
 #[cfg_attr(doc, katexit::katexit)]
-/// This structure gathers all parameters defining Bmor algorithm.
+/// This structure gathers all parameters defining Bmor algorithm.  
 /// The algorithm do iterations with at each step an acceptable upper bound cost and upper bound on number
-/// facilities. The upper bounds are increased if iteration constraints are not satisfied.
+/// facilities. The upper bounds are increased if iteration constraints are not satisfied, exisiting facilities are recycled as
+/// old points and the algortitm can go on with new incoming points in a streaming way.
 /// 
 /// These upper bounds are defined using 2 parameters : $ \beta $ and $ \gamma $.  
 /// 
 /// let $k$ be the number of expected facilities (centers),  the upper bound on number facilities is
 /// defined by : $ (\gamma −1) \space k \space (1+ \log_2 n)$.  
 /// At each iteration $i$ the upper bound of cost $C_{i}$ is defined  by $ \beta * C_{i-1} $ and the allocation of a facility 
-/// is relaxed in a coherent way.
-/// As for large n the resulting number of allocated facilities can be larger than k it is possible to ask for an end step that 
-/// will reduce the number of facilities to less than $ (\gamma −1) \space k \space (1+ \log_2 \log_2 n)$
+/// is relaxed in a coherent way.  
+/// As for large n the resulting number of allocated facilities can be larger than k it is possible to ask for an end step (see [end_step](Self::end_data()) that 
+/// will reduce the number of facilities to less than $ (\gamma −1) \space k \space (1+ \log_2 nbfacility)$
+/// 
+/// The data are affected to a facility on the fly (useful in streaming). 
+/// But it is possible for a point to be nearer to a facility opened later with data arriving after it.  
+/// So the dispatching cost can be optimized a posteriori (in a second pass on the data) with method [dispatch_data](crate::facility::Facilities::dispatch_data())
+///   
 /// 
 /// $\beta$ and $\gamma$ can be initialized by 2.
 pub struct Bmor<T:Send+Sync+Clone, Dist : Distance<T> > {
@@ -273,7 +280,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat unweighted data. 
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
-    pub fn process_data(&mut self, data : &Vec<Vec<T>>) -> anyhow::Result<usize> {
+    pub fn process_data(&mut self, data : &[Vec<T>]) -> anyhow::Result<usize> {
         //
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],i)).collect();
         self.process_weighted_block(&weighted_data);
@@ -322,7 +329,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat data with weights attached.
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
-    pub fn process_weighted_data(&self, data : &Vec<(f64, &Vec<T>)>) -> anyhow::Result<usize>  {
+    pub fn process_weighted_data(&self, data : &[(f64, &Vec<T>)] ) -> anyhow::Result<usize>  {
         //
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
         self.process_weighted_block(&weighted_data);

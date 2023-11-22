@@ -209,12 +209,13 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
 
-    /// affect each point to its facility and compute cost of each facility.  
+    /// This function affects each point to its nearest facility and compute cost of each facility and returns global cost and vector of weight by facility 
+    ///   
     /// Not all algos maintain weight and cost consistently all the way, sometimes facilities are created without
     /// searching all points in it. So we need to be able do the dispatch afterwards.  
     /// **Bmor algorithm dispatch points on the fly so it computes an upper bound of the cost**  
     /// **The function can nevertheless be called a posteriori to get a tighter bound on cost**  
-    /// This function returns global cost and vector of weight by facility
+    ///
     #[allow(unused)]
     pub fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
         //
@@ -259,7 +260,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     /// If we have labelled data we can store labels counts affected to each facility.  
-    /// This function dispatch data and lables into facilities and returns total cost and a vector of counts for each label occuring in a Facility.  
+    /// This function dispatch **data and labels** into facilities and returns total cost and a vector of counts for each label occuring in a Facility.  
     /// It computes for each facililty label distribution, entropy of distribution and can be used to check clustering. 
     /// **This methods can be called after processing all the data**.     
     /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
@@ -335,6 +336,14 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
                 entropy -= (*item.1 as f64) * (*item.1 as f64).ln();
             }
             entropy = entropy / mass + mass.ln();
+            // checks
+            if entropy < - f64::EPSILON * 10.  {
+                log::error!("facility {:?} entropy {:.3e}", i , entropy);
+                std::panic!("negative entropy");
+            } 
+            else {
+                entropy = entropy.max(0.);
+            }
             entropies.push(entropy);
         }
         // Construct global weighted entropy measure 

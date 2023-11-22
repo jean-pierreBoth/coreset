@@ -156,7 +156,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
         }
         // We explicitly dispatch data to facilities as imp algo do not do it
         let data_unweighted:  Vec<&Vec<T>> = self.data.iter().map( |d| d).collect();
-        facilities.dispatch_data(&data_unweighted, None);
+//        facilities.dispatch_data(&data_unweighted, None);
         //
         return facilities;
     } // end of construct_centers
@@ -354,9 +354,6 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
                 facilities.insert(facility);
             }
         }
-        // We explicitly dispatch data to facilities as imp algo do not do it
-        let data_unweighted:  Vec<&Vec<T>> = self.data.iter().map( |d| d).collect();
-        facilities.dispatch_data(&data_unweighted, Some(self.weights));
         //
         return facilities;
     } // end of compute_balls_at_value

@@ -156,7 +156,7 @@ impl MnistParams {
 fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
     //
     let mpalgo = MettuPlaxton::<f32,Dist>::new(&images, distance);
-    let alfa = 1.;
+    let alfa = 0.75;
     let mut facilities = mpalgo.construct_centers(alfa);
     //
     let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels, None);
@@ -192,7 +192,7 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     }
     //
     // do we ask for a supplementary contraction pass
-    let contraction = true;
+    let contraction = false;
     let mut facilities = bmor_algo.end_data(contraction);
     //
     let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels, None);

@@ -213,9 +213,9 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
     //
     log::info!("in bmor");
-    //
-    let beta = 2.;
-    let gamma = 2.;
+    // we increase a little coefficients to get more facilities
+    let beta = 2.2;
+    let gamma = 2.2;
     let mut bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
     let res = bmor_algo.process_data(images);
     if res.is_err() {
@@ -224,7 +224,8 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let nb_facility = res.unwrap();
     log::info!("got nb facilities : {:?}", nb_facility);
     // do we ask for a supplementary contraction pass
-    let contraction = true;
+    let contraction = false;
+    //============================
     let mut facilities = bmor_algo.end_data(contraction);
     //    
     let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels, None);
@@ -298,7 +299,7 @@ pub fn main() {
         //
         images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         for k in 0..nbimages {
-            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32).collect();
+            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32 / (28. * 28.)).collect();
             images_as_v.push(v);
         }
     } // drop mnist_train_data
@@ -326,7 +327,7 @@ pub fn main() {
         let mut test_images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         //
         for k in 0..nbimages {
-            let v : Vec<f32> = test_images.slice(s![.., .., k]).iter().map(|v| *v as f32).collect();
+            let v : Vec<f32> = test_images.slice(s![.., .., k]).iter().map(|v| *v as f32 / (28. * 28.)).collect();
             test_images_as_v.push(v);
         }
         labels.append(&mut test_labels);
