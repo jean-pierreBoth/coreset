@@ -84,22 +84,33 @@ impl<T: Send+Sync+Clone> Facility<T> {
 //===================================================================================
 
 
+#[cfg_attr(doc, katexit::katexit)]
 /// Describes the list of facility (or centers created). 
 ///  
-/// As we want parallel access, running concurrently on all data we need Arc RwLock stuff
+/// The structure maintains the list of open facilities (or cluster) and their centers.
+/// It computes and store (see [compute_weight_cost](compute_weight_cost)) total weight dispatched into facilities and maintain 
+/// global facility cost assignment  as : 
+///   $ \sum_{p \in P}  \medspace  w(p) * dist(p, cf_{p})$.
+/// where $ cf_{p}$ is the center of facility assigned to $p$
+/// 
+// As we want parallel access, running concurrently on all data we need Arc RwLock stuff
 #[derive(Clone)]
 pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
     centers : Vec<Arc<RwLock<Facility<T>>>>,
     //
     distance : Dist,
-}
+    // sum of weights dispatched into facilities
+    weight : f64,
+    // sum of weights * distance to facility center dispatched into facilities
+    cost : f64,
+} // end of struct Facilities
 
 impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> {
 
     /// to be allocated , size should be log(nb_data)
     pub fn new(size : usize, distance : Dist) -> Self {
         let centers = Vec::<Arc<RwLock<Facility<T>>>>::with_capacity(size);
-        Facilities{centers, distance}
+        Facilities{centers, distance, weight : 0., cost : 0.}
     }
 
     /// return number of facility
@@ -189,6 +200,25 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     } // end of get_nearest_facility
 
     
+    /// returns (total weight, total cost)
+    /// 
+    pub fn compute_weight_cost(&mut self) -> (f64, f64) {
+        //
+        if self.weight <= 0. {
+            let mut total_weight = 0.;
+            let mut total_cost = 0.;            
+            for f in &self.centers {
+                let f_access = f.read();            
+                total_cost += f_access.get_cost();
+                total_weight += f_access.get_weight();
+            }
+            self.cost = total_cost; 
+            self.weight = total_weight;        
+        }
+        return (self.weight,self.cost);
+    } // end of compute_cost
+
+
     /// a function to log info on dist and cost inside facilities
     /// - level = 0, will log total weight and total cost summed over facilities
     /// - level = 1 it will log weight and cost of each facility.

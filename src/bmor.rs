@@ -221,7 +221,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
 /// defined by : $ (\gamma −1) \space k \space (1+ \log_2 n)$.  
 /// At each iteration $i$ the upper bound of cost $C_{i}$ is defined  by $ \beta * C_{i-1} $ and the allocation of a facility 
 /// is relaxed in a coherent way.  
-/// As for large n the resulting number of allocated facilities can be larger than k it is possible to ask for an end step (see [end_step](Self::end_data()) that 
+/// As for large n the resulting number of allocated facilities can be larger than k it is possible to ask for an end step [end_step](Self::end_data()) that 
 /// will reduce the number of facilities to less than $ (\gamma −1) \space k \space (1+ \log_2 nbfacility)$
 /// 
 /// The data are affected to a facility on the fly (useful in streaming). 
@@ -438,5 +438,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         return status;
     } // end of add_data
 
-
+    pub fn log(&self) {
+        self.state.borrow().log();
+    }
 } // end of impl block Bmor
