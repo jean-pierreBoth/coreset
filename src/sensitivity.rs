@@ -49,6 +49,8 @@ impl Coreset {
 /// It relies on bmor algorithm [bmor](super::bmor)
 /// The algorithm needs one streaming pass and one sampling pass
 pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> {
+    ///
+    phase : usize,
     /// bmor instance
     bmor : Bmor<T, Dist >, 
     /// proba distribution over points
@@ -66,6 +68,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     pub fn new(k: usize, nbdata_expected : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
         let bmor = Bmor::new(k, nbdata_expected, beta, gamma, distance);
         let point_weights : Option<WeightedIndex<usize>> = None;
+        let phase = 0usize;
         //
         std::panic!("not yet");
     } // end of new
@@ -73,17 +76,27 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     /// treat unweighted data. 
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
-    pub fn process_data(&mut self, data : &[Vec<T>]) -> anyhow::Result<usize> {
+    pub fn process_data(&mut self, data : &[Vec<T>], data_id : &[usize]) -> anyhow::Result<usize> {
         //
-        self.bmor.process_data(&data);
-        self.bmor.log();
+        if self.phase == 0 {
+            self.bmor.process_data(&data, data_id);
+            self.bmor.log();
+        }
+        else {
+            // sampling phase
+
+            std::panic!("not yet");
+        }
         //
         std::panic!("not yet");
     } // end of process_data
 
 
-    /// declare end of streaming data, and construct coreset by sampling
-    pub fn end_data(&self, contraction : bool) -> Coreset1<T, Dist> {
+    /// declare end of streaming data first pass, and construct coreset by sampling
+    pub fn end_pass(&mut self) -> Coreset1<T, Dist> {
+        //
+        self.phase = 1;
+        // we construct sampling probability
         std::panic!("not yet");
     } // 
 

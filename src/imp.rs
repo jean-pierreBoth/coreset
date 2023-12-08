@@ -373,7 +373,8 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         //
         // We explicitly dispatch data to facilities as imp algo do not do it
         let data_unweighted:  Vec<&Vec<T>> = self.data.iter().map( |d| d).collect();
-        facilities.dispatch_data(&data_unweighted, None);
+        let ids = (0..data_unweighted.len()).into_iter().collect::<Vec<usize>>();
+        facilities.dispatch_data(&data_unweighted, &ids, None);
         //        
         return facilities;
     } // end of construct_centers

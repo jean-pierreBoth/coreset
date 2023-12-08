@@ -217,7 +217,9 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let beta = 2.2;
     let gamma = 2.2;
     let mut bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
-    let res = bmor_algo.process_data(images);
+    //
+    let ids = (0..images.len()).into_iter().collect::<Vec<usize>>();
+    let res = bmor_algo.process_data(images, &ids);
     if res.is_err() {
         std::panic!("bmor failed");
     }

@@ -280,9 +280,9 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat unweighted data. 
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
-    pub fn process_data(&mut self, data : &[Vec<T>]) -> anyhow::Result<usize> {
+    pub fn process_data(&mut self, data : &[Vec<T>], id : &[usize]) -> anyhow::Result<usize> {
         //
-        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],i)).collect();
+        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],id[i])).collect();
         self.process_weighted_block(&weighted_data);
         //
         let state = self.state.borrow();

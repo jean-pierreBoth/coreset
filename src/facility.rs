@@ -4,7 +4,7 @@
 
 use anyhow::*;
 
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{Serialize, Deserialize};
 
 
 use ndarray::Array2;
@@ -14,6 +14,7 @@ use rayon::prelude::*;
 
 use parking_lot::RwLock;
 use std::sync::Arc;
+use dashmap::DashMap;
 
 use std::collections::HashMap;
 
@@ -94,6 +95,39 @@ impl<T: Send+Sync+Clone> Facility<T> {
 /// where $ cf_{p}$ is the center of facility assigned to $p$
 /// 
 // As we want parallel access, running concurrently on all data we need Arc RwLock stuff
+
+pub type FacilityId = usize;
+
+
+/// A structure describing point affectation into facility
+/// Necessary to comput sensitiviy in coreset algos
+#[derive(Copy,Clone)]
+pub struct PointMap {
+    // facility correspondinf to point
+    facility : usize,
+    // distance to facility
+    dist_to_f : f32,
+    // point weight
+    weight : f32,
+}
+
+impl PointMap {
+    pub fn new(facility : usize, dist_to_f : f32, weight : f32) -> Self {
+        PointMap{facility, dist_to_f, weight}
+    }
+
+    /// returns facility of point
+    pub fn get_facility(&self) -> usize { self.facility}
+
+    //
+    pub fn get_dist(&self) -> f32 { self.dist_to_f}
+
+    // get point weight
+    pub fn get_weight(&self) -> f32 { self.weight}
+} // end of PointMap
+
+
+
 #[derive(Clone)]
 pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
     centers : Vec<Arc<RwLock<Facility<T>>>>,
@@ -103,6 +137,8 @@ pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
     weight : f64,
     // sum of weights * distance to facility center dispatched into facilities
     cost : f64,
+    // A map to store facility associated to a point. Needed in sensitivity
+    facility_map : Option<Arc<DashMap<usize,PointMap>>>,
 } // end of struct Facilities
 
 impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> {
@@ -110,7 +146,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     /// to be allocated , size should be log(nb_data)
     pub fn new(size : usize, distance : Dist) -> Self {
         let centers = Vec::<Arc<RwLock<Facility<T>>>>::with_capacity(size);
-        Facilities{centers, distance, weight : 0., cost : 0.}
+        Facilities{centers, distance, weight : 0., cost : 0., facility_map : None}
     }
 
     /// return number of facility
@@ -135,6 +171,11 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         &self.centers
     }
 
+    /// returns a reference to (optional) facility_map
+    pub fn get_facility_map(&self) -> Option<&Arc<DashMap<usize, PointMap>>> {
+        return self.facility_map.as_ref()
+    }
+
 
     /// return true if there is a facility around point at distance less than dmax
     pub fn match_point(&self, point : &Vec<T>, dmax : f32, distance : &Dist) -> bool {
@@ -148,7 +189,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     } // end of match_facility
 
 
-    ///
+    /// insert a new facility
     pub(crate) fn insert(&mut self, facility : Facility<T>) {
         self.centers.push(Arc::new(RwLock::new(facility)));
         //
@@ -240,6 +281,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     /// This function affects each point to its nearest facility and compute cost of each facility and returns global cost and vector of weight by facility 
+    /// arguments are data vectors, data ids and optional weights.  
     ///   
     /// Not all algos maintain weight and cost consistently all the way, sometimes facilities are created without
     /// searching all points in it. So we need to be able do the dispatch afterwards.  
@@ -247,7 +289,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     /// **The function can nevertheless be called a posteriori to get a tighter bound on cost**  
     ///
     #[allow(unused)]
-    pub fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, weights : Option<&Vec<f32>>) -> f64 {
+    pub fn dispatch_data(&mut self, data : &Vec<&Vec<T>>, ids : &Vec<usize>, weights : Option<&Vec<f32>>) -> f64 {
         //
         log::info!("in facilities::dispatch_data");
         //
@@ -264,10 +306,17 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         let dispatch_i = | item : usize | {
             // get facility rank and weight
             let (facility, dist) = self.get_nearest_facility(&data[item]).unwrap();
-            let weight = if weights.is_none() { 1. } else { weights.unwrap()[item] as f64};
-            let cost_incr = dist as f64 * weight;
+            let weight = if weights.is_none() { 1. } else { weights.unwrap()[item]};
+            match &self.facility_map {
+                Some(f_map) => {
+                    let p_map = PointMap::new(facility, dist, weight );
+                    f_map.insert(ids[item], p_map);
+                }
+                _  => {}
+            };            
+            let cost_incr = dist as f64 * weight as f64;
             let mut facility = self.centers[facility].write();
-            facility.weight += weight;
+            facility.weight += weight as f64;
             facility.cost += cost_incr;
         };
         //
