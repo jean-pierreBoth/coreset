@@ -124,8 +124,8 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
         self.total_cost
     }    
 
-    /// get nearest center/facility of a point
-    pub fn get_nearest_center(&self, point : &[T]) -> Option<(&Arc<RwLock<Facility<T>>>, f32) >
+    /// get nearest center/facility of a point, its rank and distance to facility
+    pub fn get_nearest_center(&self, point : &[T]) -> Option<(&Arc<RwLock<Facility<T>>>, usize, f32) >
         where T : Send + Sync,  Dist : Sync {
         //
         let nb_facility = self.centers.len();
@@ -134,9 +134,9 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
             return None;
         }
         // get nearest facilty
-        let (rank,dist) = self.centers.get_nearest_facility(point).unwrap();
+        let (rank,dist) = self.centers.get_nearest_facility(point, false).unwrap();
         //
-        return Some( (self.centers.get_facility(rank).unwrap(), dist));
+        return Some( (self.centers.get_facility(rank).unwrap(), rank, dist));
     } // end of get_nearest_center
 
 
@@ -155,14 +155,14 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
                 std::process::exit(1);
             }
             let nearest_center =  nearest_facility_res.unwrap();
-            dist_to_nearest = nearest_center.1;
+            dist_to_nearest = nearest_center.2;
             nearest_facility = nearest_center.0.clone();
         }
         // take into account f factor
         if self.get_unif_sample() < (weight * dist_to_nearest as f64 * self.oneplogn as f64 / self.li) {
             // we create a new facility. No cost increment
             let mut new_f = Facility::<T>::new(rank_id, point);
-            new_f.insert(weight as f64,dist_to_nearest);
+            new_f.insert(weight as f64,0.);
             self.centers.insert(new_f);
             // log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
         }
@@ -280,6 +280,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat unweighted data. 
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
+    /// id are data id (anything identifying data point)
     pub fn process_data(&mut self, data : &[Vec<T>], id : &[usize]) -> anyhow::Result<usize> {
         //
         let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],id[i])).collect();
@@ -329,10 +330,10 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat data with weights attached.
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
-    pub fn process_weighted_data(&self, data : &[(f64, &Vec<T>)] ) -> anyhow::Result<usize>  {
+    /// a data trplet consists in a weight , data vector and data id given as a usize (anything identifying data point)
+    pub fn process_weighted_data(&self, weighted_data : &[(f64, &Vec<T>, usize)] ) -> anyhow::Result<usize>  {
         //
-        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (data[i].0, data[i].1 ,i)).collect();
-        self.process_weighted_block(&weighted_data);
+        self.process_weighted_block(weighted_data);
         //
         let state = self.state.borrow();
         //
@@ -358,7 +359,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         //
         log::info!("bmor_recur , nb facilities received : {:?}", facility_data.len());
         //
-        let weighted_data: Vec<(f64, &Vec<T>)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1)).collect();
+        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1, i)).collect();
         let _bound_2 = self.nbdata_expected.ilog2() as usize;
         // we could to adapt to number of facilities and we could impose a log reduction in input size for each step.
         // by bounding nb_expected_data with min(_bound_2)
@@ -390,8 +391,9 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
 
     // This method is the real working method.
-    // It inserts data, update state, and drive recurrence 
-    fn process_weighted_block(&self, data : &Vec<(f64,&Vec<T>, usize)>) {
+    // It inserts data, update state, and drive recurrence
+    // args is a vecotr of triplets (weight, data, data_id) 
+    fn process_weighted_block(&self, data : &[(f64, &Vec<T>, usize)]) {
         //
         log::debug!("entering process_weighted_block, phase : {:?}, nb data : {}", self.state.borrow().get_phase(), data.len());
         //

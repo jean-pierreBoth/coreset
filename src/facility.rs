@@ -14,7 +14,6 @@ use rayon::prelude::*;
 
 use parking_lot::RwLock;
 use std::sync::Arc;
-use dashmap::DashMap;
 
 use std::collections::HashMap;
 
@@ -103,7 +102,7 @@ pub type FacilityId = usize;
 /// Necessary to comput sensitiviy in coreset algos
 #[derive(Copy,Clone)]
 pub struct PointMap {
-    // facility correspondinf to point
+    // rank of facility corresponding to point
     facility : usize,
     // distance to facility
     dist_to_f : f32,
@@ -137,8 +136,6 @@ pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
     weight : f64,
     // sum of weights * distance to facility center dispatched into facilities
     cost : f64,
-    // A map to store facility associated to a point. Needed in sensitivity
-    facility_map : Option<Arc<DashMap<usize,PointMap>>>,
 } // end of struct Facilities
 
 impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> {
@@ -146,7 +143,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     /// to be allocated , size should be log(nb_data)
     pub fn new(size : usize, distance : Dist) -> Self {
         let centers = Vec::<Arc<RwLock<Facility<T>>>>::with_capacity(size);
-        Facilities{centers, distance, weight : 0., cost : 0., facility_map : None}
+        Facilities{centers, distance, weight : 0., cost : 0.}
     }
 
     /// return number of facility
@@ -171,10 +168,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         &self.centers
     }
 
-    /// returns a reference to (optional) facility_map
-    pub fn get_facility_map(&self) -> Option<&Arc<DashMap<usize, PointMap>>> {
-        return self.facility_map.as_ref()
-    }
+
 
 
     /// return true if there is a facility around point at distance less than dmax
@@ -219,23 +213,35 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     } // end of get_cloned_facility
 
 
-    /// return rank of nearest facility, returns rank of facility and distance to it
-    pub fn get_nearest_facility(&self, data : &[T]) -> anyhow::Result<(usize, f32)> {
+
+
+
+    /// return rank of nearest facility and distance to it
+    /// If there are many facilities to search (thousands), setting the parallel flag to true is useful
+    pub fn get_nearest_facility(&self, data : &[T], parallel : bool) -> anyhow::Result<(usize, f32)> {
         let mut dist = f32::INFINITY;
-        let mut rank_f : i32 = -1;
+        let mut rank_f : usize = usize::MAX;
         if self.centers.len() == 0 {
             return Err(anyhow!("Empty facility"));
         }
-        // TODO: can be // if many centers
-        for i in 0..self.centers.len() {
+        //
+        let dist_to_f = | i| -> (usize, f32) {
             let f_i = self.get_facility(i).unwrap().read();
             let center_i = f_i.get_position(); 
             let d_i = self.distance.eval(center_i, data);
-            if d_i <= dist {
-                dist = d_i;
-                rank_f = i as i32;
+            (i, d_i)
+        };
+        let dist_slot : Vec<(usize,f32)> = match parallel {
+            true => { (0..self.centers.len()).into_par_iter().map(|i| dist_to_f(i)).collect()}
+            false => { (0..self.centers.len()).into_iter().map(|i| dist_to_f(i)).collect()}
+        };
+        for d in dist_slot {
+            if d.1 <= dist {
+                dist = d.1;
+                rank_f = d.0;
             }
         }
+        assert!(rank_f < usize::MAX);
         //
         return Ok((rank_f as usize, dist));
     } // end of get_nearest_facility
@@ -280,6 +286,9 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
 
+
+
+
     /// This function affects each point to its nearest facility and compute cost of each facility and returns global cost and vector of weight by facility 
     /// arguments are data vectors, data ids and optional weights.  
     ///   
@@ -305,15 +314,9 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         //
         let dispatch_i = | item : usize | {
             // get facility rank and weight
-            let (facility, dist) = self.get_nearest_facility(&data[item]).unwrap();
+            // parallel flag is set to false as we // on data.
+            let (facility, dist) = self.get_nearest_facility(&data[item], false).unwrap();
             let weight = if weights.is_none() { 1. } else { weights.unwrap()[item]};
-            match &self.facility_map {
-                Some(f_map) => {
-                    let p_map = PointMap::new(facility, dist, weight );
-                    f_map.insert(ids[item], p_map);
-                }
-                _  => {}
-            };            
             let cost_incr = dist as f64 * weight as f64;
             let mut facility = self.centers[facility].write();
             facility.weight += weight as f64;
@@ -364,7 +367,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         //
         let dispatch_i = | i : usize | {
             // find facility
-            let (itemf, dist) = self.get_nearest_facility(&data[i]).unwrap();
+            let (itemf, dist) = self.get_nearest_facility(&data[i], false).unwrap();
             // dispatch data
             let weight = if weights.is_none() { 1. } else { weights.unwrap()[itemf] as f64};
             let cost_incr = dist as f64 * weight;
