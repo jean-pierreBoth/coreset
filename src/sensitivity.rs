@@ -15,15 +15,43 @@ use rayon::prelude::*;
 
 use std::collections::HashMap;
 use std::collections::hash_map;
-
-use rand_distr::WeightedIndex;
 use dashmap::DashMap;
+
+use rand::Rng;
+use rand_distr::{Distribution,WeightedIndex};
+
 
 use crate::bmor::*;
 use crate::facility::*;
 
 use hnsw_rs::dist::*;
 
+
+struct PointSampler {
+    /// proba distribution over points
+    point_weights : WeightedIndex<f32>,
+    // first usize is an index in point_weights, second index is data_id in data (possibly an index).
+    w_index : HashMap<usize, usize>,
+}
+
+impl PointSampler {
+
+    fn new(weights : Vec<f32>, w_index : HashMap<usize, usize>) -> Self {
+        PointSampler{point_weights : WeightedIndex::new(&weights).unwrap() , w_index}
+    }
+
+    /// sample a random data point, returning its Id (possibly an index in some array)
+    fn sample<R>(&self, rng : &mut R ) -> usize 
+        where R : Rng + ?Sized  {
+            let rank = self.point_weights.sample(rng);
+            return *self.w_index.get(&rank).unwrap();
+    } // end of sample
+
+
+} // end of PointSampler
+
+
+//======================================================================================================
 
 // How do we represent a coreset: For now minimal
 // We can have same point many times with different weights
@@ -55,6 +83,7 @@ impl Coreset {
         }
     } // end of get_weights
 
+
     pub fn get_data_ids(&self) -> hash_map::Keys<usize, usize> { return self.w_index.keys()}
 } // end of impl Coreset
 
@@ -69,14 +98,12 @@ impl Coreset {
 pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> {
     ///
     phase : usize,
-    /// keep track of number of daa processed
+    /// keep track of number of data processed
     nb_data : usize,
     /// bmor instance
     bmor : Bmor<T, Dist >, 
     /// facilities with respect to which we compute sensitivity (or importance)
     facilities : Option<Facilities<T, Dist>>,
-    /// proba distribution over points
-    point_weights : Option<WeightedIndex<usize>>,
     /// coreset. A data point can occur many times with varying (decresing weights)
     coreset : HashMap<usize, Vec<f32>>,
     // A map to store facility associated to each point. Needed in sensitivity
@@ -92,12 +119,16 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     /// 
     pub fn new(k: usize, nbdata_expected : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
         let bmor = Bmor::new(k, nbdata_expected, beta, gamma, distance);
-        let point_weights : Option<WeightedIndex<usize>> = None;
         let phase = 0usize;
         let coreset = HashMap::<usize, Vec<f32>>::new();
         //
-        Coreset1{ phase, nb_data : 0, bmor, facilities : None, point_weights : None, coreset, p_facility_map : None}
+        Coreset1{ phase, nb_data : 0, bmor, facilities : None, coreset, p_facility_map : None}
     } // end of new
+
+
+    pub fn get_coreset(&self) -> &HashMap<usize, Vec<f32>> {
+        panic!("not yet");
+    }
 
 
     /// treat unweighted data. 
@@ -158,6 +189,8 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
                 // we have every thing to compute sensitivity and do sampling
                 log::info!("end of second pass, doing sensitivity and sampling computations");
                 self.init_facility_map(self.nb_data);
+                // build sampling distribution
+//                let sampler = self.build_sampling_distribution(dataiter)
             }
 
             _ => {
@@ -199,4 +232,53 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     } // end of insert_pointmap
 
 
+    //  initialize point_weights : Option<WeightedIndex<usize>>,
+    // The function receive an iterator over data.
+    // from rust 1.75 such an iterator can be obtained with the user implementing a trait providing the iterator on data
+    fn build_sampling_distribution(&mut self, mut dataiter : impl Iterator<Item=(usize, Vec<T>)> ) -> PointSampler {
+        // The 2 denonimators used in line 3 of algo 1 for Coreset in Braverman
+        let facililities_ref = self.facilities.as_ref().unwrap();
+        // denominator used in line 3  of algo 1 for Coreset in Braverman
+        let global_cost = facililities_ref.get_cost();
+        let p_facility_map_ref = self.p_facility_map.as_ref().unwrap();
+        let nb_facilities = facililities_ref.len();     // This is |B| in line 3  of algo 1 for Coreset in Braverman
+        let mut cumul_proba = 0.;
+        // the fields to build PointSampler
+        let mut p_weights = Vec::<f32>::with_capacity(self.nb_data);
+        let mut w_index = HashMap::<usize, usize>::with_capacity(self.nb_data);
+        //
+        while let Some(dataterm) = dataiter.next() {
+            let dataid = dataterm.0;
+            let data = dataterm.1;
+            let pointmap = p_facility_map_ref.get(&dataid);
+            if pointmap.is_none() {
+                log::error!("error, dataid not found in p_facility_map : {}", dataid);
+                std::panic!("error, dataid not found in p_facility_map : {}", dataid);
+            }
+            let pointmap = pointmap.unwrap();
+            let mut proba = pointmap.get_dist() as f64 * pointmap.get_weight() as f64 / global_cost;
+            // get weight of facility of point corresponding to data_id
+            let f_weight = facililities_ref.get_facility_weight(pointmap.get_facility());
+            proba = proba + pointmap.get_weight() as f64 / (nb_facilities as f64 *  f_weight.unwrap());
+            proba = proba * 0.5;
+            // now we can update 
+            assert!(proba > 0.);
+            p_weights.push(proba as f32);
+            w_index.insert(dataid, p_weights.len());
+            // for a check
+            cumul_proba += proba;
+        }
+        assert!((1. - cumul_proba).abs() < 1.0E-5);
+        let point_sampler = PointSampler::new(p_weights, w_index);
+        // we can now get rid of p_facility_map
+        self.p_facility_map = None;
+        //
+        return point_sampler;
+    } // end of build_sampling_distribution
+
+
+
+    // build and init field coreset
+    fn sample_coreset(&mut self) {
+    } // end of sample_coreset
 } // end of impl block

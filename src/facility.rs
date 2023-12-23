@@ -138,6 +138,7 @@ pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
     cost : f64,
 } // end of struct Facilities
 
+
 impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> {
 
     /// to be allocated , size should be log(nb_data)
@@ -156,6 +157,10 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         return self.centers.iter().map(|f| f.read().get_weight()).sum();
     }
 
+
+    pub fn get_cost(&self) -> f64 {
+        return self.centers.iter().map(|f| f.read().get_cost()).sum();
+    }
 
     // useful in algorithm bmor when we need to reinitialize
     pub(crate) fn clear(&mut self) {
@@ -213,6 +218,15 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     } // end of get_cloned_facility
 
 
+    /// return weight in facility of rank rank, error else
+    pub fn get_facility_weight(&self, rank : usize) -> Result<f64> {
+        if rank <= self.centers.len() {
+            return  Ok(self.centers[rank].read().get_weight());
+        }
+        else {
+            return Err(anyhow!("not so many facilities , rank is {}", rank));
+        }
+    } // end of facililities_ref
 
 
 
