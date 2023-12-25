@@ -90,9 +90,8 @@ impl Coreset {
 
 
 
-/// This structure provides Algorithm1 Braverman and al 2022.
-/// It relies on bmor algorithm [bmor](super::bmor)
-/// The algorithm needs  one streaming pass and one sampling pass.
+/// This structure provides Algorithm1 Braverman and al 2022, it relies on bmor algorithm [bmor](super::bmor).  
+/// The algorithm needs  one streaming pass and one sampling pass.  
 /// The data must be given consistent id across the 2 passes. (The data id can be its rank in the stream in which case the 2 pass
 /// must process data in the same order)
 pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> {
@@ -130,10 +129,53 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         panic!("not yet");
     }
 
+    /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling [process_data](Self::process_data()) , consuming the iterator
+    pub fn process_data_iterator(&mut self, mut iter : impl Iterator<Item=(usize, Vec<T>)>) -> anyhow::Result<()> {
+        //
+        let bufsize : usize = 50000;
+        let mut datas = Vec::<Vec<T>>::with_capacity(bufsize);
+        let mut ids = Vec::<usize>::with_capacity(bufsize);
+        //
+        loop {
+            let data_opt = iter.next();
+            match data_opt {
+                Some((id, data)) => {
+                    // insert
+                    datas.push(data);
+                    ids.push(id);
+                    if datas.len() == bufsize {
+                        // process
+                        let res = self.process_data(&datas, &ids);
+                        assert!(res.is_ok());
+                        // empty buffer
+                        datas.clear();
+                        ids.clear();
+                    }
+                }
+                _ => {
+                    if datas.len() > 0 {
+                        let res = self.process_data(&datas, &ids);
+                        assert!(res.is_ok());
+                        // empty buffer
+                        datas.clear();
+                        ids.clear();  
+                    }
+                    break;
+                }
+            } // end match
+        } // end loop
+        // DO NOT FORGET calling end_pass
+        self.end_pass();
+        //
+        return Ok(());
+    } // end of process_data_iterator
+
 
     /// treat unweighted data. 
+    /// This functions provides a buffered, parallelized internal implementation of process_data_iterator.   
+    /// **This function is made public for user convenience but [process_data_iterator](Self::process_data_iterator() ) is to be preferred**.  
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
-    /// At end of first round on data (end_pass)[end_pass] must be called before running the second pass on data
+    /// At end of first round on data [end_pass](Self::end_pass()) must be called before running the second pass on data
     pub fn process_data(&mut self, data : &[Vec<T>], data_id : &[usize]) -> anyhow::Result<()> {
         //
         if self.phase == 0 {
@@ -172,7 +214,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
 
-    /// declare end of streaming data first pass, and construct coreset by sampling
+    /// declares end of streaming data first pass, and construct coreset by sampling
     pub fn end_pass(&mut self) -> Coreset1<T, Dist> {
         //
         match self.phase {
