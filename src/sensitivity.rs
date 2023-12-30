@@ -19,15 +19,27 @@ use dashmap::DashMap;
 
 use rand::Rng;
 use rand_distr::{Distribution,WeightedIndex};
+use rand_xoshiro::Xoshiro256PlusPlus;
+use rand_xoshiro::rand_core::SeedableRng;
 
 
+use crate::iterprovider::*;
 use crate::bmor::*;
 use crate::facility::*;
 
 use hnsw_rs::dist::*;
 
+// a sampled point 
+struct Point {
+    pub(self) id : usize,
+    pub(self) rank : usize,
+    pub(self) proba : f32,
+}
 
+//TODO: get rid of WeightedIndex
 struct PointSampler {
+    /// raw probas (we need it as we cannot retrieve probability from WeightedIndex)
+    probas : Vec<f32>,
     /// proba distribution over points
     point_weights : WeightedIndex<f32>,
     // first usize is an index in point_weights, second index is data_id in data (possibly an index).
@@ -36,15 +48,16 @@ struct PointSampler {
 
 impl PointSampler {
 
-    fn new(weights : Vec<f32>, w_index : HashMap<usize, usize>) -> Self {
-        PointSampler{point_weights : WeightedIndex::new(&weights).unwrap() , w_index}
+    fn new(probas : Vec<f32>, w_index : HashMap<usize, usize>) -> Self {
+        PointSampler{probas : probas.clone(), point_weights : WeightedIndex::new(&probas).unwrap() , w_index}
     }
 
     /// sample a random data point, returning its Id (possibly an index in some array)
-    fn sample<R>(&self, rng : &mut R ) -> usize 
+    fn sample<R>(&self, rng : &mut R ) -> Point
         where R : Rng + ?Sized  {
             let rank = self.point_weights.sample(rng);
-            return *self.w_index.get(&rank).unwrap();
+            let id = *self.w_index.get(&rank).unwrap();
+            return Point{id, rank, proba : self.probas[rank]}
     } // end of sample
 
 
@@ -83,7 +96,7 @@ impl Coreset {
         }
     } // end of get_weights
 
-
+    /// returns the id of data
     pub fn get_data_ids(&self) -> hash_map::Keys<usize, usize> { return self.w_index.keys()}
 } // end of impl Coreset
 
@@ -104,7 +117,7 @@ pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send>
     /// facilities with respect to which we compute sensitivity (or importance)
     facilities : Option<Facilities<T, Dist>>,
     /// coreset. A data point can occur many times with varying (decresing weights)
-    coreset : HashMap<usize, Vec<f32>>,
+    coreset : Option<HashMap<usize, Vec<f32>>>,
     // A map to store facility associated to each point. Needed in sensitivity
     p_facility_map : Option<Arc<DashMap<usize,PointMap>>>,
 } // end of Coreset1
@@ -119,10 +132,30 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     pub fn new(k: usize, nbdata_expected : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
         let bmor = Bmor::new(k, nbdata_expected, beta, gamma, distance);
         let phase = 0usize;
-        let coreset = HashMap::<usize, Vec<f32>>::new();
+        let coreset = None;
         //
         Coreset1{ phase, nb_data : 0, bmor, facilities : None, coreset, p_facility_map : None}
     } // end of new
+
+
+    /// main interface to the algorithm
+    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<()> 
+        where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
+        // first bmor pass
+        let mut iter = iter_generator.makeiter();
+        let res1 = self.process_data_iterator(iter);
+        if res1.is_err() {
+            log::error!("first pass failed");
+            return Err(anyhow!("first pass failed"));
+        }
+        // second sensitivity computations and sampling
+        log::info!("end of second pass, doing sensitivity and sampling computations");
+        self.init_facility_map(self.nb_data);
+        let mut iter = iter_generator.makeiter();
+        let sampler = self.build_sampling_distribution(iter);
+        //
+        std::panic!("not yet");
+    }  // end of make_coreset
 
 
     pub fn get_coreset(&self) -> &HashMap<usize, Vec<f32>> {
@@ -173,10 +206,8 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
     /// treat unweighted data. 
     /// This functions provides a buffered, parallelized internal implementation of process_data_iterator.   
-    /// **This function is made public for user convenience but [process_data_iterator](Self::process_data_iterator() ) is to be preferred**.  
-    /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// At end of first round on data [end_pass](Self::end_pass()) must be called before running the second pass on data
-    pub fn process_data(&mut self, data : &[Vec<T>], data_id : &[usize]) -> anyhow::Result<()> {
+    fn process_data(&mut self, data : &[Vec<T>], data_id : &[usize]) -> anyhow::Result<()> {
         //
         if self.phase == 0 {
             self.bmor.process_data(&data, data_id);
@@ -215,7 +246,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     /// declares end of streaming data first pass, and construct coreset by sampling
-    pub fn end_pass(&mut self) -> Coreset1<T, Dist> {
+    fn end_pass(&mut self) {
         //
         match self.phase {
             0 => {
@@ -230,18 +261,12 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
             1 => {
                 // we have every thing to compute sensitivity and do sampling
                 log::info!("end of second pass, doing sensitivity and sampling computations");
-                self.init_facility_map(self.nb_data);
-                // build sampling distribution
-//                let sampler = self.build_sampling_distribution(dataiter)
             }
 
             _ => {
                 std::panic!("should not occurr");
             }
-
         }
-        // now we have cardinal, weight and cost for all facilities
-        std::panic!("not yet");
     } // 
 
 
@@ -249,6 +274,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     pub fn get_facility_map(&self) -> Option<&Arc<DashMap<usize, PointMap>>> {
         return self.p_facility_map.as_ref()
     }
+
 
     // if needed (as in the case of sensitivity computations) allocate 
     fn init_facility_map(&mut self, capacity : usize) {
@@ -321,6 +347,33 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     // build and init field coreset
-    fn sample_coreset(&mut self) {
+    fn sample_coreset(&mut self, sampler : &PointSampler) {
+        // TODO: determine how many point we need to sample
+        let nb_sample = 1000;
+        //
+        let mut coreset = HashMap::<usize, Vec<f32>>::with_capacity(nb_sample);
+        //
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(14537);
+        //
+        let mut weight : f32;
+        let mut proba : f32;
+        for i in 0..nb_sample {
+            let point = sampler.sample(&mut rng);
+            let weight =  1./ (point.proba * (i as f32));
+            let mut id_weights = coreset.get_mut(&point.id);
+            match id_weights {
+                Some(weights) => {
+                    weights.push(weight);
+                }
+                None => {
+                    let mut weights = Vec::<f32>::new();
+                    weights.push(weight);
+                    coreset.insert(point.id, weights);
+                }
+            }
+        } // end of for 
+
     } // end of sample_coreset
+
+
 } // end of impl block

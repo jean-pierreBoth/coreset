@@ -2,9 +2,9 @@
 //! (using Rust >= 1.75) with RPITIT ( return-position impl Trait in trait)
 
 /// DataType is the type that the iterator obtained by *makeiter* function will produce.  
-/// Any algorithm (such as [Coreset1](super::sensitivity::Coreset1)) needing an iterator on data to run can use this trait.  
+/// Any algorithm (such as [Coreset1](super::sensitivity::Coreset1)) needing an iterator and more than one pass on data to run can use this trait.  
 /// The crate hnsw_rs will provide such an iterator on data stored in hnsw database.
-pub trait ProduceIter {
+pub trait IterProvider {
     /// The data the iterator will produce
     type DataType;
     /// how to get an iterator
