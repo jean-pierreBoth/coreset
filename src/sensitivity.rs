@@ -18,7 +18,7 @@ use std::collections::hash_map;
 use dashmap::DashMap;
 
 use rand::Rng;
-use rand_distr::{Distribution,WeightedIndex};
+use rand_distr::{Distribution};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::SeedableRng;
 
@@ -26,6 +26,7 @@ use rand_xoshiro::rand_core::SeedableRng;
 use crate::iterprovider::*;
 use crate::bmor::*;
 use crate::facility::*;
+use crate::discrete::DiscreteProba;
 
 use hnsw_rs::dist::*;
 
@@ -36,28 +37,25 @@ struct Point {
     pub(self) proba : f32,
 }
 
-//TODO: get rid of WeightedIndex
 struct PointSampler {
-    /// raw probas (we need it as we cannot retrieve probability from WeightedIndex)
-    probas : Vec<f32>,
     /// proba distribution over points
-    point_weights : WeightedIndex<f32>,
+    proba : DiscreteProba<f32>,
     // first usize is an index in point_weights, second index is data_id in data (possibly an index).
     w_index : HashMap<usize, usize>,
 }
 
 impl PointSampler {
 
-    fn new(probas : Vec<f32>, w_index : HashMap<usize, usize>) -> Self {
-        PointSampler{probas : probas.clone(), point_weights : WeightedIndex::new(&probas).unwrap() , w_index}
+    fn new(weights : &Vec<f32>, w_index : HashMap<usize, usize>) -> Self {
+        PointSampler{proba : DiscreteProba::new(&weights) , w_index}
     }
 
     /// sample a random data point, returning its Id (possibly an index in some array)
     fn sample<R>(&self, rng : &mut R ) -> Point
-        where R : Rng + ?Sized  {
-            let rank = self.point_weights.sample(rng);
+        where R : Rng  {
+            let (rank, proba) = self.proba.sample(rng);
             let id = *self.w_index.get(&rank).unwrap();
-            return Point{id, rank, proba : self.probas[rank]}
+            return Point{id, rank, proba}
     } // end of sample
 
 
@@ -337,7 +335,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
             cumul_proba += proba;
         }
         assert!((1. - cumul_proba).abs() < 1.0E-5);
-        let point_sampler = PointSampler::new(p_weights, w_index);
+        let point_sampler = PointSampler::new(&p_weights, w_index);
         // we can now get rid of p_facility_map
         self.p_facility_map = None;
         //
