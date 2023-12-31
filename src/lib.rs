@@ -14,6 +14,7 @@ pub mod imp;
 pub mod bmor;
 pub mod sensitivity;
 
+pub mod discrete;
 pub mod iterprovider;
 
 
