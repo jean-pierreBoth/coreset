@@ -346,6 +346,9 @@ pub fn main() {
         }
         Algo::BMOR   => {
             bmor(&mnist_params, &images_as_v, &labels, distance);
+        }
+        Algo::CORESET1 => {
+            std::panic!("not yet");
         }   
     }
     //

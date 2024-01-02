@@ -65,37 +65,43 @@ impl PointSampler {
 //======================================================================================================
 
 // How do we represent a coreset: For now minimal
-// We can have same point many times with different weights
-// Do we store Vec<T> ?
-pub struct Coreset {
-    // first usize is a data_id in data (possibly an index), second is rank in field weights.
-    w_index : HashMap<usize, usize>,
-    //
-    weights : Vec<Vec<f64>>,
+// We use a hashmap associating each data id with its list of occurences weights
+pub struct CoreSet {
+    core : HashMap<usize, Vec<f32>>,
 } // end of Coreset
 
 
 
-impl Coreset {
+impl CoreSet {
+
+    pub fn new(core : HashMap<usize, Vec<f32>>) -> Self {
+        CoreSet{core}
+    }
 
     /// returns number of different points
-    pub fn get_size(&self) -> usize {
-        self.w_index.len()
+    pub fn get_nb_points(&self) -> usize {
+        self.core.len()
     }
 
     /// returns list of weights of a given point if present in coreset
-    pub fn get_weights(&self, data_id : usize) -> Option<&Vec<f64>> {
-        let index_res = self.w_index.get(&data_id);
+    pub fn get_weights(&self, data_id : usize) -> Option<&Vec<f32>> {
+        let index_res = self.core.get(&data_id);
         match index_res {
             Some(index) => {
-                return Some(&self.weights[*index]);
+                return Some(index);
             }
             _ => { return None; }
         }
     } // end of get_weights
 
     /// returns the id of data
-    pub fn get_data_ids(&self) -> hash_map::Keys<usize, usize> { return self.w_index.keys()}
+    pub fn get_data_ids(&self) -> hash_map::Keys<usize, Vec<f32>> { return self.core.keys()}
+
+    /// total number of points, taking into account multiplicity
+    pub fn get_size(&self) -> usize {
+        let size = self.core.iter().map(|(k,v)| v.len()).sum();
+        return size;
+    }
 } // end of impl Coreset
 
 
@@ -114,8 +120,6 @@ pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send>
     bmor : Bmor<T, Dist >, 
     /// facilities with respect to which we compute sensitivity (or importance)
     facilities : Option<Facilities<T, Dist>>,
-    /// coreset. A data point can occur many times with varying (decresing weights)
-    coreset : Option<HashMap<usize, Vec<f32>>>,
     // A map to store facility associated to each point. Needed in sensitivity
     p_facility_map : Option<Arc<DashMap<usize,PointMap>>>,
 } // end of Coreset1
@@ -126,18 +130,17 @@ pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send>
 
 impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist> 
             where Dist : Distance<T> + Clone + Sync + Send {
-    /// 
+    /// k, beta and gamma are arguments of Bmor 
     pub fn new(k: usize, nbdata_expected : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
         let bmor = Bmor::new(k, nbdata_expected, beta, gamma, distance);
         let phase = 0usize;
-        let coreset = None;
         //
-        Coreset1{ phase, nb_data : 0, bmor, facilities : None, coreset, p_facility_map : None}
+        Coreset1{ phase, nb_data : 0, bmor, facilities : None, p_facility_map : None}
     } // end of new
 
 
     /// main interface to the algorithm
-    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<()> 
+    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet> 
         where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
         // first bmor pass
         let mut iter = iter_generator.makeiter();
@@ -152,13 +155,10 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let mut iter = iter_generator.makeiter();
         let sampler = self.build_sampling_distribution(iter);
         //
-        std::panic!("not yet");
+        let coreset = self.sample_coreset(&sampler);
+        Ok(CoreSet::new(coreset))
     }  // end of make_coreset
 
-
-    pub fn get_coreset(&self) -> &HashMap<usize, Vec<f32>> {
-        panic!("not yet");
-    }
 
     /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling [process_data](Self::process_data()) , consuming the iterator
     pub fn process_data_iterator(&mut self, mut iter : impl Iterator<Item=(usize, Vec<T>)>) -> anyhow::Result<()> {
@@ -345,7 +345,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     // build and init field coreset
-    fn sample_coreset(&mut self, sampler : &PointSampler) {
+    fn sample_coreset(&mut self, sampler : &PointSampler) -> HashMap::<usize, Vec<f32>> {
         // TODO: determine how many point we need to sample
         let nb_sample = 1000;
         //
@@ -370,7 +370,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
                 }
             }
         } // end of for 
-
+        coreset
     } // end of sample_coreset
 
 

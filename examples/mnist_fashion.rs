@@ -26,6 +26,7 @@ use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
 
 use hnsw_rs::prelude::*;
+use coreset::prelude::*;
 
 
 /// A struct to load/store for Fashion Mnist in the same format as [MNIST data](http://yann.lecun.com/exdb/mnist/)  
@@ -212,6 +213,92 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     facilities.cross_distances();
 }
 
+//=====================================================================
+
+use std::iter::Iterator;
+
+
+struct DataIterator<'a> {
+    // we must keep the rank
+    rank : usize,
+    // we must have an access to data
+    images : &'a Vec<Vec<f32>>,
+}
+
+impl <'a> DataIterator<'a> {
+
+    pub fn new(images : &'a Vec<Vec<f32>>) -> Self {
+        DataIterator{rank : 0, images}
+    }
+
+} // end of impl DataIterator
+
+
+// We could have chosen Item to be (&Vec<f32>, usize) as we have all data in memory.
+// But the coreset algorithms will not in general be able to have all data in memory so we
+// must pass real data when algos require data from the iterator.
+impl <'a> Iterator for  DataIterator<'a> {
+    type Item = (usize, Vec<f32>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rank < self.images.len() {
+            let rank1 = self.rank;
+            self.rank+=1;
+            return Some((rank1, self.images[rank1].clone()));
+        }
+        else {
+            return None;
+        }
+    }
+} // end of Iterator for MnistData
+
+
+/// a structure implementing IterProvider
+struct IteratorProducer<'a> {
+    // we must have an access to data
+    images : &'a Vec<Vec<f32>>,
+}
+
+impl <'a> IteratorProducer<'a> {
+    pub fn new(images : &'a Vec<Vec<f32>>) -> Self {
+        IteratorProducer{images}
+    }
+
+} // end of impl IteratorProducer
+
+
+
+impl <'a> IterProvider for IteratorProducer<'a> {
+    type DataType = (usize, Vec<f32>);
+    //
+    fn makeiter(&self) -> DataIterator<'a> {
+        let iterator = DataIterator::new(self.images);
+        return iterator;
+    }
+} //end impl IterProvider
+
+
+
+fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
+    // We need to make an iterator producer from data
+    let producer = IteratorProducer::new(images);
+    // allocate a coreset1 structure
+    let beta = 2.;
+    let gamma = 2.;
+    let k = 10;  // as we have 10 classes, but this gives a lower bound
+    let mut core1 = Coreset1::new(k, images.len(), beta, gamma, distance);
+    //
+    let res = core1.make_coreset(&producer);
+    if res.is_err() {
+        log::error!("construction of coreset1 failed");
+    }
+    let coreset = res.unwrap();
+    // get some info
+    log::info!("coreset1 nb different points : {}, size : {}", coreset.get_nb_points(), coreset.get_size());
+    //
+} // end of coreset1
+
+
 //========================================================
 
 pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
@@ -247,7 +334,6 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
 use clap::{Arg, ArgMatches, ArgAction, Command};
 
 
-use coreset::prelude::*;
 
 const MNIST_FASHION_DIR : &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
 
@@ -346,6 +432,10 @@ pub fn main() {
         }
         Algo::BMOR   => {
             bmor(&mnist_params, &images_as_v, &labels, distance);
+        } 
+        Algo::CORESET1 => {
+            coreset1(&mnist_params, &images_as_v, &labels, distance);
+            std::panic!("not yet");
         }   
     }
     //
