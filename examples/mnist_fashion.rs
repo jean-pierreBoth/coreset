@@ -439,7 +439,6 @@ pub fn main() {
         } 
         Algo::CORESET1 => {
             coreset1(&mnist_params, &images_as_v, &labels, distance);
-            std::panic!("not yet");
         }   
     }
     //

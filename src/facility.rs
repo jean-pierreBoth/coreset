@@ -75,6 +75,13 @@ impl<T: Send+Sync+Clone> Facility<T> {
         self.cost += dist as f64 * weight;
     }
 
+    // This function empties a facility keeping its position
+    pub(crate) fn empty(&mut self) {
+        self.weight = 0.;
+        self.cost = 0.;
+    }
+
+    /// dumps weight, cost and ratio
     pub fn log(&self) {
         log::info!("facility , d_rank : {:?}  weight : {:.4e},  cost : {:.3e}  cost/weight : {:.3e}", self.d_rank, self.weight, self.cost, self.cost/self.weight);
     }
@@ -123,6 +130,7 @@ impl PointMap {
 
     // get point weight
     pub fn get_weight(&self) -> f32 { self.weight}
+    
 } // end of PointMap
 
 
@@ -162,18 +170,23 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         return self.centers.iter().map(|f| f.read().get_cost()).sum();
     }
 
-    // useful in algorithm bmor when we need to reinitialize
+    // deletes all facilities. useful in algorithm bmor when we need to reinitialize.
     pub(crate) fn clear(&mut self) {
         self.centers.clear();
     }
 
 
+    // keeps facilities but empty each of them. Enables new dispatching of points in facilities
+    pub(crate) fn empty(&mut self) {
+        for f in &self.centers {
+            f.write().empty();
+        }
+    }
+
     // access to internal representation
     pub(crate) fn get_vec(&self) -> &Vec<Arc<RwLock<Facility<T>>>> {
         &self.centers
     }
-
-
 
 
     /// return true if there is a facility around point at distance less than dmax
@@ -260,6 +273,13 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         return Ok((rank_f as usize, dist));
     } // end of get_nearest_facility
 
+
+    /// insert a point into given facility (must be the one given by get_nearest_facility)
+    pub(crate) fn insert_point(&self, facility : usize, dist : f32, weight : f32) {
+        let mut f = self.centers[facility].write();
+        f.weight += weight as f64;
+        f.cost += dist as f64 * weight as f64;
+    }
     
     /// returns (total weight, total cost)
     /// 
@@ -319,29 +339,22 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         if weights.is_some() {
             assert_eq!(data.len(), weights.unwrap().len());
         }
-        //
-        let nb_facility = self.centers.len();
-        for i in 0..nb_facility {
-            self.centers[i].write().cost = 0.;
-            self.centers[i].write().weight = 0.;
-        }
+        // keep facilities but empty facilities keep them at their position
+        self.empty();
         //
         let dispatch_i = | item : usize | {
             // get facility rank and weight
             // parallel flag is set to false as we // on data.
             let (facility, dist) = self.get_nearest_facility(&data[item], false).unwrap();
             let weight = if weights.is_none() { 1. } else { weights.unwrap()[item]};
-            let cost_incr = dist as f64 * weight as f64;
-            let mut facility = self.centers[facility].write();
-            facility.weight += weight as f64;
-            facility.cost += cost_incr;
+            self.insert_point(facility, dist, weight);
         };
         //
         (0..data.len()).into_par_iter().for_each( |item| dispatch_i(item));
         //
         let mut global_cost = 0_f64;
         let mut total_weight = 0.;
-        for i in 0..nb_facility {
+        for i in 0..self.centers.len() {
             global_cost += self.centers[i].read().cost;
             total_weight += self.centers[i].read().weight;
         }

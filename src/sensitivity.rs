@@ -120,7 +120,7 @@ pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send>
     /// facilities with respect to which we compute sensitivity (or importance)
     facilities : Option<Facilities<T, Dist>>,
     // A map to store facility associated to each point. Needed in sensitivity
-    p_facility_map : Option<Arc<DashMap<usize,PointMap>>>,
+    point_facility_map : Option<Arc<DashMap<usize,PointMap>>>,
 } // end of Coreset1
 
 
@@ -134,22 +134,23 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let bmor = Bmor::new(k, nbdata_expected, beta, gamma, distance);
         let phase = 0usize;
         //
-        Coreset1{ phase, nb_data : 0, bmor, facilities : None, p_facility_map : None}
+        Coreset1{ phase, nb_data : 0, bmor, facilities : None, point_facility_map : None}
     } // end of new
 
 
     /// main interface to the algorithm
     pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet> 
         where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
-        // first bmor pass
+        // first bmor pass to get a list of facilities
         let iter = iter_generator.makeiter();
         let res1 = self.process_data_iterator(iter);
         if res1.is_err() {
             log::error!("first pass failed");
             return Err(anyhow!("first pass failed"));
         }
-        // second sensitivity computations and sampling
+        // In phase 2, we have facilities, we empty them and redispatch data and store the facility of each point
         log::info!("end of first pass, second pass to compute point facility map");
+        self.facilities.as_mut().unwrap().empty();
         self.init_facility_map(self.nb_data);
         let iter = iter_generator.makeiter();
         let res2 = self.process_data_iterator(iter);
@@ -161,7 +162,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         log::info!("end of second pass, doing sensitivity and sampling computations");
         let sampler = self.build_sampling_distribution();
         // we can now get rid of p_facility_map
-        self.p_facility_map = None;
+        self.point_facility_map = None;
         //
         let coreset = self.sample_coreset(&sampler);
         Ok(CoreSet::new(coreset))
@@ -170,7 +171,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
     /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling *process_data()* , consuming the iterator
     pub fn process_data_iterator(&mut self, mut iter : impl Iterator<Item=(usize, Vec<T>)>) -> anyhow::Result<()> {
-        //
+        // TODO: adapt bufsize to memory/cpu
         let bufsize : usize = 50000;
         let mut datas = Vec::<Vec<T>>::with_capacity(bufsize);
         let mut ids = Vec::<usize>::with_capacity(bufsize);
@@ -227,7 +228,9 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
             let dispatch_i = | item : usize | {
                 // get facility rank and weight
                 let (facility, dist) = facilities_ref.get_nearest_facility(&data[item], false).unwrap();           
-                match &self.p_facility_map {
+                let weight = 1.;
+                self.facilities.as_ref().unwrap().insert_point(facility, dist, weight);
+                match &self.point_facility_map {
                     Some(f_map) => {
                         let p_map = PointMap::new(facility, dist, 1.);
                         let res = f_map.insert(data_id[item], p_map);
@@ -278,18 +281,18 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
     /// returns a reference to (optional) facility_map
     pub fn get_facility_map(&self) -> Option<&Arc<DashMap<usize, PointMap>>> {
-        return self.p_facility_map.as_ref()
+        return self.point_facility_map.as_ref()
     }
 
 
     // if needed (as in the case of sensitivity computations) allocate 
     fn init_facility_map(&mut self, capacity : usize) {
-            self.p_facility_map = Some(Arc::new(DashMap::with_capacity(capacity)))
+            self.point_facility_map = Some(Arc::new(DashMap::with_capacity(capacity)))
     }
 
     // if there is a p_facility_map we store pointmap
     fn insert_pointmap(&self, id : usize, pointmap : PointMap) -> anyhow::Result<()> {
-        let res = match &self.p_facility_map {
+        let res = match &self.point_facility_map {
             Some(f_map) => {
                 let insert_res = f_map.insert(id, pointmap);
                 if insert_res.is_some() {
@@ -314,7 +317,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let facilities_ref = self.facilities.as_ref().unwrap();
         // denominator used in line 3  of algo 1 for Coreset in Braverman
         let global_cost = facilities_ref.get_cost();
-        let p_facility_map_ref = self.p_facility_map.as_ref().unwrap();
+        let p_facility_map_ref = self.point_facility_map.as_ref().unwrap();
         let nb_facilities = facilities_ref.len();     // This is |B| in line 3  of algo 1 for Coreset in Braverman
         let mut cumul_proba = 0.;
         // the fields to build PointSampler
