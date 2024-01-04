@@ -6,7 +6,7 @@
 
 // We need 2 passes on data as Bmor algorithm can merge data when rescaling cost and facility number so data id are not conserved.
 
-#![allow(unused)]
+//#![allow(unused)]
 
 use anyhow::*;
 
@@ -18,7 +18,6 @@ use std::collections::hash_map;
 use dashmap::DashMap;
 
 use rand::Rng;
-use rand_distr::{Distribution};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::SeedableRng;
 
@@ -33,7 +32,7 @@ use hnsw_rs::dist::*;
 // a sampled point 
 struct Point {
     pub(self) id : usize,
-    pub(self) rank : usize,
+    pub(self) _rank : usize,
     pub(self) proba : f32,
 }
 
@@ -55,7 +54,7 @@ impl PointSampler {
         where R : Rng  {
             let (rank, proba) = self.proba.sample(rng);
             let id = *self.w_index.get(&rank).unwrap();
-            return Point{id, rank, proba}
+            return Point{id, _rank : rank, proba}
     } // end of sample
 
 
@@ -65,7 +64,7 @@ impl PointSampler {
 //======================================================================================================
 
 // How do we represent a coreset: For now minimal
-// We use a hashmap associating each data id with its list of occurences weights
+/// Structure representing Coreset obtained with coreset construction algorithms
 pub struct CoreSet {
     core : HashMap<usize, Vec<f32>>,
 } // end of Coreset
@@ -99,7 +98,7 @@ impl CoreSet {
 
     /// total number of points, taking into account multiplicity
     pub fn get_size(&self) -> usize {
-        let size = self.core.iter().map(|(k,v)| v.len()).sum();
+        let size = self.core.iter().map(|(_,v)| v.len()).sum();
         return size;
     }
 } // end of impl Coreset
@@ -107,7 +106,7 @@ impl CoreSet {
 
 
 
-/// This structure provides Algorithm1 Braverman and al 2022, it relies on bmor algorithm [bmor](super::bmor).  
+/// This structure provides Algorithm1 Braverman and al 2022, it relies on [bmor](super::bmor) algorithm.  
 /// The algorithm needs  one streaming pass and one sampling pass.  
 /// The data must be given consistent id across the 2 passes. (The data id can be its rank in the stream in which case the 2 pass
 /// must process data in the same order)
@@ -143,24 +142,33 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet> 
         where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
         // first bmor pass
-        let mut iter = iter_generator.makeiter();
+        let iter = iter_generator.makeiter();
         let res1 = self.process_data_iterator(iter);
         if res1.is_err() {
             log::error!("first pass failed");
             return Err(anyhow!("first pass failed"));
         }
         // second sensitivity computations and sampling
-        log::info!("end of second pass, doing sensitivity and sampling computations");
+        log::info!("end of first pass, second pass to compute point facility map");
         self.init_facility_map(self.nb_data);
-        let mut iter = iter_generator.makeiter();
-        let sampler = self.build_sampling_distribution(iter);
+        let iter = iter_generator.makeiter();
+        let res2 = self.process_data_iterator(iter);
+        if res2.is_err() {
+            log::error!("seond pass failed");
+            return Err(anyhow!("second pass failed"));
+        }
+        // now we have info for building sampling distribution in self.p_facility_map
+        log::info!("end of second pass, doing sensitivity and sampling computations");
+        let sampler = self.build_sampling_distribution();
+        // we can now get rid of p_facility_map
+        self.p_facility_map = None;
         //
         let coreset = self.sample_coreset(&sampler);
         Ok(CoreSet::new(coreset))
     }  // end of make_coreset
 
 
-    /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling [process_data](Self::process_data()) , consuming the iterator
+    /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling *process_data()* , consuming the iterator
     pub fn process_data_iterator(&mut self, mut iter : impl Iterator<Item=(usize, Vec<T>)>) -> anyhow::Result<()> {
         //
         let bufsize : usize = 50000;
@@ -208,14 +216,13 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     fn process_data(&mut self, data : &[Vec<T>], data_id : &[usize]) -> anyhow::Result<()> {
         //
         if self.phase == 0 {
-            self.bmor.process_data(&data, data_id);
+            let _ = self.bmor.process_data(&data, data_id).unwrap();
             self.bmor.log();
             self.nb_data += data.len();
             return Ok(());
         }
         else {
             let facilities_ref = self.facilities.as_ref().unwrap();
-            let f_map = self.get_facility_map().unwrap();
             //
             let dispatch_i = | item : usize | {
                 // get facility rank and weight
@@ -228,12 +235,13 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
                             log::error!("data_id {} is already present error", data_id[item]);
                             std::panic!();
                         }
+                        log::debug!("inserted PointMap for data_id {} in facility map", data_id[item]);
                     }
-                    _  => { std::panic!("should not happen") }
+                    _  => { std::panic!("no facility_map allocated, should not happen") }
                 }          
             };
             // now we insert into pointmap if necessary
-            (0..data.len()).into_par_iter().for_each( |item| dispatch_i(data_id[item]));
+            (0..data.len()).into_par_iter().for_each( |item| dispatch_i(item));
             //
             return Ok(());
         };
@@ -301,43 +309,36 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     //  initialize point_weights : Option<WeightedIndex<usize>>,
     // The function receive an iterator over data.
     // from rust 1.75 such an iterator can be obtained with the user implementing a trait providing the iterator on data
-    fn build_sampling_distribution(&mut self, mut dataiter : impl Iterator<Item=(usize, Vec<T>)> ) -> PointSampler {
+    fn build_sampling_distribution(&mut self) -> PointSampler {
         // The 2 denonimators used in line 3 of algo 1 for Coreset in Braverman
-        let facililities_ref = self.facilities.as_ref().unwrap();
+        let facilities_ref = self.facilities.as_ref().unwrap();
         // denominator used in line 3  of algo 1 for Coreset in Braverman
-        let global_cost = facililities_ref.get_cost();
+        let global_cost = facilities_ref.get_cost();
         let p_facility_map_ref = self.p_facility_map.as_ref().unwrap();
-        let nb_facilities = facililities_ref.len();     // This is |B| in line 3  of algo 1 for Coreset in Braverman
+        let nb_facilities = facilities_ref.len();     // This is |B| in line 3  of algo 1 for Coreset in Braverman
         let mut cumul_proba = 0.;
         // the fields to build PointSampler
         let mut p_weights = Vec::<f32>::with_capacity(self.nb_data);
         let mut w_index = HashMap::<usize, usize>::with_capacity(self.nb_data);
-        //
-        while let Some(dataterm) = dataiter.next() {
-            let dataid = dataterm.0;
-            let data = dataterm.1;
-            let pointmap = p_facility_map_ref.get(&dataid);
-            if pointmap.is_none() {
-                log::error!("error, dataid not found in p_facility_map : {}", dataid);
-                std::panic!("error, dataid not found in p_facility_map : {}", dataid);
-            }
-            let pointmap = pointmap.unwrap();
+        // we iter on reviously built p_facility_map_ref
+        let mut pmap_iter = p_facility_map_ref.iter();
+        while let Some(iter_ref) = pmap_iter.next() {
+            let (dataid, pointmap) = iter_ref.pair();
             let mut proba = pointmap.get_dist() as f64 * pointmap.get_weight() as f64 / global_cost;
             // get weight of facility of point corresponding to data_id
-            let f_weight = facililities_ref.get_facility_weight(pointmap.get_facility());
+            let f_weight = facilities_ref.get_facility_weight(pointmap.get_facility());
             proba = proba + pointmap.get_weight() as f64 / (nb_facilities as f64 *  f_weight.unwrap());
             proba = proba * 0.5;
             // now we can update 
             assert!(proba > 0.);
             p_weights.push(proba as f32);
-            w_index.insert(dataid, p_weights.len());
+            w_index.insert(*dataid, p_weights.len());
             // for a check
             cumul_proba += proba;
         }
+        log::debug!("cumul_proba : {:.5e}", cumul_proba);
         assert!((1. - cumul_proba).abs() < 1.0E-5);
         let point_sampler = PointSampler::new(&p_weights, w_index);
-        // we can now get rid of p_facility_map
-        self.p_facility_map = None;
         //
         return point_sampler;
     } // end of build_sampling_distribution
@@ -353,12 +354,10 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(14537);
         //
-        let mut weight : f32;
-        let mut proba : f32;
         for i in 0..nb_sample {
             let point = sampler.sample(&mut rng);
             let weight =  1./ (point.proba * (i as f32));
-            let mut id_weights = coreset.get_mut(&point.id);
+            let id_weights = coreset.get_mut(&point.id);
             match id_weights {
                 Some(weights) => {
                     weights.push(weight);

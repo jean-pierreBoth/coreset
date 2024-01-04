@@ -255,7 +255,8 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// - k: number of centers.  
     /// - nbdata : nb data expected. As this algorithm can be used in streaming (successive calls to methods [process_data](Self::process_data()) or
     ///     [process_weighted_data](Self::process_weighted_data())) the number of expected data can be larger than the length or arguments passed to these methods.
-    /// - gamma 
+    /// - beta : upper cost multiplicative factor
+    /// - gamma : slackness factor for number facilities upper bound.
     /// - end_step : if true a second step is done to further reduc the number of facilities.
     ///         
     pub fn new(k: usize, nbdata_expected : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
@@ -399,7 +400,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         //
         for d in data {
             // TODO: now we use rank as rank_id (sufficicent for ordered ids)
-            log::debug!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
+            log::trace!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
             let add_res = self.add_data(d.2, &d.1, d.0);
             if !add_res {
                 // allocate new state

@@ -156,6 +156,10 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
                 let params = MnistParams::new(Algo::BMOR);
                 return Ok(params);
             }
+            "coreset1" => {
+                let params = MnistParams::new(Algo::CORESET1);
+                return Ok(params);
+            }  
             //
             _           => {
                 log::error!(" algo must be imp or bmor");
