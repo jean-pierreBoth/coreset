@@ -70,4 +70,5 @@ katexit = {version = "0.1"}
 ndarray = {version = "0.15"}
 
 [dev-dependencies]
+kmedoids = {version = "0.5"}
 linfa-clustering = {version = "0.6"}
