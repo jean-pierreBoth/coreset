@@ -15,7 +15,8 @@ use ndarray::s;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 
-
+// to get kmean
+use clustering::*;
 
 
 use std::time::{Duration, SystemTime};
@@ -110,7 +111,7 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
     let beta = 2.;
     let gamma = 2.;
     let k = 10;  // as we have 10 classes, but this gives a lower bound
-    let mut core1 = Coreset1::new(k, images.len(), beta, gamma, distance);
+    let mut core1 = Coreset1::new(k, images.len(), beta, gamma, distance.clone());
     //
     let res = core1.make_coreset(&producer);
     if res.is_err() {
@@ -120,6 +121,44 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
     // get some info
     log::info!("coreset1 nb different points : {}, size : {}", coreset.get_nb_points(), coreset.get_size());
     // TODO: compare errors with kmedoids for L1 and kmeans for L2.
+    let dist_name = std::any::type_name::<Dist>();
+    log::info!("dist name = {:?}", dist_name);
+    match dist_name {
+        "hnsw_rs::dist::DistL1" => {
+            // going to medoid
+            log::info!("doing kmedoid clustering, not yet");
+
+        }
+        "hnsw_rs::dist::DistL2" => {
+            // going to kmean
+            log::info!("doing kmean clustering on whole data .... takes time");
+            let nb_iter = 50;
+            let nb_cluster = 10;
+            let clustering = kmeans(nb_cluster, images, nb_iter);
+            // compute error
+            let centroids = &clustering.centroids;
+            // conver centroids to vectors
+            let mut centers = Vec::<Vec<f32>>::with_capacity(nb_cluster);
+            for c in centroids {
+                let dim = c.dimensions();
+                let mut center = Vec::<f32>::with_capacity(dim);
+                for i in 0..dim {
+                    center.push(c.at(i) as f32);
+                }
+                centers.push(center);
+            }
+            let elements = clustering.elements;
+            let membership = clustering.membership;
+            let mut error = 0.0;
+            for i in 0..elements.len() {
+                let cluster = membership[i];
+                error += distance.eval(&elements[i], &centers[cluster]);
+            }
+            log::info!("kmean error : {:.3e}", error / images.len() as f32);
+            // now we must dispatch our coreset to centers and see what error we have...
+        }
+        _ => { log::info!("no postprocessing for distance {:?}", dist_name); }
+    }
 } // end of coreset1
 
 

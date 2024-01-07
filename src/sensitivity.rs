@@ -238,7 +238,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
                             log::error!("data_id {} is already present error", data_id[item]);
                             std::panic!();
                         }
-                        log::debug!("inserted PointMap for data_id {} in facility map", data_id[item]);
+                        log::trace!("inserted PointMap for data_id {} in facility map", data_id[item]);
                     }
                     _  => { std::panic!("no facility_map allocated, should not happen") }
                 }          
@@ -270,6 +270,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
             1 => {
                 // we have every thing to compute sensitivity and do sampling
                 log::info!("end of second pass, doing sensitivity and sampling computations");
+                self.facilities.as_ref().unwrap().log(0);
             }
 
             _ => {
@@ -317,6 +318,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let facilities_ref = self.facilities.as_ref().unwrap();
         // denominator used in line 3  of algo 1 for Coreset in Braverman
         let global_cost = facilities_ref.get_cost();
+        log::info!("build_sampling_distribution got global cost : {:.3e}", global_cost);
         let p_facility_map_ref = self.point_facility_map.as_ref().unwrap();
         let nb_facilities = facilities_ref.len();     // This is |B| in line 3  of algo 1 for Coreset in Braverman
         let mut cumul_proba = 0.;

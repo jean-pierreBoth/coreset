@@ -172,15 +172,21 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
     // deletes all facilities. useful in algorithm bmor when we need to reinitialize.
     pub(crate) fn clear(&mut self) {
+        log::debug!("clearing facilities");
         self.centers.clear();
+        self.weight = 0.;
+        self.cost = 0.;
     }
 
 
     // keeps facilities but empty each of them. Enables new dispatching of points in facilities
     pub(crate) fn empty(&mut self) {
+        log::debug!("emptying facilities");
         for f in &self.centers {
             f.write().empty();
         }
+        self.weight = 0.;
+        self.cost = 0.;
     }
 
     // access to internal representation
@@ -308,13 +314,14 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         let mut total_cost = 0.;
         for f in &self.centers {
             let f_access = f.read();
-        if level == 1 {
+            if level == 1 {
                 f_access.log();
             }
             total_cost += f_access.get_cost();
             total_weight += f_access.get_weight();
         }
         log::info!("\n\n sum of facilities weight : {:.3e}, total cost : {:.3e}", total_weight, total_cost);
+        log::info!("nb facilities : {}", self.centers.len());
         log::info!("\n *************************************************");
     } // end of log 
 
