@@ -11,15 +11,11 @@
 //! 
 
 
-use std::io::prelude::*;
-use std::io::BufReader;
-use ndarray::{Array3, Array1, s};
+use ndarray::s;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 
 
-use std::io::Cursor;
-use byteorder::{BigEndian, ReadBytesExt};
 
 
 use std::time::{Duration, SystemTime};
@@ -28,117 +24,8 @@ use cpu_time::ProcessTime;
 use hnsw_rs::prelude::*;
 use coreset::prelude::*;
 
-
-/// A struct to load/store for Fashion Mnist in the same format as [MNIST data](http://yann.lecun.com/exdb/mnist/)  
-/// stores labels (i.e : FASHION between 0 and 9) coming from file train-labels-idx1-ubyte      
-/// and objects as 28*28 images with values between 0 and 255 coming from train-images-idx3-ubyte
-pub struct MnistData {
-    _image_filename : String,
-    _label_filename : String,
-    images : Array3::<u8>,
-    labels : Array1::<u8>,
-}
-
-
-impl MnistData {
-    pub fn new(image_filename : String, label_filename : String) -> std::io::Result<MnistData> {
-        let image_path = PathBuf::from(image_filename.clone());
-        let image_file = OpenOptions::new().read(true).open(&image_path)?;
-        let mut image_io = BufReader::new(image_file);
-        let images = read_image_file(&mut image_io);
-        // labels
-        let label_path = PathBuf::from(label_filename.clone());
-        let labels_file = OpenOptions::new().read(true).open(&label_path)?;
-        let mut labels_io = BufReader::new(labels_file);
-        let labels = read_label_file(&mut labels_io);
-        Ok(MnistData{
-            _image_filename : image_filename,
-            _label_filename : label_filename,
-            images,
-            labels
-        } )
-    } // end of new for MnistData
-
-    /// returns labels of images. lables\[k\] is the label of the k th image.
-    pub fn get_labels(&self) -> &Array1::<u8> {
-        &self.labels
-    }
-
-    /// returns images. images are stored in Array3 with Array3[[.., .., k]] being the k images!
-    /// Each image is stored as it is in the Mnist files, Array3[[i, .., k]] is the i row of the k image
-    pub fn get_images(&self) -> &Array3::<u8> {
-        &self.images
-    }
-} // end of impl MnistData
-
-
-
-pub fn read_image_file(io_in: &mut dyn Read) -> Array3::<u8> {
-    // read 4 bytes magic
-    // to read 32 bits in network order!
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let magic = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();
-    assert_eq!(magic, 2051);
-    // read nbitems
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbitem =  Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();
-    assert!(nbitem == 60000 || nbitem == 10000);
-    //  read nbrow
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbrow = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();
-    assert_eq!(nbrow, 28);   
-    // read nbcolumns
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbcolumn = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();     
-    assert_eq!(nbcolumn,28);   
-    // for each item, read a row of nbcolumns u8
-    let mut images = Array3::<u8>::zeros((nbrow as usize , nbcolumn as usize, nbitem as usize));
-    let mut datarow = Vec::<u8>::new();
-    datarow.resize(nbcolumn as usize, 0);
-    for k in 0..nbitem as usize {
-        for i in 0..nbrow as usize {
-            let it_slice ;
-            it_slice = datarow.as_mut_slice();
-            io_in.read_exact(it_slice).unwrap();
-            let mut smut_ik = images.slice_mut(s![i, .., k]);
-            assert_eq!(nbcolumn as usize, it_slice.len());
-            assert_eq!(nbcolumn as usize, smut_ik.len());
-            for j in 0..smut_ik.len() {
-                smut_ik[j] = it_slice[j];
-            }
-        //    for j in 0..nbcolumn as usize {
-        //        *(images.get_mut([i,j,k]).unwrap()) = it_slice[j];
-        //   }            
-            // how do a block copy from read slice to view of images.
-           // images.slice_mut(s![i as usize, .. , k as usize]).assign(&Array::from(it_slice)) ;  
-        }
-    }
-    images
-} // end of readImageFile
-
-
-
-pub fn read_label_file(io_in: &mut dyn Read) -> Array1<u8>{
-    // to read 32 bits in network order!
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let magic = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap();     
-    assert_eq!(magic, 2049);
-    // read nbitems
-    let mut it_slice = vec![0; ::std::mem::size_of::<u32>()];
-    io_in.read_exact(&mut it_slice).unwrap();
-    let nbitem = Cursor::new(it_slice).read_u32::<BigEndian>().unwrap(); 
-    assert!(nbitem == 60000 || nbitem == 10000);
-    let mut labels_vec = Vec::<u8>::new();
-    labels_vec.resize(nbitem as usize, 0);
-    io_in.read_exact(&mut labels_vec).unwrap();
-    let labels = Array1::from(labels_vec);
-    labels
-}  // end of fn read_label
+mod utils;
+use utils::{mnistio::*, mnistiter::*};
 
 //============================================================================================
 
@@ -214,69 +101,6 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
 }
 
 //=====================================================================
-
-use std::iter::Iterator;
-
-
-struct DataIterator<'a> {
-    // we must keep the rank
-    rank : usize,
-    // we must have an access to data
-    images : &'a Vec<Vec<f32>>,
-}
-
-impl <'a> DataIterator<'a> {
-
-    pub fn new(images : &'a Vec<Vec<f32>>) -> Self {
-        DataIterator{rank : 0, images}
-    }
-
-} // end of impl DataIterator
-
-
-// We could have chosen Item to be (&Vec<f32>, usize) as we have all data in memory.
-// But the coreset algorithms will not in general be able to have all data in memory so we
-// must pass real data when algos require data from the iterator.
-impl <'a> Iterator for  DataIterator<'a> {
-    type Item = (usize, Vec<f32>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.rank < self.images.len() {
-            let rank1 = self.rank;
-            self.rank+=1;
-            return Some((rank1, self.images[rank1].clone()));
-        }
-        else {
-            return None;
-        }
-    }
-} // end of Iterator for MnistData
-
-
-/// a structure implementing IterProvider
-struct IteratorProducer<'a> {
-    // we must have an access to data
-    images : &'a Vec<Vec<f32>>,
-}
-
-impl <'a> IteratorProducer<'a> {
-    pub fn new(images : &'a Vec<Vec<f32>>) -> Self {
-        IteratorProducer{images}
-    }
-
-} // end of impl IteratorProducer
-
-
-
-impl <'a> IterProvider for IteratorProducer<'a> {
-    type DataType = (usize, Vec<f32>);
-    //
-    fn makeiter(&self) -> DataIterator<'a> {
-        let iterator = DataIterator::new(self.images);
-        return iterator;
-    }
-} //end impl IterProvider
-
 
 
 fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
