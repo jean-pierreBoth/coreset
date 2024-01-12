@@ -71,4 +71,5 @@ ndarray = {version = "0.15"}
 
 [dev-dependencies]
 kmedoids = {version = "0.5"}
-clustering = {version = "0.1"}
+#clustering = {version = "0.1"}
+clustering = {git = "https://github.com/jean-pierreBoth/clustering", branch = "jpb"}

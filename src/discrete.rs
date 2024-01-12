@@ -5,8 +5,7 @@ use num_traits::float::Float;
 use rand::Rng;
 use rand::distributions::Uniform;
 
-use std::cmp::Ordering
-;
+use std::cmp::Ordering;
 
 pub struct DiscreteProba<F:Float + rand_distr::uniform::SampleUniform> {
     repartition : Vec<F>,
