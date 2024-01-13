@@ -22,6 +22,7 @@ use clustering::*;
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
 
+use std::iter::Iterator;
 use hnsw_rs::prelude::*;
 use coreset::prelude::*;
 
@@ -103,6 +104,39 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
 
 //=====================================================================
 
+use std::cmp::Ordering;
+
+// computes sum of distance to nearest cluster centers
+pub fn dispatch_coreset<Dist : Distance<f32>>(coreset : &CoreSet,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 {
+    //
+    let mut error : f64 = 0.;
+    for (id, w_id) in coreset.get_items() {
+        if !w_id.is_finite() {
+            log::info!("id : {}, w total : {:?}", id, w_id);
+            std::panic!();
+        }
+        // BUG here
+        let data = &(images[*id]);
+//        assert_eq!(1,0, "data must be data corresponding to id!");
+        let (best_c, best_d) : (usize, f32) = (0..c_centers.len()).into_iter()
+            .map(|i| (i, distance.eval(data, &c_centers[i])))
+            .min_by(| (_,d1), (_,d2)| if d1 < d2 
+                    {Ordering::Less} 
+                else 
+                    {Ordering::Greater })
+            .unwrap();
+        //
+        log::info!(" core id : {} centroid : {}, dist : {:.3e}, weight : {:.3e} ", id, best_c, best_d, w_id);
+        if !best_d.is_finite() {
+            log::info!("coreset point {:?}, \n cluster center : {:?}", data , c_centers[best_c]);
+        }
+        assert!(best_d.is_finite());
+        // TODO: exponent for dist!!!
+        error += (w_id * best_d) as f64;
+    }
+    //
+    error
+}
 
 fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
     // We need to make an iterator producer from data
@@ -119,7 +153,7 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
     }
     let coreset = res.unwrap();
     // get some info
-    log::info!("coreset1 nb different points : {}, size : {}", coreset.get_nb_points(), coreset.get_size());
+    log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
     // TODO: compare errors with kmedoids for L1 and kmeans for L2.
     let dist_name = std::any::type_name::<Dist>();
     log::info!("dist name = {:?}", dist_name);
@@ -156,6 +190,8 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
             }
             log::info!("kmean error : {:.3e}", error / images.len() as f32);
             // now we must dispatch our coreset to centers and see what error we have...
+            let dispatch_error = dispatch_coreset(&coreset, &centers, &distance, &images);
+            log::info!(" coreset dispatching error : {:.3e}", dispatch_error);
         }
         _ => { log::info!("no postprocessing for distance {:?}", dist_name); }
     }

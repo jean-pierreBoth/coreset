@@ -14,7 +14,7 @@ use std::sync::Arc;
 use rayon::prelude::*;
 
 use std::collections::HashMap;
-use std::collections::hash_map;
+use std::collections::hash_map;   // for key() method
 use dashmap::DashMap;
 
 use rand::Rng;
@@ -65,42 +65,47 @@ impl PointSampler {
 
 // How do we represent a coreset: For now minimal
 /// Structure representing Coreset obtained with coreset construction algorithms
+/// It stores for each coreset point its id and a Vector of associated weights with which the points appears in coreset.
 pub struct CoreSet {
-    core : HashMap<usize, Vec<f32>>,
+    // maps id to weight/multiplicity
+    core_w : HashMap<usize, f32>,
+    //
+
 } // end of Coreset
 
 
 
 impl CoreSet {
 
-    pub fn new(core : HashMap<usize, Vec<f32>>) -> Self {
-        CoreSet{core}
+    pub fn new(core_w : HashMap<usize, f32>) -> Self {
+        CoreSet{core_w }
     }
 
     /// returns number of different points
     pub fn get_nb_points(&self) -> usize {
-        self.core.len()
+        self.core_w.len()
     }
 
     /// returns list of weights of a given point if present in coreset
-    pub fn get_weights(&self, data_id : usize) -> Option<&Vec<f32>> {
-        let index_res = self.core.get(&data_id);
+    pub fn get_weight(&self, data_id : usize) -> Option<f32> {
+        let index_res = self.core_w.get(&data_id);
         match index_res {
             Some(index) => {
-                return Some(index);
+                return Some(*index);
             }
             _ => { return None; }
         }
     } // end of get_weights
 
-    /// returns the id of data
-    pub fn get_data_ids(&self) -> hash_map::Keys<usize, Vec<f32>> { return self.core.keys()}
+    /// returns an iterator on the id of data
+    pub fn get_data_ids(&self) -> hash_map::Keys<usize, f32> { return self.core_w.keys()}
 
-    /// total number of points, taking into account multiplicity
-    pub fn get_size(&self) -> usize {
-        let size = self.core.iter().map(|(_,v)| v.len()).sum();
-        return size;
+
+    /// get an iterator on couples (id, weight)
+    pub fn get_items(&self) -> hash_map::Iter<usize, f32> {
+        self.core_w.iter()
     }
+
 } // end of impl Coreset
 
 
@@ -165,6 +170,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         self.point_facility_map = None;
         //
         let coreset = self.sample_coreset(&sampler);
+        // now we have ids and weights of points in coreset but we need a last pass to store the data accociated to id!
         Ok(CoreSet::new(coreset))
     }  // end of make_coreset
 
@@ -351,26 +357,24 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     // build and init field coreset
-    fn sample_coreset(&mut self, sampler : &PointSampler) -> HashMap::<usize, Vec<f32>> {
+    fn sample_coreset(&mut self, sampler : &PointSampler) -> HashMap::<usize, f32> {
         // TODO: determine how many point we need to sample
         let nb_sample = 1000;
         //
-        let mut coreset = HashMap::<usize, Vec<f32>>::with_capacity(nb_sample);
+        let mut coreset = HashMap::<usize, f32>::with_capacity(nb_sample);
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(14537);
         //
-        for i in 0..nb_sample {
+        for _ in 0..nb_sample {
             let point = sampler.sample(&mut rng);
-            let weight =  1./ (point.proba * (i as f32));
+            let weight =  1./ (point.proba * nb_sample as f32);
             let id_weights = coreset.get_mut(&point.id);
             match id_weights {
-                Some(weights) => {
-                    weights.push(weight);
+                Some(old_weight) => {
+                    *old_weight += weight;
                 }
                 None => {
-                    let mut weights = Vec::<f32>::new();
-                    weights.push(weight);
-                    coreset.insert(point.id, weights);
+                    coreset.insert(point.id, weight);
                 }
             }
         } // end of for 
