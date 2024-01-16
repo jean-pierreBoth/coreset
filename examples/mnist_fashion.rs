@@ -107,7 +107,8 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
 use std::cmp::Ordering;
 
 // computes sum of distance to nearest cluster centers
-pub fn dispatch_coreset<Dist : Distance<f32>>(coreset : &CoreSet,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 {
+pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 
+    where Dist : Distance<f32> + Send + Sync + Clone {
     //
     let mut error : f64 = 0.;
     for (id, w_id) in coreset.get_items() {

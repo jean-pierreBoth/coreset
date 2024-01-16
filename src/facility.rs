@@ -165,6 +165,10 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         return self.centers.iter().map(|f| f.read().get_weight()).sum();
     }
 
+    pub fn get_distance(&self) -> &Dist {
+        &self.distance
+    }
+
 
     pub fn get_cost(&self) -> f64 {
         return self.centers.iter().map(|f| f.read().get_cost()).sum();

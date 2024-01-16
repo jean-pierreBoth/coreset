@@ -17,9 +17,12 @@ use std::collections::HashMap;
 use std::collections::hash_map;   // for key() method
 use dashmap::DashMap;
 
+use ndarray::{Array1,Array2};
+
 use rand::Rng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::SeedableRng;
+
 
 
 use crate::iterprovider::*;
@@ -66,29 +69,33 @@ impl PointSampler {
 // How do we represent a coreset: For now minimal
 /// Structure representing Coreset obtained with coreset construction algorithms
 /// It stores for each coreset point its id and a Vector of associated weights with which the points appears in coreset.
-pub struct CoreSet {
+pub struct CoreSet<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> {
     // maps id to weight/multiplicity
-    core_w : HashMap<usize, f32>,
+    id_weight_map : HashMap<usize, f32>,
+    // stores couples (id, data vector). Stored in the order they retrieved not same order as id_w_map
+    datas_wid : Option<Vec<(usize, Vec<T>)>>,
     //
-
+    distance: Dist,
 } // end of Coreset
 
 
 
-impl CoreSet {
+impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist> 
+        where Dist : Distance<T> + Clone + Sync + Send {
 
-    pub fn new(core_w : HashMap<usize, f32>) -> Self {
-        CoreSet{core_w }
+    pub fn new(core_w : HashMap<usize, f32>, datas_wid : Option<Vec<(usize, Vec<T>)>>, distance : Dist) -> CoreSet<T, Dist> {
+    //    std::panic!("fill datas_wid");
+        CoreSet{id_weight_map : core_w , datas_wid, distance}
     }
 
     /// returns number of different points
     pub fn get_nb_points(&self) -> usize {
-        self.core_w.len()
+        self.id_weight_map.len()
     }
 
     /// returns list of weights of a given point if present in coreset
     pub fn get_weight(&self, data_id : usize) -> Option<f32> {
-        let index_res = self.core_w.get(&data_id);
+        let index_res = self.id_weight_map.get(&data_id);
         match index_res {
             Some(index) => {
                 return Some(*index);
@@ -98,13 +105,59 @@ impl CoreSet {
     } // end of get_weights
 
     /// returns an iterator on the id of data
-    pub fn get_data_ids(&self) -> hash_map::Keys<usize, f32> { return self.core_w.keys()}
+    pub fn get_data_ids(&self) -> hash_map::Keys<usize, f32> { return self.id_weight_map.keys()}
 
 
     /// get an iterator on couples (id, weight)
     pub fn get_items(&self) -> hash_map::Iter<usize, f32> {
-        self.core_w.iter()
+        self.id_weight_map.iter()
     }
+
+    /// for a coreset point of rank r returns id and data vector.
+    pub(crate) fn get_point_by_rank(&self, r:usize) -> Option<(usize, &Vec<T>)> {
+        let res = match self.datas_wid.as_ref() {
+                Some(v) => { if r < v.len() {
+                                                    Some((v[r].0, &v[r].1))
+                                                }
+                                                else { None }
+                                        },
+            None                        => None,
+        };
+        //
+        return res;
+    } // end of get_point
+
+
+    /// computes matrix distances between points. 
+    /// line i of matrix corresponds to id in the Vec<usize> i'th element of first argument of the option returned
+    /// 
+    pub fn compute_distances(&self) -> Option<(Vec<usize>, Array2<f32>) > {
+        let nbpoints =  self.get_nb_points();
+        // allocates to zero rows. We will computes rows in //
+        let mut distances = Array2::<f32>::zeros((0, nbpoints));
+        //
+        let compute_row = |i| -> Array1<f32> {
+            let mut row_i = Array1::zeros(nbpoints);
+            let (_,p_i) = self.get_point_by_rank(i).unwrap();
+            for j in 0..nbpoints {
+                let p_j = self.get_point_by_rank(i).unwrap().1;
+                row_i[j] = self.distance.eval(p_i, p_j);
+            }
+            return row_i;
+        };
+        //
+        let mut rows : Vec<(usize, Array1<f32>)>= (0..nbpoints).into_par_iter().map(|i| (i, compute_row(i))).collect();
+        rows.sort_by(|(r1, _), (r2, _)| r1.cmp(r2) );
+        // now we have rows we must transfer into distances
+        for (r,v) in &rows {
+            assert_eq!(*r,distances.shape()[0]);
+            distances.push_row(v.into()).unwrap();
+        }
+        // 
+        let ids : Vec<usize> = self.datas_wid.as_ref().unwrap().iter().map(|(id,_)| *id).collect();
+        //
+        return Some((ids, distances));
+    } // end of compute_distances
 
 } // end of impl Coreset
 
@@ -144,7 +197,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     /// main interface to the algorithm
-    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet> 
+    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet<T,Dist>> 
         where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
         // first bmor pass to get a list of facilities
         let iter = iter_generator.makeiter();
@@ -169,10 +222,33 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         // we can now get rid of p_facility_map
         self.point_facility_map = None;
         //
-        let coreset = self.sample_coreset(&sampler);
-        // now we have ids and weights of points in coreset but we need a last pass to store the data accociated to id!
-        Ok(CoreSet::new(coreset))
+        let id_weight_map = self.sample_coreset(&sampler);
+        let distance = self.facilities.as_ref().unwrap().get_distance();
+        // now we have ids and weights of points in coreset but we need a last pass to store the data associated to id!
+        let id_data_map = self.retrieve_corepoints_by_id(&id_weight_map, iter_generator);
+        Ok(CoreSet::new(id_weight_map, Some(id_data_map), distance.clone()))
     }  // end of make_coreset
+
+
+    // we need to retrieve the data vector corresponding to the id of coreset points
+    // Careful , the data are stored in the order they are found by iter_generator and not in the order of the HashMap
+    fn retrieve_corepoints_by_id<IterGenerator>(&self, id_weight_map : &HashMap<usize, f32>, iter_generator : &IterGenerator) -> Vec<(usize, Vec<T>)>
+                where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
+        //
+        let mut iter = iter_generator.makeiter();
+        //
+        let nbpoints =  id_weight_map.len();
+        let mut datas_wid : Vec<(usize, Vec<T>)>  = Vec::with_capacity(nbpoints);
+        while let Some((id, data)) = iter.next() {
+            // do we need the data of this id
+            if id_weight_map.contains_key(&id) {
+                datas_wid.push((id, data));
+            }
+        }
+        //
+        return datas_wid;
+    } // end of retrieve_corepoints_by_id
+
 
 
     /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling *process_data()* , consuming the iterator

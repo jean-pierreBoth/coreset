@@ -15,6 +15,8 @@ pub mod sensitivity;
 pub mod discrete;
 pub mod iterprovider;
 
+pub mod wkmedian;
+
 
 
 lazy_static! {

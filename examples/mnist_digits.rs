@@ -151,7 +151,7 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
     }
     let coreset = res.unwrap();
     // get some info
-    log::info!("coreset1 nb different points : {}, size : {}", coreset.get_nb_points(), coreset.get_size());
+    log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
     //
 } // end of coreset1
 

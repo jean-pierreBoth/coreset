@@ -42,9 +42,9 @@ cpu-time = {version = "1.0"}
 
 
 #hnsw_rs = {git = "https://github.com/jean-pierreBoth/hnswlib-rs", features = ["simdeez_f"]}
-hnsw_rs = {version = "0.2", features = ["simdeez_f"]}
+# hnsw_rs = {version = "0.2", features = ["simdeez_f"]}
 
-#hnsw_rs = {path = "../hnswlib-rs", features = ["simdeez_f"]}
+hnsw_rs = {path = "../hnswlib-rs", features = ["simdeez_f"]}
 
 # rand utilis
 rand = {version = "0.8"}
