@@ -18,7 +18,10 @@ Some exploration of median [$\alpha$,$\beta$] approximation in **metric spaces**
        Badoiu, Czumaj, Indyk, Sohler ICALP 2005
        [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
 
-       This algorithm highlights the progress made by the 2 first as it requires an order of magnitude more cpu.
+The first algorithm is used a [$\alpha$,$\beta$] approximation used in the coreset construction described in the second reference.
+The third  highlights the progress made by the 2 first as it requires an order of magnitude more cpu.
+
+A weighted k-median is also provided to run on weighted points produced in the coreset construction.
 
 ## Examples
 
