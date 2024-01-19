@@ -8,6 +8,8 @@ pub use crate::iterprovider::*;
 
 pub use crate::sensitivity::*;
 
+pub use crate::wkmedian::*;
+
 #[derive(Copy,Clone)]
 pub enum Algo {
     IMP,

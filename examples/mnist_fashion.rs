@@ -161,9 +161,18 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
     match dist_name {
         "hnsw_rs::dist::DistL1" => {
             // going to medoid
-            log::info!("doing kmedoid clustering, not yet");
-
+            log::info!("doing kmedoid clustering using L1");
+            let nb_cluster = 10;
+            let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
+            kmedoids.compute_medians();
+            let clusters = kmedoids.get_clusters();
+            for c in clusters {
+                let id = c.get_center_id();
+                let label = _labels[id];
+                log::info!("cluster center label : {}, cost {:.3e}", label, c.get_cost());
+            }
         }
+
         "hnsw_rs::dist::DistL2" => {
             // going to kmean
             log::info!("doing kmean clustering on whole data .... takes time");
@@ -222,7 +231,7 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
             }  
             //
             _           => {
-                log::error!(" algo must be imp or bmor");
+                log::error!(" algo must be imp or bmor or coreset1 ");
                 std::process::exit(1);
             }
         }
@@ -329,7 +338,7 @@ pub fn main() {
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     //
-    let distance = DistL2::default();
+    let distance = DistL1::default();
     match mnist_params.get_algo() {
         Algo::IMP   => {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)

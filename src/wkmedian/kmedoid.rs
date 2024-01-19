@@ -24,27 +24,39 @@ use hnsw_rs::dist::*;
 
 use crate::sensitivity::*;
 
-struct Medoid {
+pub struct Medoid {
+    /// id as given by coreset
+    center_id : usize,
+    /// rank of points in ids of points as given in struct Coreset
     center : u32,
+    /// cost of thi cluster
     cost : f32,
 }
 
 impl Medoid {
     //
     fn default() -> Self {
-        Medoid{center : u32::MAX, cost : f32::MAX}
+        Medoid{center_id : 0, center : u32::MAX, cost : f32::MAX}
     }
 
-    fn new(center : u32, cost : f32) -> Self {
-        Medoid{center, cost}
+    fn new(id : usize, center : u32, cost : f32) -> Self {
+        Medoid{center_id : id, center, cost}
+    }
+
+    pub fn get_center_id(&self) -> usize {
+        self.center_id
     }
 
     fn get_center(&self) -> u32 {
         self.center
     }
 
-    fn get_cost(&self) -> f32 {
+    pub fn get_cost(&self) -> f32 {
         self.cost
+    }
+
+    fn set_cost(&mut self, cost : f32) {
+        self.cost = cost;
     }
 }
 
@@ -60,7 +72,7 @@ pub struct Kmedoid {
     distance : Array2<f32>, 
     // weights of points in coreset in order corresponding to lines of distance matrix
     weights : Vec<f32>,
-    // current affectation of each coreset point
+    // current affectation of each coreset point. value stored are in 0..number of points to cluster.
     membership : Vec<u32>,
     // medoid
     medoids : Vec<Medoid>
@@ -94,12 +106,22 @@ impl Kmedoid {
         // initialize: random selection of centers, dispatch points to nearest centers
         //
         let mut centers = self.random_centers_init();
+        //
+        self.medoids = centers.iter()
+                        .map(|i| Medoid::new(self.ids[*i as usize], *i,f32::MAX))
+                        .collect();     
         // dispatch to nearest center, i.e set membership
         let mut centers_and_dist = self.dispatch_to_medoids();
+        for i in 0..centers_and_dist.len() {
+            self.membership[i] = centers_and_dist[i].0;
+        }
         //
         let costs = self.compute_medoid_cost(&centers);
+        //
+        for i in 0..self.medoids.len() {
+            self.medoids[i].set_cost(costs[i]);
+        }
         // we have centers and cost
-        let medoids : Vec<Medoid> = centers.iter().zip(costs.iter()).map(|(i,f)| Medoid::new(*i,*f)).collect();
         let initial_cost = costs.iter().sum::<f32>();
         log::info!("medoids initialized , global cost : {:.3e}", initial_cost);
         //
@@ -116,8 +138,8 @@ impl Kmedoid {
             }
             log::info!("iteration {}, global cost : {:.3e}", iteration, global_cost);
             // we must store our best state
-            assert_eq!(centers_and_costs.len(),medoids.len() );
-            for i in 0..medoids.len()  {
+            assert_eq!(centers_and_costs.len(), self.medoids.len() );
+            for i in 0..self.medoids.len()  {
                 self.medoids[i].center = centers_and_costs[i].0 as u32;
                 self.medoids[i].cost = centers_and_costs[i].1;
             }
@@ -129,6 +151,11 @@ impl Kmedoid {
             }
         }
     } // end of compute_medians
+
+
+    pub  fn get_clusters(&self) -> &Vec<Medoid> {
+        &self.medoids
+    }
 
 
     pub fn get_size(&self) -> usize {
@@ -164,7 +191,7 @@ impl Kmedoid {
     } // end of random_init
 
 
-    // dispatch data to medoids. Returns for each point cluster number and distance to center of medoid
+    // dispatch data to medoids. Returns for each data point cluster number and distance to center of medoid
     fn dispatch_to_medoids(&mut self) -> Vec<(u32, f32)> {
         //
         let centers_dist : Vec<(u32, f32)> = (0..self.get_size()).into_par_iter().map(|i| self.find_medoid_for_i(i)).collect();
