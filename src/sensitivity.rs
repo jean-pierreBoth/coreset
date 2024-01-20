@@ -140,8 +140,10 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
             let mut row_i = Array1::zeros(nbpoints);
             let (_,p_i) = self.get_point_by_rank(i).unwrap();
             for j in 0..nbpoints {
-                let p_j = self.get_point_by_rank(i).unwrap().1;
-                row_i[j] = self.distance.eval(p_i, p_j);
+                let p_j = self.get_point_by_rank(j).unwrap().1;
+                if j != i {
+                    row_i[j] = self.distance.eval(p_i, p_j);
+                }
             }
             return row_i;
         };
@@ -352,6 +354,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
             1 => {
                 // we have every thing to compute sensitivity and do sampling
                 log::info!("end of second pass, doing sensitivity and sampling computations");
+                let _ = self.facilities.as_mut().unwrap().compute_weight_cost();
                 self.facilities.as_ref().unwrap().log(0);
             }
 

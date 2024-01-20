@@ -272,10 +272,10 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
             true => { (0..self.centers.len()).into_par_iter().map(|i| dist_to_f(i)).collect()}
             false => { (0..self.centers.len()).into_iter().map(|i| dist_to_f(i)).collect()}
         };
-        for d in dist_slot {
-            if d.1 <= dist {
-                dist = d.1;
-                rank_f = d.0;
+        for (f,d) in dist_slot {
+            if d < dist {
+                dist = d;
+                rank_f = f;
             }
         }
         assert!(rank_f < usize::MAX);
