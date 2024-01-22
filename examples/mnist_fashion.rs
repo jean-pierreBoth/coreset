@@ -162,7 +162,7 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
         "hnsw_rs::dist::DistL1" => {
             // going to medoid
             log::info!("doing kmedoid clustering using L1");
-            let nb_cluster = 10;
+            let nb_cluster = 20;
             let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
             kmedoids.compute_medians();
             let clusters = kmedoids.get_clusters();

@@ -39,7 +39,7 @@ impl <F:Float + std::fmt::Debug + rand_distr::uniform::SampleUniform> DiscretePr
     pub fn sample<R:Rng>(&self, rng : &mut R) -> (usize , F) {
         //
         let xsi : F = rng.sample(&self.unif);
-        log::debug!("sampled xsi : {:?}", xsi);
+        log::trace!("sampled xsi : {:?}", xsi);
         let slot = self.repartition.binary_search_by(|w| {
             if *w <= xsi {
                 Ordering::Less

@@ -148,8 +148,7 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
             return row_i;
         };
         //
-        let mut rows : Vec<(usize, Array1<f32>)>= (0..nbpoints).into_par_iter().map(|i| (i, compute_row(i))).collect();
-        rows.sort_by(|(r1, _), (r2, _)| r1.cmp(r2) );
+        let rows : Vec<(usize, Array1<f32>)>= (0..nbpoints).into_par_iter().map(|i| (i, compute_row(i))).collect();
         // now we have rows we must transfer into distances
         for (r,v) in &rows {
             assert_eq!(*r,distances.shape()[0]);
