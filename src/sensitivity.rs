@@ -23,7 +23,8 @@ use rand::Rng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 use rand_xoshiro::rand_core::SeedableRng;
 
-
+use std::time::{Duration, SystemTime};
+use cpu_time::ProcessTime;
 
 use crate::iterprovider::*;
 use crate::bmor::*;
@@ -119,9 +120,14 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
                 Some(v) => { if r < v.len() {
                                                     Some((v[r].0, &v[r].1))
                                                 }
-                                                else { None }
+                                                else { 
+                                                    log::error!("get_point_by_rank could not find data vector r : {} size : {}", r, v.len());
+                                                    None }
                                         },
-            None                        => None,
+            None                        => {
+                                                log::error!("get_point_by_rank could not find data vector r : {}", r);
+                                                None
+                                            }
         };
         //
         return res;
@@ -200,6 +206,10 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     /// main interface to the algorithm
     pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet<T,Dist>> 
         where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
+        //
+        let cpu_start = ProcessTime::now();
+        let sys_now = SystemTime::now();
+        //
         // first bmor pass to get a list of facilities
         let iter = iter_generator.makeiter();
         let res1 = self.process_data_iterator(iter);
@@ -227,6 +237,10 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let distance = self.facilities.as_ref().unwrap().get_distance();
         // now we have ids and weights of points in coreset but we need a last pass to store the data associated to id!
         let id_data_map = self.retrieve_corepoints_by_id(&id_weight_map, iter_generator);
+        //
+        let cpu_time: Duration = cpu_start.elapsed();
+        println!("Coreset1::make_coreset  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
+        //
         Ok(CoreSet::new(id_weight_map, Some(id_data_map), distance.clone()))
     }  // end of make_coreset
 
@@ -437,7 +451,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     // build and init field coreset
     fn sample_coreset(&mut self, sampler : &PointSampler) -> HashMap::<usize, f32> {
         // TODO: determine how many point we need to sample
-        let nb_sample = 1000;
+        let nb_sample = 7000;
         //
         let mut coreset = HashMap::<usize, f32>::with_capacity(nb_sample);
         //
@@ -455,7 +469,9 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
                     coreset.insert(point.id, weight);
                 }
             }
-        } // end of for 
+        } // end of for
+        //
+        log::info!("sensitivity::sample_coreset coreset nb points :  {}", coreset.len());
         coreset
     } // end of sample_coreset
 

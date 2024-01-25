@@ -22,6 +22,9 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 use std::collections::HashMap;
 
+use std::time::{Duration, SystemTime};
+use cpu_time::ProcessTime;
+
 use rayon::iter::{ParallelIterator, IntoParallelIterator};
 use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 
@@ -92,7 +95,10 @@ impl Kmedoid {
             where    T : Send + Sync + Clone,
                   Dist : Distance<T> + Send + Sync + Clone  {
         //
+        let cpu_start = ProcessTime::now();
+        let sys_now = SystemTime::now();
         let (ids, distance) = coreset.compute_distances().unwrap();
+        log::info!("======kmedoids  distance matrix init sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
         let nbpoints = coreset.get_nb_points();
         log::info!("Kmedoid received coreset of size : {}",nbpoints);
@@ -116,11 +122,21 @@ impl Kmedoid {
 
     pub fn compute_medians(&mut self) {
         //
+        let cpu_start = ProcessTime::now();
+        let sys_now = SystemTime::now();
+        //
+        for i in 0..self.weights.len() {
+            self.dispatching_weights.push(self.weights[i]);
+        }
         self.quantile_estimator();
+        log::info!("======kmedoids  quantiles done sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
         // initialize: random selection of centers, dispatch points to nearest centers
         //
-        let mut centers = self.max_dist_init();     // select nb_cluster different points
+        let cpu_start = ProcessTime::now();
+        let sys_now = SystemTime::now();
+        let mut centers = self.max_cost_init();     // select nb_cluster different points
+        log::info!("======kmedoids  center init done sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
         self.medoids = centers.iter()
                         .map(|i| Medoid::new(self.ids[*i as usize], *i,f32::MAX))
@@ -139,6 +155,7 @@ impl Kmedoid {
         // we have centers and cost
         let mut global_cost = costs.iter().sum::<f32>();
         log::info!("medoids initialized , global cost : {:.3e}", global_cost);
+        log::info!("======kmedoid medoids initialized  sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
         // iterate
         //
@@ -174,6 +191,10 @@ impl Kmedoid {
                 break;
             }
         }
+        //
+        let cpu_time: Duration = cpu_start.elapsed();
+        println!("kmedoid compute medians  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
+
         self.quality_summary();
     } // end of compute_medians
 
@@ -201,18 +222,83 @@ impl Kmedoid {
     // random initial choice of medoids
     fn random_centers_init(&mut self) -> Vec<u32> {
         // we must iterate until we have k different medoids.
+        let mut already = vec![false; self.get_size()];
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(117);
-        let between = Uniform::new::<u32, u32>(0,self.get_size() as u32);
+        let between = Uniform::new::<usize, usize>(0,self.get_size());
         let mut centers = Vec::<u32>::with_capacity(self.nb_cluster);
         // get k different centers
         while centers.len() < self.nb_cluster {
             let j = between.sample(&mut rng);
-            if !centers.contains(&j) {
-                centers.push(j);
+            if !already[j] {
+                already[j] = true;
+                centers.push(j as u32);
             }
         }
         centers
     } // end of random_init
+
+
+
+    fn max_cost_init(&mut self) ->  Vec<u32> {
+        let mut already = vec![false; self.ids.len()];
+        let mut centers = Vec::<u32>::with_capacity(self.nb_cluster);
+        //
+        // We use a weight rescaling to avoid weight being much larger than distances
+        //
+        // choose point of maximal weight
+        let mut max_item = (0, self.weights[0]);
+        for i in 1..self.weights.len() {
+            if self.weights[i] > max_item.1 {
+                max_item = (i, self.weights[i]);
+            }
+        }
+        already[max_item.0] = true;
+        centers.push(max_item.0 as u32);
+        log::info!("new center; i : {}, weight : {:.3e} dist to previous centers : {:.3e}", max_item.0, max_item.1, 0.);
+        // we maintain costs to current state of centers through iterations.
+        let mut costs_to_centers = vec![0.0f32; self.weights.len()];
+        for i in 0..self.weights.len() {
+            if i == max_item.0 {
+                costs_to_centers[i] = 0.;
+            }
+            else {
+                costs_to_centers[i] = self.distance[[max_item.0, i]] * self.weights[i];
+            }
+        }
+        // now we create others centers
+        max_item = (usize::MAX, 0.);
+        loop {
+            // search max in costs_to_centers
+            max_item = (usize::MAX, 0.);
+            for i in 0..self.weights.len() {
+                let cost_i = costs_to_centers[i];
+                if cost_i > max_item.1 {
+                    max_item = (i, cost_i);
+                }
+            }
+            assert!(!already[max_item.0]);
+            already[max_item.0] = true;
+            centers.push(max_item.0 as u32);          
+            log::info!("new center; i : {}, cost : {:.3e} dist to previous centers : {:.3e}", 
+                                max_item.0, max_item.1, max_item.1/ self.weights[max_item.0]);
+            //
+            if centers.len() == self.nb_cluster {
+                break;
+            }
+            // we need to update costs_to_centers once more
+            for i in 0..self.weights.len() {
+                if already[i] {
+                    costs_to_centers[i] = 0.;
+                } 
+                else {
+                    if self.distance[[max_item.0,i]] *  self.weights[i] <  costs_to_centers[i] {
+                        costs_to_centers[i] = self.distance[[max_item.0,i]] *  self.weights[i];
+                    }
+                }               
+            }            
+        }
+        return centers;
+    } // end of max_cost_init
 
 
     fn max_dist_init(&mut self) ->  Vec<u32> {
@@ -234,6 +320,7 @@ impl Kmedoid {
         }
         already[max_item.0] = true;
         centers.push(max_item.0 as u32);
+        log::info!("new center; i : {}, cost : {:.3e} dist to previous centers : {:.3e}", max_item.0, 0. , 0.);
         // now search a center for each other cluster
         for c in 1..self.nb_cluster {  
             let dmax : f32 = 0.;
@@ -245,7 +332,7 @@ impl Kmedoid {
                 }
                 for c in 0..centers.len() {
                     let dist = self.distance[ [i, centers[c] as usize]];
-                    let cost = dist * self.dispatching_weights[i];
+                    let cost = dist * self.weights[i];
                     if cost > cost_item.1 {
                         cost_item = (i, cost, dist);
                     }
@@ -301,7 +388,7 @@ impl Kmedoid {
             log::debug!("compute_medoid_cost for arg i : {}, center : {} ",i, i_cluster);
             for j in 0..self.get_size() {
                 if j != i && self.membership[j] == i_cluster {
-                    let delta_c = self.distance[[i,j]] * self.dispatching_weights[j];
+                    let delta_c: f32 = self.distance[[i,j]] * self.weights[j];
                     cluster_size += 1;
                     cost += delta_c;
                     log::trace!("     member  : {}, increment  cost : {:.3e}", j, delta_c);
@@ -309,15 +396,18 @@ impl Kmedoid {
             }
             (cluster_size, cost)
         };
-        // TODO: to be made //
+        //
         assert_eq!(centers.len(), self.nb_cluster);
-        let mut costs : Vec<f32> = (0..self.nb_cluster).into_iter().map(|_| 0.).collect();
+        let size_costs : Vec<(usize, f32)> = (0..self.nb_cluster). into_par_iter()
+                    .map(|i| cost_i(centers[i] as usize))
+                    .collect();
+        
         for i in 0..self.medoids.len() {
-            let cluster_size : usize;
-            (cluster_size, costs[i]) = cost_i(centers[i] as usize);
-            log::info!("medoid i : {}, center : {}, weight : {:.3e} cost : {:.3e} size : {}  \n\n ", i, centers[i], 
-                            self.weights[centers[i] as usize ] , costs[i], cluster_size);
+            log::info!("medoid i : {}, center : {}, weight : {:.3e} cost : {:.3e} size : {}  \n ", i, centers[i], 
+                self.weights[centers[i] as usize ] , size_costs[i].1, size_costs[i].0);
         }
+        //
+        let costs : Vec<f32> = size_costs.iter().map(|t| t.1).collect();
         costs
     } // end of compute_initial_cost
 
@@ -340,7 +430,7 @@ impl Kmedoid {
             for j in 0..self.get_size() {
                 // if same medoid, update cost
                 if j != i && self.membership[j] == i_cluster {
-                    cost += self.distance[[i,j]] * self.dispatching_weights[j];
+                    cost += self.distance[[i,j]] * self.weights[j];
                 }
             }
             cost
@@ -348,7 +438,7 @@ impl Kmedoid {
         // TODO: iterate and collect!
          
         let mut cost : Vec<f32>;
-        if self.get_size() < 10000 {
+        if self.get_size() <= 1000 {
             cost  = (0..self.distance.nrows()).into_iter().map(|_| 0.).collect();
             for i in 0..self.get_size() {
                 cost[i] = cost_i(i);
@@ -419,26 +509,32 @@ impl Kmedoid {
 
         self.dispatching_weights.clear();
         for i in 0..self.weights.len() {
-//            self.dispatching_weights.push(self.weights[i].max(wlow).min(wupper) / wmedian);
-            self.dispatching_weights.push(self.weights[i]);
+            self.dispatching_weights.push(self.weights[i].max(wlow).min(wupper) / wmedian);
+        //    self.dispatching_weights.push(self.weights[i]);
         }
         //
-        log::info!("statistics on distances");
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(2833);
         let nbrow = self.distance.nrows();
-        let nbcol = self.distance.ncols();
-        //
+        let between = Uniform::new::<usize, usize>(0, nbrow);
+        let to_sample = 10000.min(nbrow * (nbrow - 1) / 2);
+        log::info!("statistics on distances");
+        let mut nb_sampled = 0;
         let mut quantiles  = CKMS::<f32>::new(0.01);
-        for i in 0..nbrow {
-            for j in 0..nbcol {
-                    if i != j {
-                        quantiles.insert(self.distance[[i,j]]);
-                    }
+        loop {
+            let i = between.sample(&mut rng);
+            let j = between.sample(&mut rng);
+            if i != j  {
+                quantiles.insert(self.distance[[i,j]]);
+                nb_sampled += 1;
+                if nb_sampled >= to_sample {
+                    break;
+                }
             }
         }
         println!("\n distance quantiles at 0.0001 : {:.2e} , 0.001 : {:.2e}, 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e},, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
             quantiles.query(0.0001).unwrap().1, quantiles.query(0.001).unwrap().1,  quantiles.query(0.01).unwrap().1,  quantiles.query(0.025).unwrap().1, 
             quantiles.query(0.05).unwrap().1, quantiles.query(0.5).unwrap().1, quantiles.query(0.75).unwrap().1, quantiles.query(0.99).unwrap().1);
-
+        //
         return quantiles;  
     }
 
