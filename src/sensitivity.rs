@@ -239,7 +239,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let id_data_map = self.retrieve_corepoints_by_id(&id_weight_map, iter_generator);
         //
         let cpu_time: Duration = cpu_start.elapsed();
-        println!("Coreset1::make_coreset  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
+        println!("\n Coreset1::make_coreset  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
         //
         Ok(CoreSet::new(id_weight_map, Some(id_data_map), distance.clone()))
     }  // end of make_coreset

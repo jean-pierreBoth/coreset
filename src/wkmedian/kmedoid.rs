@@ -98,7 +98,7 @@ impl Kmedoid {
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
         let (ids, distance) = coreset.compute_distances().unwrap();
-        log::info!("======kmedoids  distance matrix init sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
+        log::info!("\n ======kmedoids  distance matrix init sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
         let nbpoints = coreset.get_nb_points();
         log::info!("Kmedoid received coreset of size : {}",nbpoints);
@@ -125,6 +125,8 @@ impl Kmedoid {
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
         //
+        log::info!("\n\nentering Kmedoid::Kmedoid");
+        log::info!("==============================");
         for i in 0..self.weights.len() {
             self.dispatching_weights.push(self.weights[i]);
         }
@@ -193,7 +195,7 @@ impl Kmedoid {
         }
         //
         let cpu_time: Duration = cpu_start.elapsed();
-        println!("kmedoid compute medians  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
+        println!("kmedoid compute medians total time sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
 
         self.quality_summary();
     } // end of compute_medians

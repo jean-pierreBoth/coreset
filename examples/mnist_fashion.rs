@@ -11,7 +11,8 @@
 //! 
 
 
-use ndarray::s;
+use ndarray::{s, Array1,Array2};
+
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 
@@ -21,6 +22,7 @@ use clustering::*;
 
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
+use rayon::iter::{ParallelIterator, IntoParallelIterator};
 
 use std::iter::Iterator;
 use hnsw_rs::prelude::*;
@@ -139,7 +141,51 @@ pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<V
     error
 }
 
+
+// call kmedoids to compare
+fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : &Dist) 
+            where Dist : Distance<f32> + Send + Sync     {
+    //
+    log::info!("\n\n entering kmedoids_reference");
+    log::info!("==================================");
+    //
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
+    // compute matrix distance (possibly subsampled)
+    let nbpoints =  images.len();
+    // allocates to zero rows. We will computes rows in //
+    let mut distances_mat = Array2::<f32>::zeros((0, nbpoints));
+    //
+    let compute_row = |i| -> Array1<f32> {
+        let mut row_i = Array1::zeros(nbpoints);
+        for j in 0..nbpoints {
+            if j != i {
+                row_i[j] = distance.eval(&images[i], &images[j]);
+            }
+        }
+        return row_i;
+    };
+    //
+    let rows : Vec<(usize, Array1<f32>)>= (0..nbpoints).into_par_iter().map(|i| (i, compute_row(i))).collect();
+    // now we have rows we must transfer into distances
+    for (r,v) in &rows {
+        assert_eq!(*r,distances_mat.shape()[0]);
+        distances_mat.push_row(v.into()).unwrap();
+    }
+    println!("distance computations  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+    // choose initialization
+    let mut meds = kmedoids::random_initialization(nbpoints, 20, &mut rand::thread_rng());
+    let (loss, _assi, _n_iter, _n_swap): (f64, _, _, _) = kmedoids::fasterpam(&distances_mat, &mut meds, 100);
+    println!("faster pam Loss is: {}", loss);
+    println!("\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+} // end of kmedoids_reference
+
+
+
 fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
+    //
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
     // We need to make an iterator producer from data
     let producer = IteratorProducer::new(images);
     // allocate a coreset1 structure
@@ -161,7 +207,8 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
     match dist_name {
         "hnsw_rs::dist::DistL1" => {
             // going to medoid
-            log::info!("doing kmedoid clustering using L1");
+            log::info!("\n\n doing kmedoid clustering using L1");
+            log::info!("===================================");
             let nb_cluster = 20;
             let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
             kmedoids.compute_medians();
@@ -171,6 +218,9 @@ fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, i
                 let label = _labels[id];
                 log::info!("cluster center label : {}, cost {:.3e}", label, c.get_cost());
             }
+            println!("coreset + crate::kmedoids  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+            // we try to do a direct median clustering with kmedoid crate
+            kmedoids_reference(images, _labels, &distance);
         }
 
         "hnsw_rs::dist::DistL2" => {
