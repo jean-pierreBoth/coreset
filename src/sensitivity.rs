@@ -6,7 +6,6 @@
 
 // We need 2 passes on data as Bmor algorithm can merge data when rescaling cost and facility number so data id are not conserved.
 
-//#![allow(unused)]
 
 use anyhow::*;
 
@@ -117,12 +116,13 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
     /// for a coreset point of rank r returns id and data vector.
     pub(crate) fn get_point_by_rank(&self, r:usize) -> Option<(usize, &Vec<T>)> {
         let res = match self.datas_wid.as_ref() {
-                Some(v) => { if r < v.len() {
+            Some(v) => { if r < v.len() {
                                                     Some((v[r].0, &v[r].1))
                                                 }
                                                 else { 
                                                     log::error!("get_point_by_rank could not find data vector r : {} size : {}", r, v.len());
-                                                    None }
+                                                    None 
+                                                }
                                         },
             None                        => {
                                                 log::error!("get_point_by_rank could not find data vector r : {}", r);

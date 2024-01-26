@@ -1,26 +1,22 @@
 //! Implementation of Kmeds in 
 //!     - Park-Jun Simple and Fast algorithm for k-medoids clustering 2009
 //!     with :
-//!       - random initialization as explained in Newling-Fleuret in Subquadratic Exact medoid algorithm 2017
-//!       - introduction of weights attached to data
+//!       - introduction of weights attached to data beccause coreset data have a weight
+//!       - cost a point is its weight multiplied by distance to centers
+//!       - initialization of medoids is done by decreasing costs
 //! 
+//!     This mimics the kmean algo. The weights attached to points alleviates the problem of local minima.
 //!     See also Friedmann Hastie Tibshirani, The Elements Of Statistical Learning 2001 (Clustering chapter)
 //!
 //! 
 //! 
 
-#![allow(unused)]
 use ndarray::Array2;
 
-use rand::{Rng, thread_rng};
 use rand::distributions::{Distribution,Uniform};
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
-use std::cmp::Ordering;
 
-use parking_lot::RwLock;
-use std::sync::Arc;
-use std::collections::HashMap;
 
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
@@ -137,7 +133,7 @@ impl Kmedoid {
         //
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
-        let mut centers = self.max_cost_init();     // select nb_cluster different points
+        let centers = self.max_cost_init();     // select nb_cluster different points
         log::info!("======kmedoids  center init done sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
         self.medoids = centers.iter()
@@ -166,7 +162,7 @@ impl Kmedoid {
             // recompute centers from membership and update clusters costs:  Cpu cost is here
             let centers_and_costs = self.from_membership_to_centers();
             // compute global cost
-            let mut iter_cost : f32 = centers_and_costs.iter().map(|x| x.1).sum();
+            let iter_cost : f32 = centers_and_costs.iter().map(|x| x.1).sum();
             if  iter_cost >= global_cost {
                 log::info!("iteration exiting at iteration : {}", iteration);
                 break;
@@ -222,6 +218,7 @@ impl Kmedoid {
 
 
     // random initial choice of medoids
+    #[allow(unused)]
     fn random_centers_init(&mut self) -> Vec<u32> {
         // we must iterate until we have k different medoids.
         let mut already = vec![false; self.get_size()];
@@ -268,7 +265,6 @@ impl Kmedoid {
             }
         }
         // now we create others centers
-        max_item = (usize::MAX, 0.);
         loop {
             // search max in costs_to_centers
             max_item = (usize::MAX, 0.);
@@ -302,7 +298,7 @@ impl Kmedoid {
         return centers;
     } // end of max_cost_init
 
-
+    #[allow(unused)]
     fn max_dist_init(&mut self) ->  Vec<u32> {
         //
         let mut already = vec![false; self.ids.len()];
