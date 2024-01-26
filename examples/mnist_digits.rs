@@ -17,7 +17,7 @@ use hnsw_rs::prelude::*;
 
 
 mod utils;
-use utils::{mnistio::*, mnistiter::*};
+use utils::{mnistio::*, mnistcheck::*};
 
 //============================================================================================
 
@@ -43,7 +43,7 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
                 return Ok(params);
             }  
             //
-            _           => {
+            _          => {
                 log::error!(" algo must be imp or bmor");
                 std::process::exit(1);
             }
@@ -53,20 +53,7 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
     return Err(anyhow::anyhow!("bad command"));
 } // end of parse_cmd
 
-//==================================================================================================
 
-
-pub struct MnistParams {
-    algo : Algo
-} // end of MnistParams
-
-impl MnistParams {
-    pub fn new(algo : Algo) -> Self {
-        MnistParams{algo}
-    }
-    //
-    pub fn get_algo(&self) -> Algo { self.algo}
-}
 
 //=============================================================================================
 
@@ -134,29 +121,6 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
 
 //=====================================================================
 
-
-
-fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
-    // We need to make an iterator producer from data
-    let producer = IteratorProducer::new(images);
-    // allocate a coreset1 structure
-    let beta = 2.;
-    let gamma = 2.;
-    let k = 10;  // as we have 10 classes, but this gives a lower bound
-    let mut core1 = Coreset1::new(k, images.len(), beta, gamma, distance);
-    //
-    let res = core1.make_coreset(&producer);
-    if res.is_err() {
-        log::error!("construction of coreset1 failed");
-    }
-    let coreset = res.unwrap();
-    // get some info
-    log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
-    //
-} // end of coreset1
-
-
-//========================================================
 
 use clap::{Arg, ArgMatches, ArgAction, Command};
 
