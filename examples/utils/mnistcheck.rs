@@ -9,7 +9,9 @@ use clustering::*;
 
 use std::time::SystemTime;
 use cpu_time::ProcessTime;
+
 use rayon::iter::{ParallelIterator, IntoParallelIterator};
+
 use ndarray::{Array1,Array2};
 
 use std::iter::Iterator;
@@ -37,7 +39,7 @@ impl MnistParams {
 //================================================================================================
 
 
-// computes sum of distance to nearest cluster centers
+// computes sum of distance  of coreset points to nearest cluster centers
 pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 
     where Dist : Distance<f32> + Send + Sync + Clone {
     //
@@ -47,9 +49,7 @@ pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<V
             log::info!("id : {}, w total : {:?}", id, w_id);
             std::panic!();
         }
-        // BUG here
         let data = &(images[*id]);
-//        assert_eq!(1,0, "data must be data corresponding to id!");
         let (best_c, best_d) : (usize, f32) = (0..c_centers.len()).into_iter()
             .map(|i| (i, distance.eval(data, &c_centers[i])))
             .min_by(| (_,d1), (_,d2)| if d1 < d2 
@@ -68,6 +68,38 @@ pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<V
     }
     //
     error
+}
+
+
+
+// computes sum of distance  of all data points cluster centers
+// Estimate total error on whole data
+pub fn dispatch_images<Dist>(c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 
+    where Dist : Distance<f32> + Send + Sync + Clone {
+    //
+    log::info!("computing aposteriori cost");
+    //
+    let find_medoid = | data| -> (usize, f64) {
+        let (best_c, best_d) : (usize, f32) = (0..c_centers.len()).into_iter()
+        .map(|i| (i, distance.eval(data, &c_centers[i])))
+        .min_by(| (_,d1), (_,d2)| if d1 < d2 
+                {Ordering::Less} 
+            else 
+                {Ordering::Greater })
+        .unwrap();
+        (best_c, best_d as f64)
+    };
+    //
+    //
+    let cost = (0..images.len()).into_par_iter()
+        .map(|i| find_medoid(&images[i]).1)
+        .sum::<f64>();
+    //
+    println!(" \n ==========================================================");
+    println!(" total error distpaching data to centers : {:.3e}", cost);
+    println!(" ==========================================================");
+    //
+    cost
 }
 
 
@@ -106,12 +138,15 @@ fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distanc
     let mut meds = kmedoids::random_initialization(nbpoints, 20, &mut rand::thread_rng());
     let (loss, _assi, _n_iter, _n_swap): (f64, _, _, _) = kmedoids::fasterpam(&distances_mat, &mut meds, 100);
     println!("faster pam Loss is: {}", loss);
-    println!("\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+    println!("\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}\n\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
 } // end of kmedoids_reference
 
 
 
 pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : Dist) {
+    //
+    println!("\n\n entering coreset + our kmedoids");
+    println!("==================================");
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
@@ -142,12 +177,17 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
             kmedoids.compute_medians();
             let clusters = kmedoids.get_clusters();
+            let mut centers = Vec::<Vec<f32>>::with_capacity(nb_cluster);
             for c in clusters {
                 let id = c.get_center_id();
                 let label = _labels[id];
+                let center = images[id].clone();
+                centers.push(center);
                 log::info!("cluster center label : {}, cost {:.3e}", label, c.get_cost());
             }
             println!("coreset + crate::kmedoids  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+            let dispatch_error = dispatch_images(&centers, &distance, &images);
+            log::info!(" original data dispatching error : {:.3e}", dispatch_error);
             // we try to do a direct median clustering with kmedoid crate
             kmedoids_reference(images, _labels, &distance);
         }
@@ -179,8 +219,11 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             }
             log::info!("kmean error : {:.3e}", error / images.len() as f32);
             // now we must dispatch our coreset to centers and see what error we have...
-            let dispatch_error = dispatch_coreset(&coreset, &centers, &distance, &images);
+            let dispatch_error = dispatch_images(&centers, &distance, &images);
             log::info!(" coreset dispatching error : {:.3e}", dispatch_error);
+            //
+            // let dispatch_error = dispatch_coreset(&coreset, &centers, &distance, &images);
+            // log::info!(" coreset dispatching error : {:.3e}", dispatch_error);
         }
         _ => { log::info!("no postprocessing for distance {:?}", dist_name); }
     }

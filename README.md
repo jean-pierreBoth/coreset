@@ -55,6 +55,20 @@ The cost is the mean of L2 distance of each of the 70000 images to its nearest f
 
 ### New Fraweworks for Offline and Streaming Coreset Constructions.
 
+We construct coresets with this algorithm.
+The points, with their weights attached are then clustered by our simplistic kmedoid algorithm.
+The centers obtained and the corresponding clustering cost are then compared with the clustering cost obtained
+with the [kmedoids](https://crates.io/crates/kmedoids) crate for L1 distance.  
+The computation times given are system time elapsed and total cpu times (to account for parallelism) 
+
+
+|  mnist       |     cost       |  time(s)     |  time(cpu) |
+|  :---:       |  :------:      |    :---:     |  :-------: |
+|   digits     |                |              |            |
+|   fashion    |                |              |            |
+
+
+
 ### Facility Location in sublinear time.
 
 this algorithm (at least for this implementation) requires 10s system time and high threading to get similar entropy and costs. 

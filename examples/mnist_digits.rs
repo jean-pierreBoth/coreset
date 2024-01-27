@@ -213,7 +213,7 @@ pub fn main() {
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     //
-    let distance = DistL2::default();
+    let distance = DistL1::default();
     match mnist_params.get_algo() {
         Algo::IMP   => {
             marrupaxton(&mnist_params, &images_as_v, &labels, distance)
