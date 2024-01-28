@@ -12,6 +12,9 @@ use cpu_time::ProcessTime;
 
 use rayon::iter::{ParallelIterator, IntoParallelIterator};
 
+use rand_xoshiro::Xoshiro256PlusPlus;
+use rand_xoshiro::rand_core::SeedableRng;
+
 use ndarray::{Array1,Array2};
 
 use std::iter::Iterator;
@@ -38,7 +41,7 @@ impl MnistParams {
 
 //================================================================================================
 
-
+#[allow(unused)]
 // computes sum of distance  of coreset points to nearest cluster centers
 pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 
     where Dist : Distance<f32> + Send + Sync + Clone {
@@ -110,6 +113,8 @@ fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distanc
     log::info!("\n\n entering kmedoids_reference");
     log::info!("==================================");
     //
+    let mut rng: Xoshiro256PlusPlus = Xoshiro256PlusPlus::seed_from_u64(1453731);
+    //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     // compute matrix distance (possibly subsampled)
@@ -136,7 +141,8 @@ fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distanc
     println!("distance computations  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
     // choose initialization
     let mut meds = kmedoids::random_initialization(nbpoints, 20, &mut rand::thread_rng());
-    let (loss, _assi, _n_iter, _n_swap): (f64, _, _, _) = kmedoids::fasterpam(&distances_mat, &mut meds, 100);
+    //
+    let (loss, _assi, _n_iter, _n_swap): (f64, _, _, _) = kmedoids::par_fasterpam(&distances_mat, &mut meds, 100, &mut rng);
     println!("faster pam Loss is: {}", loss);
     println!("\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}\n\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
 } // end of kmedoids_reference
@@ -158,14 +164,14 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
     let k = 10;  // as we have 10 classes, but this gives a lower bound
     let mut core1 = Coreset1::new(k, images.len(), beta, gamma, distance.clone());
     //
-    let res = core1.make_coreset(&producer);
+    let res = core1.make_coreset(&producer, 0.11);
     if res.is_err() {
         log::error!("construction of coreset1 failed");
     }
     let coreset = res.unwrap();
     // get some info
     log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
-    // TODO: compare errors with kmedoids for L1 and kmeans for L2.
+    // 
     let dist_name = std::any::type_name::<Dist>();
     log::info!("dist name = {:?}", dist_name);
     match dist_name {

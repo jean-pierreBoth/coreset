@@ -1,5 +1,5 @@
 //! implement facility management.  
-//! Each facility maintain weights of data itmes dispatched to it and cost contribution
+//! Each facility maintain weights of data items dispatched to it and cost contribution
 //! 
 
 use anyhow::*;
@@ -48,6 +48,7 @@ impl<T: Send+Sync+Clone> Facility<T> {
         Facility{d_rank,center : center.to_vec(), weight : 0. , cost : 0.}
     }
 
+    /// get a data point corresponding to the facility location
     pub fn get_position(&self) -> &Vec<T> {
         return &self.center;
     }
@@ -63,8 +64,7 @@ impl<T: Send+Sync+Clone> Facility<T> {
     }
 
     #[cfg_attr(doc, katexit::katexit)]
-    /// return cost carried by this facility $f$ i.e :  
-    ///    $ cost(f) = \sum_{p \in f} w(p) * dist(p,f) $
+    /// return cost carried by this facility $f$ i.e :  $ cost(f) = \sum_{p \in f} w(p) * dist(p,f) $
     pub fn get_cost(&self) -> f64 {
         self.cost
     }

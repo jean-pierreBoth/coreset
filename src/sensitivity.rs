@@ -1,6 +1,6 @@
-//! Implementation sensitivity sampling as described in:
+//! Implementation coreset sensitivity sampling.
 //! 
-//!   - New Fraweworks for Offline and Streaming Coreset Constructions
+//!   - New Fraweworks for Offline and Streaming Coreset Constructions.  
 //!        Braverman, Feldman, Lang, Statsman 2022
 //!        [arxiv-v3](https://arxiv.org/abs/1612.00889)
 
@@ -135,7 +135,7 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
 
 
     /// computes matrix distances between points. 
-    /// line i of matrix corresponds to id in the Vec<usize> i'th element of first argument of the option returned
+    /// line i of matrix corresponds to id in the Vec\<usize\> i'th element of first argument of the option returned
     /// 
     pub fn compute_distances(&self) -> Option<(Vec<usize>, Array2<f32>) > {
         let nbpoints =  self.get_nb_points();
@@ -194,7 +194,10 @@ pub struct Coreset1<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send>
 
 impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist> 
             where Dist : Distance<T> + Clone + Sync + Send {
-    /// k, beta and gamma are arguments of Bmor 
+    /// nbdata_expected : the (expected) data size 
+    /// k  : The expected number of facilities
+    /// distance : the metric to use.
+    /// beta and gamma are arguments of Bmor 
     pub fn new(k: usize, nbdata_expected : usize, beta : f64, gamma : f64, distance :  Dist) -> Self {
         let bmor = Bmor::new(k, nbdata_expected, beta, gamma, distance);
         let phase = 0usize;
@@ -203,8 +206,13 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     } // end of new
 
 
-    /// main interface to the algorithm
-    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator) ->  anyhow::Result<CoreSet<T,Dist>> 
+    /// The main interface to the algorithm.  
+    /// 
+    /// The size of the coreset generated will be about fraction * size of data. 
+    /// In fact a point can be sampled many times, but in this case the sampled points are merged and their weight added.
+    /// So the fraction should be set to a value slightly superior to the one desired.  
+    /// A value of 0.11 is a good initial guess to get a fraction of 0.1
+    pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator, fraction : f64) ->  anyhow::Result<CoreSet<T,Dist>> 
         where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
         //
         let cpu_start = ProcessTime::now();
@@ -233,7 +241,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         // we can now get rid of p_facility_map
         self.point_facility_map = None;
         //
-        let id_weight_map = self.sample_coreset(&sampler);
+        let id_weight_map = self.sample_coreset(&sampler, fraction);
         let distance = self.facilities.as_ref().unwrap().get_distance();
         // now we have ids and weights of points in coreset but we need a last pass to store the data associated to id!
         let id_data_map = self.retrieve_corepoints_by_id(&id_weight_map, iter_generator);
@@ -449,9 +457,9 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     // build and init field coreset
-    fn sample_coreset(&mut self, sampler : &PointSampler) -> HashMap::<usize, f32> {
-        // TODO: determine how many point we need to sample
-        let nb_sample = 7000;
+    fn sample_coreset(&mut self, sampler : &PointSampler, rate : f64) -> HashMap::<usize, f32> {
+        // 
+        let nb_sample = (rate * self.nb_data as f64) as usize;
         //
         let mut coreset = HashMap::<usize, f32>::with_capacity(nb_sample);
         //
