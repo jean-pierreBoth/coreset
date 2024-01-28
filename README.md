@@ -9,7 +9,7 @@ to cluster as the original data set, but consisiting in mull smaller number of p
 
 ## References to implemented algorithms
 
-For this purpose we consider coreset construction as described in the paper:  
+We consider coreset construction as described in the paper:  
  -  New Fraweworks for Offline and Streaming Coreset Constructions.   
            Braverman, Feldman, Lang, Statsman 2022
            [arxiv-v3](https://arxiv.org/abs/1612.00889)
@@ -60,27 +60,41 @@ The cost is the mean of L2 distance of each of the  0 images to its nearest faci
 |   digits     |    0.84        |     2.13     |      75      |
 |   fashion    |    0.837       |     1.78     |      75      |
     
+Note : the  Badoiu, Czumaj, Indyk, Sohler ICALP 2005 algorithm (at least for our implementation) requires 10s system time and high threading to get similar entropy and costs. 
 
 ###  Coreset Construction
 
-The coreset points, with their weights attached are then clustered by our simplistic kmedoid algorithm.  
+The coreset points, with their weights attached are clustered by our simplistic kmedoid algorithm.  
 The cost of clustering with these centers is then compared with the cost of clustering the whole original data obtained
-with the crate [kmedoids](https://crates.io/crates/kmedoids) using the parallel [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) function for L1 distance.  
+with the crate [kmedoids](https://crates.io/crates/kmedoids) using the parallel [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html).
 
-We give the  cost obtained with the coreset data points and with the par_fastermap function of the kmedoids crate.  
-The computation times given are system time elapsed and total cpu times (to account for parallelism) 
-
-
-|  mnist       |  cost (coreset) | cost (par_fastermap) |   time(s)   |  time(cpu) |
-|  :-------:   |  :----------:   |    :-------------:   |  :-------:  | :----------| 
-|   digits     |                 |                      |             |            |
-|   fashion    |                 |                      |             |            |
+The computation times, in seconds, given are system time elapsed and total cpu times (to account for parallelism) 
 
 
+#### Results for coreset construction + basic weighted medoid  (L1 distance) 
 
-### Facility Location in sublinear time.
+The fraction for data subsampling was set 0.11. We asked 10 clusters.
 
-this algorithm (at least for this implementation) requires 10s system time and high threading to get similar entropy and costs. 
+We give the cost of clustering the coreset and the cost of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.
+
+|  mnist       | cost (coreset)   | cost (whole data) | time(sys) s        | time(cpu) s |
+|  :-------:   |  :----------:    | :---------:       |    :-------------: | :---------: | 
+|   digits     |                  |                   |                    |             |
+|   fashion    |    2.267 10^6    |    2.277 10^6     |      1             |    12       |
+
+
+
+
+#### Reference results for medoid computations (L1 distance) with par_fastermap
+
+|  mnist       | cost            | time(sys) s        | time(cpu) s |
+|  :-------:   |  :----------:   |    :-------------: | :---------: | 
+|   digits     |                 |                    |             |
+|   fashion    |    2.183 10^6   |      78            |    2212     |
+
+
+
+
 
 ## Usage 
 

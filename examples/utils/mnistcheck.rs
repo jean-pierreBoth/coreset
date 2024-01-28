@@ -107,7 +107,7 @@ pub fn dispatch_images<Dist>(c_centers : &Vec<Vec<f32>>, distance : &Dist, image
 
 
 // call kmedoids to compare
-fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distance : &Dist) 
+fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, nbcluster : usize, distance : &Dist) 
             where Dist : Distance<f32> + Send + Sync     {
     //
     log::info!("\n\n entering kmedoids_reference");
@@ -140,7 +140,7 @@ fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, distanc
     }
     println!("distance computations  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
     // choose initialization
-    let mut meds = kmedoids::random_initialization(nbpoints, 20, &mut rand::thread_rng());
+    let mut meds = kmedoids::random_initialization(nbpoints, nbcluster, &mut rand::thread_rng());
     //
     let (loss, _assi, _n_iter, _n_swap): (f64, _, _, _) = kmedoids::par_fasterpam(&distances_mat, &mut meds, 100, &mut rng);
     println!("faster pam Loss is: {}", loss);
@@ -179,7 +179,7 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             // going to medoid
             log::info!("\n\n doing kmedoid clustering using L1");
             log::info!("===================================");
-            let nb_cluster = 20;
+            let nb_cluster = 10;
             let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
             kmedoids.compute_medians();
             let clusters = kmedoids.get_clusters();
@@ -195,7 +195,7 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             let dispatch_error = dispatch_images(&centers, &distance, &images);
             log::info!(" original data dispatching error : {:.3e}", dispatch_error);
             // we try to do a direct median clustering with kmedoid crate
-            kmedoids_reference(images, _labels, &distance);
+            kmedoids_reference(images, _labels, nb_cluster, &distance);
         }
 
         "hnsw_rs::dist::DistL2" => {

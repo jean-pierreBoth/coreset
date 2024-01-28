@@ -275,7 +275,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling *process_data()* , consuming the iterator
-    pub fn process_data_iterator(&mut self, mut iter : impl Iterator<Item=(usize, Vec<T>)>) -> anyhow::Result<()> {
+    fn process_data_iterator(&mut self, mut iter : impl Iterator<Item=(usize, Vec<T>)>) -> anyhow::Result<()> {
         // TODO: adapt bufsize to memory/cpu
         let bufsize : usize = 50000;
         let mut datas = Vec::<Vec<T>>::with_capacity(bufsize);
@@ -459,6 +459,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
     // build and init field coreset
     fn sample_coreset(&mut self, sampler : &PointSampler, rate : f64) -> HashMap::<usize, f32> {
         // 
+        log::info!("sample_coreset fraction : {:.2e}", rate);
         let nb_sample = (rate * self.nb_data as f64) as usize;
         //
         let mut coreset = HashMap::<usize, f32>::with_capacity(nb_sample);
