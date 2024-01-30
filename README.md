@@ -80,17 +80,18 @@ We give the cost of clustering the coreset and the cost of dispatching a posteri
 
 |  mnist       | cost (coreset)   | cost (whole data) | time(sys) s        | time(cpu) s |
 |  :-------:   |  :----------:    | :---------:       |    :-------------: | :---------: | 
-|   digits     |                  |                   |                    |             |
-|   fashion    |    2.267 10^6    |    2.277 10^6     |      1             |    12       |
+|   digits     |    1.891 10^6    |   1.901   10^6    |      1             |    12.4     |
+|   fashion    |    2.267 10^6    |   2.277   10^6    |      1             |    12       |
 
 
 
 
 #### Reference results for medoid computations (L1 distance) with par_fastermap
 
+The timings takes into account the computing of the distance matrix (fully multithreaded)
 |  mnist       | cost            | time(sys) s        | time(cpu) s |
 |  :-------:   |  :----------:   |    :-------------: | :---------: | 
-|   digits     |                 |                    |             |
+|   digits     |    1.789 10^6   |      55            |    1660     |
 |   fashion    |    2.183 10^6   |      78            |    2212     |
 
 

@@ -13,7 +13,7 @@
 
 use ndarray::Array2;
 
-use rand::distributions::{Distribution,Uniform};
+use rand::{distributions::{Distribution,Uniform}, Rng};
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
@@ -127,7 +127,8 @@ impl Kmedoid {
     } // end of new 
 
 
-    pub fn compute_medians(&mut self) {
+    /// returns best result as couple (iteration, cost)
+    pub fn compute_medians(&mut self) -> (usize, f32) {
         //
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
@@ -166,8 +167,10 @@ impl Kmedoid {
             self.medoids[i].center = centers[i];
         }
         // we have centers and cost
+        let mut monitoring : Vec::<(usize, f32)> = Vec::with_capacity(25);
         let mut last_cost = costs.iter().sum::<f32>();
-        let mut best_cost = last_cost;
+        monitoring.push((0, last_cost));
+        let mut best_iter = (0,last_cost);
         //
         log::info!("medoids initialized , global cost : {:.3e}", last_cost);
         log::info!("======kmedoid medoids initialized  sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
@@ -215,8 +218,8 @@ impl Kmedoid {
                 last_cost = iter_cost;
                 log::info!("iteration {}, global cost : {:.3e}", iteration, last_cost);
                 // we must store our best state
-                if iter_cost < best_cost {
-                    best_cost = iter_cost;
+                if iter_cost < best_iter.1 {
+                    best_iter = (iteration, iter_cost);
                     self.store_state(&centers_and_costs, &membership_and_dist);
                 }
                 // we must compute distance to new centers and reassign membership
@@ -225,17 +228,20 @@ impl Kmedoid {
                 iteration += 1;
                 if iteration >= 15 {
                     log::info!("exiting after nb iteration : {}", iteration);
-                    log::info!("best cost : {:.3e}", best_cost);
                     break;
                 }
             }
         }
         //
-        log::info!("best cost : {:.3e}", best_cost);
+        log::info!("======================================================");
+        log::info!("best iter : {}, cost {:.3e}", best_iter.0, best_iter.1);
+        log::info!("======================================================");
         let cpu_time: Duration = cpu_start.elapsed();
         println!("kmedoid compute medians total time sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
-
+        //
         self.quality_summary();
+        //
+        best_iter
     } // end of compute_medians
 
 
@@ -624,11 +630,20 @@ impl Kmedoid {
         //
         log::info!("in center_perturbation m1 = {}  m2 = {}", m1, m2);
         //
+        let mut rng = rand::thread_rng();
+        let unif = rand::distributions::Uniform::new(0.,1.);
+        //
         let m1_medoid = &medoids[m1];
         let m2_medoid = &medoids[m2];
         //
         let changed : usize;
-        if m1_medoid.get_cost() > m2_medoid.get_cost() {
+/*         if m1_medoid.get_cost() > m2_medoid.get_cost() {
+            changed = m1;
+        }
+        else {
+            changed = m2;
+        } */
+        if rng.sample(unif) < 0.5 {
             changed = m1;
         }
         else {

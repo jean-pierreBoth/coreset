@@ -194,7 +194,7 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             let dispatch_error = dispatch_images(&centers, &distance, &images);
             log::info!(" original data dispatching error : {:.3e}", dispatch_error);
             // we try to do a direct median clustering with kmedoid crate
-        //    kmedoids_reference(images, _labels, nb_cluster, &distance);
+            kmedoids_reference(images, _labels, nb_cluster, &distance);
         }
 
         "hnsw_rs::dist::DistL2" => {
