@@ -26,8 +26,9 @@ impl <F:Float + std::fmt::Debug + rand_distr::uniform::SampleUniform> DiscretePr
             repartition.push(cumul);
         }
         // cumulate
-        for i in 0..repartition.len() {
+        for i in 1..repartition.len() {
             repartition[i] = repartition[i]/cumul;
+            assert!(repartition[i] > repartition[i-1]);
         }
         let last = repartition.len()-1;
         repartition[last] = F::one();

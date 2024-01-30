@@ -16,6 +16,7 @@ pub(crate) struct DataIterator<'a> {
 impl <'a> DataIterator<'a> {
 
     pub fn new(images : &'a Vec<Vec<f32>>) -> Self {
+        log::debug!("new data iterator size : {}", images.len());
         DataIterator{rank : 0, images}
     }
 

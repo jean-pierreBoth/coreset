@@ -67,7 +67,7 @@ pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<V
         }
         assert!(best_d.is_finite());
         // TODO: exponent for dist!!!
-        error += (w_id * best_d) as f64;
+        error += (w_id * best_d as f64) as f64;
     }
     //
     error
@@ -186,16 +186,15 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             let mut centers = Vec::<Vec<f32>>::with_capacity(nb_cluster);
             for c in clusters {
                 let id = c.get_center_id();
-                let label = _labels[id];
+                let _label = _labels[id];
                 let center = images[id].clone();
                 centers.push(center);
-                log::info!("cluster center label : {}, cost {:.3e}", label, c.get_cost());
             }
             println!("coreset + crate::kmedoids  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
             let dispatch_error = dispatch_images(&centers, &distance, &images);
             log::info!(" original data dispatching error : {:.3e}", dispatch_error);
             // we try to do a direct median clustering with kmedoid crate
-            kmedoids_reference(images, _labels, nb_cluster, &distance);
+        //    kmedoids_reference(images, _labels, nb_cluster, &distance);
         }
 
         "hnsw_rs::dist::DistL2" => {

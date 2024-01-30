@@ -32,23 +32,24 @@ use crate::discrete::DiscreteProba;
 
 use hnsw_rs::dist::*;
 
+#[derive(Copy, Clone, Debug)]
 // a sampled point 
 struct Point {
     pub(self) id : usize,
     pub(self) _rank : usize,
-    pub(self) proba : f32,
+    pub(self) proba : f64,
 }
 
 struct PointSampler {
     /// proba distribution over points
-    proba : DiscreteProba<f32>,
-    // first usize is an index in point_weights, second index is data_id in data (possibly an index).
+    proba : DiscreteProba<f64>,
+    // first usize (key) is an index in self.proba, second usize (value) is data_id in data (possibly an index).
     w_index : HashMap<usize, usize>,
 }
 
 impl PointSampler {
 
-    fn new(weights : &Vec<f32>, w_index : HashMap<usize, usize>) -> Self {
+    fn new(weights : &Vec<f64>, w_index : HashMap<usize, usize>) -> Self {
         PointSampler{proba : DiscreteProba::new(&weights) , w_index}
     }
 
@@ -56,7 +57,12 @@ impl PointSampler {
     fn sample<R>(&self, rng : &mut R ) -> Point
         where R : Rng  {
             let (rank, proba) = self.proba.sample(rng);
-            let id = *self.w_index.get(&rank).unwrap();
+            let opt_id = self.w_index.get(&rank);
+            if opt_id.is_none() {
+                log::error!("no id for rank sampled : {}", rank);
+                std::panic!();
+            }
+            let id = *opt_id.unwrap();
             return Point{id, _rank : rank, proba}
     } // end of sample
 
@@ -71,7 +77,7 @@ impl PointSampler {
 /// It stores for each coreset point its id and a Vector of associated weights with which the points appears in coreset.
 pub struct CoreSet<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> {
     // maps id to weight/multiplicity
-    id_weight_map : HashMap<usize, f32>,
+    id_weight_map : HashMap<usize, f64>,
     // stores couples (id, data vector). Stored in the order they retrieved not same order as id_w_map
     datas_wid : Option<Vec<(usize, Vec<T>)>>,
     //
@@ -83,8 +89,8 @@ pub struct CoreSet<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> 
 impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist> 
         where Dist : Distance<T> + Clone + Sync + Send {
 
-    pub fn new(core_w : HashMap<usize, f32>, datas_wid : Option<Vec<(usize, Vec<T>)>>, distance : Dist) -> CoreSet<T, Dist> {
-    //    std::panic!("fill datas_wid");
+    pub fn new(core_w : HashMap<usize, f64>, datas_wid : Option<Vec<(usize, Vec<T>)>>, distance : Dist) -> CoreSet<T, Dist> {
+        assert_eq!(core_w.len(), datas_wid.as_ref().unwrap().len());
         CoreSet{id_weight_map : core_w , datas_wid, distance}
     }
 
@@ -93,8 +99,8 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
         self.id_weight_map.len()
     }
 
-    /// returns list of weights of a given point if present in coreset
-    pub fn get_weight(&self, data_id : usize) -> Option<f32> {
+    /// returns weight of a given point if present in coreset
+    pub fn get_weight(&self, data_id : usize) -> Option<f64> {
         let index_res = self.id_weight_map.get(&data_id);
         match index_res {
             Some(index) => {
@@ -102,14 +108,15 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
             }
             _ => { return None; }
         }
-    } // end of get_weights
+    } // end of get_weight
+
 
     /// returns an iterator on the id of data
-    pub fn get_data_ids(&self) -> hash_map::Keys<usize, f32> { return self.id_weight_map.keys()}
+    pub fn get_data_ids(&self) -> hash_map::Keys<usize, f64> { return self.id_weight_map.keys()}
 
 
     /// get an iterator on couples (id, weight)
-    pub fn get_items(&self) -> hash_map::Iter<usize, f32> {
+    pub fn get_items(&self) -> hash_map::Iter<usize, f64> {
         self.id_weight_map.iter()
     }
 
@@ -121,12 +128,12 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
                                                 }
                                                 else { 
                                                     log::error!("get_point_by_rank could not find data vector r : {} size : {}", r, v.len());
-                                                    None 
+                                                    std::panic!("get_point_by_rank could not find data vector r");
                                                 }
                                         },
             None                        => {
                                                 log::error!("get_point_by_rank could not find data vector r : {}", r);
-                                                None
+                                                std::panic!("get_point_by_rank could not find data vector r");
                                             }
         };
         //
@@ -153,6 +160,7 @@ impl <T:Send+Sync+Clone, Dist> CoreSet<T, Dist>
             }
             return row_i;
         };
+        //
         //
         let rows : Vec<(usize, Array1<f32>)>= (0..nbpoints).into_par_iter().map(|i| (i, compute_row(i))).collect();
         // now we have rows we must transfer into distances
@@ -255,7 +263,7 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
     // we need to retrieve the data vector corresponding to the id of coreset points
     // Careful , the data are stored in the order they are found by iter_generator and not in the order of the HashMap
-    fn retrieve_corepoints_by_id<IterGenerator>(&self, id_weight_map : &HashMap<usize, f32>, iter_generator : &IterGenerator) -> Vec<(usize, Vec<T>)>
+    fn retrieve_corepoints_by_id<IterGenerator>(&self, id_weight_map : &HashMap<usize, f64>, iter_generator : &IterGenerator) -> Vec<(usize, Vec<T>)>
                 where IterGenerator : IterProvider<DataType = (usize, Vec<T>)> {
         //
         let mut iter = iter_generator.makeiter();
@@ -268,6 +276,21 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
                 datas_wid.push((id, data));
             }
         }
+        // TODO: temporary what is the id not found ... some bug here
+        if datas_wid.len() < nbpoints {
+            let mut set = indexmap::IndexSet::with_capacity(nbpoints + 100);
+            for (id, _) in &datas_wid {
+                set.insert(id);
+            }
+            for (id, _) in id_weight_map {
+                // do we have id in set
+                if set.get(id).is_none() {
+                    log::error!(" we do not have id : {} in set", id);
+                }
+            }
+        }
+        //
+        assert_eq!(datas_wid.len(), nbpoints);
         //
         return datas_wid;
     } // end of retrieve_corepoints_by_id
@@ -429,12 +452,13 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
         let nb_facilities = facilities_ref.len();     // This is |B| in line 3  of algo 1 for Coreset in Braverman
         let mut cumul_proba = 0.;
         // the fields to build PointSampler
-        let mut p_weights = Vec::<f32>::with_capacity(self.nb_data);
+        let mut p_weights = Vec::<f64>::with_capacity(self.nb_data);
         let mut w_index = HashMap::<usize, usize>::with_capacity(self.nb_data);
         // we iter on reviously built p_facility_map_ref
         let mut pmap_iter = p_facility_map_ref.iter();
         while let Some(iter_ref) = pmap_iter.next() {
             let (dataid, pointmap) = iter_ref.pair();
+            //
             let mut proba = pointmap.get_dist() as f64 * pointmap.get_weight() as f64 / global_cost;
             // get weight of facility of point corresponding to data_id
             let f_weight = facilities_ref.get_facility_weight(pointmap.get_facility());
@@ -442,8 +466,9 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
             proba = proba * 0.5;
             // now we can update 
             assert!(proba > 0.);
-            p_weights.push(proba as f32);
-            w_index.insert(*dataid, p_weights.len());
+            p_weights.push(proba);
+            // key is rank, value is id!!!
+            w_index.insert(p_weights.len() - 1, *dataid);
             // for a check
             cumul_proba += proba;
         }
@@ -457,18 +482,18 @@ impl <T:Send+Sync+Clone, Dist> Coreset1<T, Dist>
 
 
     // build and init field coreset
-    fn sample_coreset(&mut self, sampler : &PointSampler, rate : f64) -> HashMap::<usize, f32> {
+    fn sample_coreset(&mut self, sampler : &PointSampler, rate : f64) -> HashMap::<usize, f64> {
         // 
         log::info!("sample_coreset fraction : {:.2e}", rate);
         let nb_sample = (rate * self.nb_data as f64) as usize;
         //
-        let mut coreset = HashMap::<usize, f32>::with_capacity(nb_sample);
+        let mut coreset = HashMap::<usize, f64>::with_capacity(2* nb_sample);
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(14537);
         //
         for _ in 0..nb_sample {
             let point = sampler.sample(&mut rng);
-            let weight =  1./ (point.proba * nb_sample as f32);
+            let weight =  1./ (point.proba * nb_sample as f64);
             let id_weights = coreset.get_mut(&point.id);
             match id_weights {
                 Some(old_weight) => {

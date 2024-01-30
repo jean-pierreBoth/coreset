@@ -9,24 +9,25 @@ to cluster as the original data set, but consisiting in mull smaller number of p
 
 ## References to implemented algorithms
 
-We consider coreset construction as described in the paper:  
- -  New Fraweworks for Offline and Streaming Coreset Constructions.   
+1. We consider coreset construction as described in the paper:  
+    -  New Fraweworks for Offline and Streaming Coreset Constructions.   
            Braverman, Feldman, Lang, Statsman 2022
            [arxiv-v3](https://arxiv.org/abs/1612.00889)
 
 
 
-The coreset construction relies on  [$\alpha$,$\beta$] approximation in **metric spaces**.  For this step we use the paper :
- - Streaming k-means on well clustered data.  
+2. The coreset construction relies on  [$\alpha$,$\beta$] approximation in **metric spaces**.  For this step we use the paper :
+    - Streaming k-means on well clustered data.  
                 Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011 
                 [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 
-After obtaining the coreset we need an algorithm to provide a k-median on weighted data points and check quality of the approximating coreset. We implemented the very simple algorithm: 
- - Park-Jun 
-   Simple and Fast algorithm for k-medoids clustering 2009
+3. After obtaining the coreset we need an algorithm to provide a k-median on weighted data points and check quality of the approximating coreset. We implemented the very simple algorithm: 
+    - Friedman Hastie Tibshirani The elements of statistical learning 2001
 
- We also implemented 
--  Facility Location in sublinear time.   
+    using a greedy initialization like PAM-BUILD
+
+1. We also implemented 
+   -  Facility Location in sublinear time.   
        Badoiu, Czumaj, Indyk, Sohler ICALP 2005
        [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
 
@@ -60,7 +61,7 @@ The cost is the mean of L2 distance of each of the  0 images to its nearest faci
 |   digits     |    0.84        |     2.13     |      75      |
 |   fashion    |    0.837       |     1.78     |      75      |
     
-Note : the  Badoiu, Czumaj, Indyk, Sohler ICALP 2005 algorithm (at least for our implementation) requires 10s system time and high threading to get similar entropy and costs. 
+Note : the  *Badoiu, Czumaj, Indyk, Sohler ICALP 2005* algorithm (at least for our implementation) requires 10s system time and high threading to get similar entropy and costs. 
 
 ###  Coreset Construction
 

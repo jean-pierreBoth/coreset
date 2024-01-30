@@ -107,7 +107,7 @@ pub type FacilityId = usize;
 
 /// A structure describing point affectation into facility
 /// Necessary to comput sensitiviy in coreset algos
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub struct PointMap {
     // rank of facility corresponding to point
     facility : usize,
