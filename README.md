@@ -35,7 +35,9 @@ It is thus possible to get an approximate clustering.
 The third  highlights the progress made by the 2 first as it requires an order of magnitude more cpu.
 
 
+## Results
 
+Examples provided are the standard Mnist-digits and Mnist-fashion.
 
 ###  Coreset Construction
 
@@ -52,7 +54,7 @@ The fraction for data subsampling was set 0.11. We asked 10 clusters.
 
 
 We give the me cost of clustering the coreset and the cost of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
-As the results are random we give  the results in the form (mean +-stantard deviation) obtained on a sample of 20 computations
+As the results are random we give  the results in the form (mean +-standard deviation) obtained on a sample of 20 computations
 
 |  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
 |  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
@@ -71,13 +73,12 @@ The timings takes into account the computing of the distance matrix (fully multi
 
 #### Conclusion:
 
-**The results are, on the average at 5% above the reference cost obtained by faster map, and consistently under 10% even with our simplistic weighted kmedoid implementation.
+**The results are, on the average at 5% above the reference cost obtained by faster map, and consistently under 10% even with our simplistic weighted kmedoid implementation.  
 The speed is one or two orders of magnitude faster**.
 
 
 ##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)
 
-Examples provided are the standard Mnist-digits and Mnist-fashion.
 
 
 
