@@ -1,11 +1,12 @@
 # coreset
 
 ## Introduction 
-This crate is devoted clustering approximation of large number data of points.  
+This crate is devoted to clustering approximation of large number data of points.  
 Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
 
-The method relies on obtaining a coreset for the metric used in the problem. A coreset is a summary of weighted points that can be shown
-to cluster as the original data set, but consisiting in mull smaller number of points.  
+The method relies on obtaining a coreset for the metric used in the problem. A coreset is a summary of a much smaller number of points.
+The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to every subset of k points.
+It is thus possible to get an approximate clustering.
 
 ## References to implemented algorithms
 
@@ -24,9 +25,9 @@ to cluster as the original data set, but consisiting in mull smaller number of p
 3. After obtaining the coreset we need an algorithm to provide a k-median on weighted data points and check quality of the approximating coreset. We implemented the very simple algorithm: 
     - Friedman Hastie Tibshirani The elements of statistical learning 2001
 
-    using a greedy initialization like PAM-BUILD
+    using a greedy initialization like PAM-BUILD and first try to randomize cluster pairs too near of each other.
 
-1. We also implemented 
+4. We also implemented 
    -  Facility Location in sublinear time.   
        Badoiu, Czumaj, Indyk, Sohler ICALP 2005
        [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
@@ -34,34 +35,7 @@ to cluster as the original data set, but consisiting in mull smaller number of p
 The third  highlights the progress made by the 2 first as it requires an order of magnitude more cpu.
 
 
-## Results on examples
 
-Examples provided are the standard Mnist-digits and Mnist-fashion.
-
-### Streaming k-means on well clustered data
-
-#### running in one pass. (~ 130 facilities)
-
-|  mnist       |  mean entropy  |    cost      |  nb facility | 
-|  :---:       |  :---:         |    :---:     |     :---:    |
-|   digits     |    0.70        |     2.05     |      170     |
-|   fashion    |    0.79        |     1.74     |      129     |
-
-This algorithm runs on both Mnist data in less than a second (0.7) on a i9 laptop.
-
-#### running with post contraction of number of facilities. (~ 70 facilities)
-
-This algorithm runs on both Mnist data in 0.5 second on a i9 laptop.
-The mean entropy of labels distributions (10 labels) in each cluster found is between 0.82 for the digits example and 0.84 for the fashion example.
-
-The cost is the mean of L2 distance of each of the  0 images to its nearest facility. The distance is normalized by the number of pixels (coded in the range [0..256])
-
-|  mnist       |  mean entropy  |    cost      |  nb facility | 
-|  :---:       |  :---:         |    :---:     |     :---:    |
-|   digits     |    0.84        |     2.13     |      75      |
-|   fashion    |    0.837       |     1.78     |      75      |
-    
-Note : the  *Badoiu, Czumaj, Indyk, Sohler ICALP 2005* algorithm (at least for our implementation) requires 10s system time and high threading to get similar entropy and costs. 
 
 ###  Coreset Construction
 
@@ -76,13 +50,14 @@ The computation times, in seconds, given are system time elapsed and total cpu t
 
 The fraction for data subsampling was set 0.11. We asked 10 clusters.
 
-We give the cost of clustering the coreset and the cost of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.
 
-|  mnist       | cost (coreset)   | cost (whole data) | time(sys) s        | time(cpu) s |
-|  :-------:   |  :----------:    | :---------:       |    :-------------: | :---------: | 
-|   digits     |    1.891 10^6    |   1.901   10^6    |      1             |    12.4     |
-|   fashion    |    2.267 10^6    |   2.277   10^6    |      1             |    12       |
+We give the me cost of clustering the coreset and the cost of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
+As the results are random we give  the results in the form (mean +-stantard deviation) obtained on a sample of 20 computations
 
+|  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
+|  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
+|   digits     | (1.877 +- 0.03) 10^6   | (1.883 +- 0.031) 10^6 |      1        |    12.4     |
+|   fashion    | (2.272 +- 0.0516) 10^6 | (2.277+- 0.045) 10^6  |      1        |    12       |
 
 
 
@@ -94,7 +69,15 @@ The timings takes into account the computing of the distance matrix (fully multi
 |   digits     |    1.789 10^6   |      55            |    1660     |
 |   fashion    |    2.183 10^6   |      78            |    2212     |
 
+#### Conclusion:
 
+**The results are, on the average at 5% above the reference cost obtained by faster map, and consistently under 10% even with our simplistic weighted kmedoid implementation.
+The speed is one or two orders of magnitude faster**.
+
+
+##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)
+
+Examples provided are the standard Mnist-digits and Mnist-fashion.
 
 
 
@@ -102,7 +85,7 @@ The timings takes into account the computing of the distance matrix (fully multi
 
 The data must be associated to a structure implementing the trait *IteratorProvider*.  
 The algorithm needs to make more than one pass on the data, so the algorithm takes as argument a structure  providing
-an iterator on the data when needed. (Typically the structure could provide Io to each data).  
+an iterator on the data when needed. (Typically the structure could provide file Io to each data).  
 An example is found for mnist data (Cf *module utils::mnistiter*).  
 
 The implementation will do the buffering and parallelization.
