@@ -58,8 +58,8 @@ As the results are random we give  the results in the form (mean +-standard devi
 
 |  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
 |  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
-|   digits     | (1.877 +- 0.03) 10^6   | (1.883 +- 0.031) 10^6 |      1        |    12.4     |
-|   fashion    | (2.272 +- 0.0516) 10^6 | (2.277+- 0.045) 10^6  |      1        |    12       |
+|   digits     | (1.869 +- 0.025) 10^6  | (1.876 +- 0.018) 10^6 |      1        |    14       |
+|   fashion    | (2.245 +- 0.027) 10^6  | (2.245 +- 0.021) 10^6 |      1        |    14       |
 
 
 
@@ -73,7 +73,7 @@ The timings takes into account the computing of the distance matrix (fully multi
 
 #### Conclusion:
 
-**The results are, on the average at 5% above the reference cost obtained by faster map, and consistently under 10% even with our simplistic weighted kmedoid implementation.  
+**The results are, on the average at 5% above the reference cost obtained by faster map, and consistently under 8% even with our simplistic weighted kmedoid implementation.  
 The speed is one or two orders of magnitude faster**.
 
 

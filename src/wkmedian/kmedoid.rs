@@ -549,22 +549,23 @@ impl Kmedoid {
             }
         }
         log::info!("\n\n quantiles on distance between medoid centers");
-        println!("\n centroid to centroid distance quantiles at  0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
+        log::info!("\n centroid to centroid distance quantiles at  0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
             q_dist.query(0.025).unwrap().1, q_dist.query(0.05).unwrap().1, q_dist.query(0.5).unwrap().1, 
             q_dist.query(0.75).unwrap().1, q_dist.query(0.95).unwrap().1); 
         //
         // dump info on too near clusters
         //
-        let near_threshold = self.d_quantiles.query(0.05).unwrap().1;
+        let proba = 0.1;
+        let near_threshold = self.d_quantiles.query(proba).unwrap().1;
         let mut couple_opt : Option<(usize, usize)> = None;
         let mut dmin = near_threshold;
-        log::info!("threshold medoid center distances at 0.05 : {:.2e}", near_threshold);
+        log::info!("threshold medoid center distance at proba {:.2e} : {:.2e}", proba, near_threshold);
         for i in 0..self.nb_cluster {
             let i_center = self.medoids[i].get_center() as usize;
             for j in 0..i {
                 let d = self.distance[[i_center, self.medoids[j].get_center() as usize]];
                 if d < dmin {
-                    println!(" too near medoid centers (i,j) : ({}, {}) , dist = {:.2e}", i , j, d);
+                    log::info!(" too near medoid centers (i,j) : ({}, {}) , dist = {:.2e}", i , j, d);
                     dmin = d;
                     couple_opt = Some((i,j));
                 }
@@ -633,16 +634,8 @@ impl Kmedoid {
         let mut rng = rand::thread_rng();
         let unif = rand::distributions::Uniform::new(0.,1.);
         //
-        let m1_medoid = &medoids[m1];
-        let m2_medoid = &medoids[m2];
         //
         let changed : usize;
-/*         if m1_medoid.get_cost() > m2_medoid.get_cost() {
-            changed = m1;
-        }
-        else {
-            changed = m2;
-        } */
         if rng.sample(unif) < 0.5 {
             changed = m1;
         }
