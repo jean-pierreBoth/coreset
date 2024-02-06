@@ -1,11 +1,11 @@
 # coreset
 
 ## Introduction 
-This crate is devoted to clustering approximation of large number data of points.  
+This crate is devoted to clustering approximation, in metric spaces, of large number data of points.  
 Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
 
-The method relies on obtaining a coreset for the metric used in the problem. A coreset is a summary of a much smaller number of points.
-The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to every subset of k points.
+The method relies on obtaining a coreset for the metric used in the problem.  
+A coreset is a summary of a much smaller number of points. The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to every subset of k points.  
 It is thus possible to get an approximate clustering.
 
 ## References to implemented algorithms
@@ -22,10 +22,11 @@ It is thus possible to get an approximate clustering.
                 Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011 
                 [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 
-3. After obtaining the coreset we need an algorithm to provide a k-median on weighted data points and check quality of the approximating coreset. We implemented the very simple algorithm: 
-    - Friedman Hastie Tibshirani The elements of statistical learning 2001
+3. After obtaining the coreset we need an algorithm to provide a k-medoid on weighted data points and check quality of the approximating coreset. We implemented the very simple algorithm (cited in Friedman Hastie Tibshirani **The elements of statistical learning 2001**, Kmedoids paragraph 14.3.10) with the following adaptations:
 
-    using a greedy initialization like PAM-BUILD and first try to randomize cluster pairs too near of each other.
+    - using a greedy initialization like PAM-BUILD
+    - takes into accound points weights,
+    - random parturbation of cluster pairs with centroids too near of each other.
 
 4. We also implemented 
    -  Facility Location in sublinear time.   
