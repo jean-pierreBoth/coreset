@@ -105,7 +105,7 @@ pub fn dispatch_images<Dist>(c_centers : &Vec<Vec<f32>>, distance : &Dist, image
     cost
 }
 
-
+#[allow(unused)]
 // call kmedoids to compare
 fn kmedoids_reference<Dist>(images : &Vec<Vec<f32>>, _labels : &Vec<u8>, nbcluster : usize, distance : &Dist) 
             where Dist : Distance<f32> + Send + Sync     {
@@ -194,7 +194,7 @@ pub fn coreset1<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParam
             let dispatch_error = dispatch_images(&centers, &distance, &images);
             log::info!(" original data dispatching error : {:.3e}", dispatch_error);
             // we try to do a direct median clustering with kmedoid crate
-            kmedoids_reference(images, _labels, nb_cluster, &distance);
+//            kmedoids_reference(images, _labels, nb_cluster, &distance);
         }
 
         "hnsw_rs::dist::DistL2" => {

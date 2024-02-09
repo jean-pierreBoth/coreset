@@ -5,7 +5,7 @@ This crate is devoted to clustering approximation, in metric spaces, of large nu
 Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
-A coreset is a summary of a much smaller number of points. The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to every subset of k points.  
+A coreset is a sampled summary of a much smaller number of points. The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
 It is thus possible to get an approximate clustering.
 
 ## References to implemented algorithms
@@ -51,7 +51,7 @@ The computation times, in seconds, given are system time elapsed and total cpu t
 
 #### Results for coreset construction + basic weighted medoid  (L1 distance) 
 
-The fraction for data subsampling was set 0.11. We asked 10 clusters.
+The size of the coreset was set 0.11 * the number of data points. We asked 10 clusters.
 
 
 We give the me cost of clustering the coreset and the cost of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
