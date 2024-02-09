@@ -61,7 +61,7 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     // if beta increases , upper bound on cost increases faster so the number of phases decreases
     let beta = 2.;
     let gamma = 2.;
-    let mut bmor_algo: Bmor<f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance);
+    let mut bmor_algo: Bmor<usize, f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance);
     //
     let ids = (0..images.len()).into_iter().collect::<Vec<usize>>();
     let res = bmor_algo.process_data(images, &ids);

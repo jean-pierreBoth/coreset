@@ -128,7 +128,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
     /// construct centers (facilities) for a given distance and returns allocated facilities (or centers)
     /// The parameter alfa drives the number of facilities created.
-    pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist>
+    pub fn construct_centers(&self, alfa : f32) -> Facilities<usize, T, Dist>
          where Dist : Send + Sync + Clone {
         // get scales
         let q_dist = get_neighborhood_size(1_000_000, self.data, &self.distance);
@@ -136,7 +136,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
         let threshold = q_dist.query(0.999).unwrap().1;
         log::info!("dist medi : {:.3e}",threshold);
         //
-        let mut facilities: Facilities<T, Dist> = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
+        let mut facilities: Facilities<usize, T, Dist> = Facilities::<usize, T, Dist>::new(self.j as usize, self.distance.clone());
         // estimate radii in //
         let value_to_match = alfa * threshold;
         let mut radii : Vec<(usize,f32)> = (0..self.nb_data).into_par_iter().map(|i| self.estimate_ball_cardinal((i, &self.data[i]), value_to_match)).collect();
@@ -164,7 +164,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T>> MettuPlaxton<'b,T, Dist> {
 
 
 
-    pub fn compute_distances(&self, facilities : &Facilities<T,Dist>, data : &Vec<Vec<T>>)
+    pub fn compute_distances(&self, facilities : &Facilities<usize, T,Dist>, data : &Vec<Vec<T>>)
     where Dist : Send + Sync {
         //
         facilities.cross_distances();
@@ -333,7 +333,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     // TODO: to made //
     // alfa is a coefficient to modulate number of facilities created. 0.5 seems a good guess.
     // increasing alfa reduce the number of facilities and reducing alfa makes facility creation easier.
-    fn compute_balls_at_value(&self, alfa  : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<T, Dist> {
+    fn compute_balls_at_value(&self, alfa  : f32, dists : &Vec<RwLock<Vec<f32>>>) -> Facilities<usize, T, Dist> {
         //
         log::debug!("in WeightedMettuPlaxton::compute_balls_at_value");
         // for each point compute ball around it of given value
@@ -342,7 +342,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
         // sort by increasing radius (step 2 of algo)
         radii.sort_unstable_by(|a,b| a.1.partial_cmp(&b.1).unwrap());
         // radii[4] corresponds to point of original index radii[4].0 and so distance to its neighbours are given by dists[radii[4].0]
-        let mut facilities: Facilities<T, Dist> = Facilities::<T, Dist>::new(self.j as usize, self.distance.clone());
+        let mut facilities: Facilities<usize, T, Dist> = Facilities::<usize, T, Dist>::new(self.j as usize, self.distance.clone());
         // we can do step 3 and 4 of algo 2.1
         for p in radii.iter() {
             let matched = facilities.match_point(&self.data[p.0],  2. * p.1, &self.distance);
@@ -363,7 +363,7 @@ impl <'b, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync + Clone> WeightedM
     /// alfa = 0.5 is a good value.  
     /// To reduce number of facilities produced increase alfa and inversely
     /// reducing alfa increase the number of facilities 
-    pub fn construct_centers(&self, alfa : f32) -> Facilities<T, Dist> {
+    pub fn construct_centers(&self, alfa : f32) -> Facilities<usize, T, Dist> {
         //
         log::info!("in WeightedMettuPlaxton::construct_centers alfa : {:.3e}", alfa);
         //

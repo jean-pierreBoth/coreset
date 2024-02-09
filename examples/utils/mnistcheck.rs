@@ -43,7 +43,7 @@ impl MnistParams {
 
 #[allow(unused)]
 // computes sum of distance  of coreset points to nearest cluster centers
-pub fn dispatch_coreset<Dist>(coreset : &CoreSet<f32, Dist>,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 
+pub fn dispatch_coreset<Dist>(coreset : &CoreSet<DataId, f32, Dist>,  c_centers : &Vec<Vec<f32>>, distance : &Dist, images : &Vec<Vec<f32>>) -> f64 
     where Dist : Distance<f32> + Send + Sync + Clone {
     //
     let mut error : f64 = 0.;

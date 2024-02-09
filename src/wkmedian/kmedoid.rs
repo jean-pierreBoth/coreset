@@ -36,27 +36,28 @@ struct MemberDist(Vec<(u32, f32)>);
 
 
 #[derive(Copy, Clone)]
-pub struct Medoid {
+pub struct Medoid<DataId> {
     /// id as given by coreset
-    center_id : usize,
+    center_id : DataId,
     /// rank of points in ids of points as given in struct Coreset
     center : u32,
     /// cost of thi cluster
     cost : f32,
 }
 
-impl Medoid {
+impl <DataId> Medoid<DataId>  
+        where DataId:Default + Clone {
     //
     fn default() -> Self {
-        Medoid{center_id : usize::MAX, center : u32::MAX, cost : f32::MAX}
+        Medoid{center_id : DataId::default(), center : u32::MAX, cost : f32::MAX}
     }
 
-    fn new(id : usize, center : u32, cost : f32) -> Self {
+    fn new(id : DataId, center : u32, cost : f32) -> Self {
         Medoid{center_id : id, center, cost}
     }
 
-    pub fn get_center_id(&self) -> usize {
-        self.center_id
+    pub fn get_center_id(&self) -> DataId {
+        self.center_id.clone()
     }
 
     /// get center (rank)
@@ -76,11 +77,11 @@ impl Medoid {
 
 //TODO: add field from id to rank
 /// This algorithm stores the whole matrix distance between points as coreset must have reduced the number of points to a few thousands.
-pub struct Kmedoid {
+pub struct Kmedoid<DataId> {
     //
     nb_cluster : usize,
     // orginal ids of data by line of matrix
-    ids : Vec<usize>,
+    ids : Vec<DataId>,
     // distance matrix
     distance : Array2<f32>, 
     // weights of points in coreset in order corresponding to lines of distance matrix
@@ -88,17 +89,16 @@ pub struct Kmedoid {
     // current affectation of each coreset point. For each point returns rank in medoids array.
     membership : Vec<u32>,
     // medoid : a Vector containing the nb_cluster medoid
-    medoids : Vec<Medoid>,
+    medoids : Vec<Medoid<DataId>>,
     //
     d_quantiles : CKMS<f32>,
-    //
-    dispatching_weights : Vec<f64>
 } // end of struct Kmedoid
 
 
-impl Kmedoid {
+impl <DataId> Kmedoid<DataId> 
+    where DataId : Eq + std::hash::Hash + Send + Sync + Clone + Default {
 
-    pub fn new<T, Dist>(coreset : &CoreSet<T, Dist>, nb_cluster : usize) -> Self 
+    pub fn new<T, Dist>(coreset : &CoreSet<DataId, T, Dist>, nb_cluster : usize) -> Self 
             where    T : Send + Sync + Clone,
                   Dist : Distance<T> + Send + Sync + Clone  {
         //
@@ -112,7 +112,7 @@ impl Kmedoid {
         // weight[i] corresponds to row[i] in distance matrix. From now on all computation use center as raks and no ids.
         let mut weights = Vec::<f64>::with_capacity(nbpoints);
         for i in 0..ids.len() {
-            let weight = coreset.get_weight(ids[i]).unwrap();
+            let weight = coreset.get_weight(ids[i].clone()).unwrap();
             weights.push(weight);
         }
         //
@@ -121,9 +121,8 @@ impl Kmedoid {
         let membership= (0..nbpoints).into_iter().map(|_| u32::MAX).collect();
         let medoids = (0..nb_cluster).into_iter().map(|_| Medoid::default()).collect();
         //
-        let dispatching_weights = Vec::<f64>::new();
         //
-        return Kmedoid{nb_cluster, ids, distance, weights, membership, medoids, d_quantiles : CKMS::<f32>::new(0.01), dispatching_weights}
+        return Kmedoid{nb_cluster, ids, distance, weights, membership, medoids, d_quantiles : CKMS::<f32>::new(0.01)}
     } // end of new 
 
 
@@ -135,9 +134,6 @@ impl Kmedoid {
         //
         log::info!("\n\nentering Kmedoid::Kmedoid");
         log::info!("==============================");
-        for i in 0..self.weights.len() {
-            self.dispatching_weights.push(self.weights[i]);
-        }
         self.d_quantiles = self.quantile_estimator();
         log::info!("======kmedoids  quantiles done sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         let cpu_start = ProcessTime::now();
@@ -148,8 +144,8 @@ impl Kmedoid {
         let mut centers = self.max_cost_init();     // select nb_cluster different points
         log::info!("======kmedoids  center init done sys time(ms) {:?} cpu time(ms) {:?}\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis()); 
         //
-        let mut medoids : Vec<Medoid> = centers.iter()
-                        .map(|i| Medoid::new(self.ids[*i as usize], *i,f32::MAX))
+        let mut medoids : Vec<Medoid<DataId> > = centers.iter()
+                        .map(|i| Medoid::new(self.ids[*i as usize].clone(), *i,f32::MAX))
                         .collect();
         self.medoids = medoids.clone();     
         //
@@ -195,7 +191,7 @@ impl Kmedoid {
                 if res.is_some() {
                     let couple = res.unwrap();
                     for i in 0..medoids.len() {
-                        medoids[i] = self.medoids[i];
+                        medoids[i] = self.medoids[i].clone();
                     }
                     perturbation = self.center_perturbation(couple, &mut medoids);
                     if perturbation {
@@ -253,7 +249,7 @@ impl Kmedoid {
         for i in 0..self.medoids.len()  {
             // we do not update center_id we do not use it, we update only at end
             self.medoids[i].center = centers_and_costs.0[i].0 as u32;
-            self.medoids[i].center_id = self.ids[centers_and_costs.0[i].0];
+            self.medoids[i].center_id = self.ids[centers_and_costs.0[i].0].clone();
             self.medoids[i].cost = centers_and_costs.0[i].1;
         }
         for i in 0..membership_and_dist.0.len() {
@@ -262,7 +258,7 @@ impl Kmedoid {
     } // end of store_state
 
 
-    pub  fn get_clusters(&self) -> &Vec<Medoid> {
+    pub  fn get_clusters(&self) -> &Vec<Medoid<DataId>> {
         &self.medoids
     }
 
@@ -588,16 +584,6 @@ impl Kmedoid {
         println!("\n weights quantiles at  0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
                 quantiles.query(0.01).unwrap().1,  quantiles.query(0.025).unwrap().1,  quantiles.query(0.05).unwrap().1,
                 quantiles.query(0.5).unwrap().1, quantiles.query(0.75).unwrap().1, quantiles.query(0.99).unwrap().1);
-        
-        let wlow = quantiles.query(0.25).unwrap().1;
-        let wupper = quantiles.query(0.75).unwrap().1;
-        let wmedian = quantiles.query(0.5).unwrap().1;
-
-        self.dispatching_weights.clear();
-        for i in 0..self.weights.len() {
-            self.dispatching_weights.push(self.weights[i].max(wlow).min(wupper) / wmedian);
-        //    self.dispatching_weights.push(self.weights[i]);
-        }
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(2833);
         let nbrow = self.distance.nrows();
@@ -627,7 +613,7 @@ impl Kmedoid {
 
     // perturbation of centers of medoids i and j , call dispatch_to_medoids and return new assignment
     // centers i and j are chosen are abnormally close
-    fn center_perturbation(&mut self, (m1,m2): (usize, usize), medoids : &mut Vec<Medoid>) -> bool{
+    fn center_perturbation(&mut self, (m1,m2): (usize, usize), medoids : &mut Vec<Medoid<DataId>>) -> bool{
         //
         log::info!("in center_perturbation m1 = {}  m2 = {}", m1, m2);
         //

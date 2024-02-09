@@ -34,7 +34,7 @@ use crate::facility::*;
 /// This structure stores the state of Bmor algorithm through iterations.
 /// In particular it stores allocated facilities.
 #[derive(Clone)]
-pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
+pub struct BmorState<DataId, T:Send+Sync+Clone, Dist : Distance<T> > {
     // (1+logn)k
     oneplogn : usize,
     // nb iterations (phases)
@@ -46,7 +46,7 @@ pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
     // upper bound on number of facilities
     facility_bound : usize, 
     // current centers, associated to rank in stream (or in data) and weight (nb points in facility)
-    centers : Facilities<T, Dist>,
+    centers : Facilities<DataId, T, Dist>,
     // sum of absolute value (some algos have <0 weights) of inserted weight
     absolute_weight : f64,
     // total cost
@@ -60,10 +60,10 @@ pub struct BmorState<T:Send+Sync+Clone, Dist : Distance<T> > {
 } // end of 
 
 
-impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, Dist> {
+impl<DataId : std::fmt::Debug + Clone + Send + Sync, T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<DataId, T, Dist> {
 
     pub(crate) fn new(k : usize, nbdata : usize, phase : usize, alloc_size : usize, upper_cost : f64, facility_bound : usize, distance : Dist) -> Self {
-        let centers = Facilities::<T, Dist>::new(alloc_size, distance);
+        let centers = Facilities::<DataId, T, Dist>::new(alloc_size, distance);
         let unif = Uniform::<f64>::new(0., 1.);
         let rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
         let oneplogn = (1 + nbdata.ilog2()) as usize * k;
@@ -75,12 +75,12 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
     }
 
     /// returns facilities as computed by the algorithm
-    pub fn get_facilities(&self) -> &Facilities<T, Dist> {
+    pub fn get_facilities(&self) -> &Facilities<DataId, T, Dist> {
         return &self.centers
     }
 
     /// returns a mutable reference to facilities (useful for calling [dispatch_labesl](crate::facility::Facilities::dispatch_data())).
-    pub fn get_mut_facilities(&mut self) -> &mut Facilities<T, Dist> {
+    pub fn get_mut_facilities(&mut self) -> &mut Facilities<DataId, T, Dist> {
         return &mut self.centers
     }
 
@@ -125,7 +125,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
     }    
 
     /// get nearest center/facility of a point, its rank and distance to facility
-    pub fn get_nearest_center(&self, point : &[T]) -> Option<(&Arc<RwLock<Facility<T>>>, usize, f32) >
+    pub fn get_nearest_center(&self, point : &[T]) -> Option<(&Arc<RwLock<Facility<DataId, T>>>, usize, f32) >
         where T : Send + Sync,  Dist : Sync {
         //
         let nb_facility = self.centers.len();
@@ -142,12 +142,12 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
 
     /// insert into an already existing facility
     /// return true if all is OK, false if costs or number of facilities got too large
-    fn update(&mut self, rank_id : usize, point : &[T], weight : f64) -> bool {
+    fn update(&mut self, rank_id : DataId, point : &[T], weight : f64) -> bool {
         //
         log::trace!("in BmorState::update rank_id: {:?}", rank_id);
         //
         let dist_to_nearest : f32;
-        let nearest_facility : Arc<RwLock<Facility<T>>>;
+        let nearest_facility : Arc<RwLock<Facility<DataId, T>>>;
         {
             let nearest_facility_res = self.get_nearest_center(point);
             if nearest_facility_res.is_none() {
@@ -161,7 +161,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
         // take into account f factor
         if self.get_unif_sample() < (weight * dist_to_nearest as f64 * self.oneplogn as f64 / self.li) {
             // we create a new facility. No cost increment
-            let mut new_f = Facility::<T>::new(rank_id, point);
+            let mut new_f = Facility::<DataId, T>::new(rank_id, point);
             new_f.insert(weight as f64,0.);
             self.centers.insert(new_f);
             // log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
@@ -230,7 +230,7 @@ impl<T:Send+Sync+Clone, Dist : Distance<T> + Clone + Sync + Send> BmorState<T, D
 ///   
 /// 
 /// $\beta$ and $\gamma$ can be initialized by 2.
-pub struct Bmor<T:Send+Sync+Clone, Dist : Distance<T> > {
+pub struct Bmor<DataId, T:Send+Sync+Clone, Dist : Distance<T> > {
     // base number of centers expected
     k : usize,
     //
@@ -242,15 +242,16 @@ pub struct Bmor<T:Send+Sync+Clone, Dist : Distance<T> > {
     //
     distance : Dist,
     // store computation state 
-    state : RefCell<BmorState<T,Dist>>,
+    state : RefCell<BmorState<DataId, T,Dist>>,
     //
     _t : PhantomData<T>,
 }  // end of struct Bmor
 
 
 
-impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist> 
-    where  Dist : Distance<T> + Clone + Sync + Send {
+impl <DataId, T : Send + Sync + Clone, Dist> Bmor<DataId, T, Dist> 
+    where     Dist : Distance<T> + Clone + Sync + Send,
+            DataId : std::fmt::Debug + Clone + Send + Sync {
 
     /// - k: number of centers.  
     /// - nbdata : nb data expected. As this algorithm can be used in streaming (successive calls to methods [process_data](Self::process_data()) or
@@ -263,7 +264,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         // TODO: to be adapted?
         let nb_centers_bound = ((gamma - 1.) * (1. + nbdata_expected.ilog2() as f64) * k as f64).trunc() as usize; 
         let upper_cost = gamma;
-        let state = BmorState::<T, Dist>::new(k, nbdata_expected, 0, nb_centers_bound as usize, 
+        let state = BmorState::<DataId, T, Dist>::new(k, nbdata_expected, 0, nb_centers_bound as usize, 
             upper_cost as f64, nb_centers_bound, distance.clone());
         //
         Bmor{k, nbdata_expected, beta, gamma, distance, state: RefCell::new(state),  _t : PhantomData::<T> }
@@ -282,9 +283,9 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
     /// id are data id (anything identifying data point)
-    pub fn process_data(&mut self, data : &[Vec<T>], id : &[usize]) -> anyhow::Result<usize> {
+    pub fn process_data(&mut self, data : &[Vec<T>], id : &[DataId]) -> anyhow::Result<usize> {
         //
-        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],id[i])).collect();
+        let weighted_data: Vec<(f64, &Vec<T>, DataId)> = (0..data.len()).into_iter().map( |i| (1.,&data[i],id[i].clone())).collect();
         self.process_weighted_block(&weighted_data);
         //
         let state = self.state.borrow();
@@ -301,7 +302,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// This method returns the facilities created.
     /// if contraction flag is set to true, a final pass of the bmor algorithm will be used to try to reduce the
     /// number of facilities created by previous call to [process_data](Self::process_data()) or [process_weighted_data](Self::process_weighted_data())
-    pub fn end_data(&self, contraction : bool) -> Facilities<T, Dist> {
+    pub fn end_data(&self, contraction : bool) -> Facilities<DataId, T, Dist> {
         let facilities = match contraction {
             false => {
                 let facilities_ret = self.state.borrow().get_facilities().clone();
@@ -331,8 +332,8 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     /// treat data with weights attached.
     /// **This method can be called many times in case of data streaming, passing data by blocks**.  
     /// It returns the number of facilities created up to this call.
-    /// a data trplet consists in a weight , data vector and data id given as a usize (anything identifying data point)
-    pub fn process_weighted_data(&self, weighted_data : &[(f64, &Vec<T>, usize)] ) -> anyhow::Result<usize>  {
+    /// a data trplet consists in a weight , data vector and data id  (anything identifying data point)
+    pub fn process_weighted_data(&self, weighted_data : &[(f64, &Vec<T>, DataId)] ) -> anyhow::Result<usize>  {
         //
         self.process_weighted_block(weighted_data);
         //
@@ -350,7 +351,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
     // We recur (once) to reduce number of facilities. To go from $1 + k * logn$ to $1 + k * log(log(n))$
     // (We tried to reduce with imp algo but not better)
-    pub(crate) fn bmor_contraction(&self) -> anyhow::Result<BmorState<T, Dist>> {
+    pub(crate) fn bmor_contraction(&self) -> anyhow::Result<BmorState<DataId, T, Dist>> {
         //
         log::info!("\n bmor recurring");
         // extract weighted data
@@ -360,7 +361,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         //
         log::info!("bmor_recur , nb facilities received : {:?}", facility_data.len());
         //
-        let weighted_data: Vec<(f64, &Vec<T>, usize)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1, i)).collect();
+        let weighted_data: Vec<(f64, &Vec<T>, DataId)> = (0..facility_data.len()).into_iter().map( |i| (facility_data[i].0,&facility_data[i].1, facility_data[i].2.clone())).collect();
         let _bound_2 = self.nbdata_expected.ilog2() as usize;
         // we could to adapt to number of facilities and we could impose a log reduction in input size for each step.
         // by bounding nb_expected_data with min(_bound_2)
@@ -368,7 +369,7 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
         let nb_expected_data = weighted_data.len();
         if self.state.borrow().get_nb_inserted() > self.k * (1 + nb_expected_data.ilog2() as usize) {
             log::debug!("reducing number of facilities: setting expected nb data : {:?}", nb_expected_data);
-            let bmor_algo_2 : Bmor<T, Dist> = Bmor::new(self.get_k(), nb_expected_data , self.get_beta(), self.get_gamma(), 
+            let bmor_algo_2 : Bmor<DataId, T, Dist> = Bmor::new(self.get_k(), nb_expected_data , self.get_beta(), self.get_gamma(), 
                                     self.distance.clone());
             //
             let res = bmor_algo_2.process_weighted_data(&weighted_data);
@@ -394,22 +395,22 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
     // This method is the real working method.
     // It inserts data, update state, and drive recurrence
     // args is a vecotr of triplets (weight, data, data_id) 
-    fn process_weighted_block(&self, data : &[(f64, &Vec<T>, usize)]) {
+    fn process_weighted_block(&self, data : &[(f64, &Vec<T>, DataId)]) {
         //
         log::debug!("entering process_weighted_block, phase : {:?}, nb data : {}", self.state.borrow().get_phase(), data.len());
         //
         for d in data {
             // TODO: now we use rank as rank_id (sufficicent for ordered ids)
             log::trace!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
-            let add_res = self.add_data(d.2, &d.1, d.0);
+            let add_res = self.add_data(d.2.clone(), &d.1, d.0);
             if !add_res {
                 // allocate new state
                 log::debug!("recycling facilities, incrementing upper bound for cost, nb_facilities : {:?}", self.state.borrow().get_facilities().len());
                 // recycle facilitites in process adding them
-                let weighted_data : Vec<(f64,Vec<T>, usize)>;
+                let weighted_data : Vec<(f64,Vec<T>, DataId)>;
                 weighted_data = self.state.borrow().centers.get_vec().iter().map(|f| (f.read().get_weight(), f.read().get_position().clone(), f.read().get_dataid())).collect();
                 assert!(weighted_data.len() > 0);
-                let weighted_ref_data : Vec<(f64,&Vec<T>, usize)> = weighted_data.iter().map(|wd| (wd.0, &wd.1, wd.2)  ).collect();
+                let weighted_ref_data : Vec<(f64,&Vec<T>, DataId)> = weighted_data.iter().map(|wd| (wd.0, &wd.1, wd.2.clone())  ).collect();
                 assert!(weighted_ref_data.len() > 0);
                 self.state.borrow_mut().reinit(self.beta);
                 self.process_weighted_block(&weighted_ref_data);
@@ -420,14 +421,14 @@ impl <T : Send + Sync + Clone, Dist> Bmor<T, Dist>
 
     // This function return true except if we got beyond bound for cost or number of facilities
     // The data added can be a facility extracted during a preceding phase
-    pub(crate) fn add_data(&self, rank_id : usize, data : &Vec<T>, weight : f64) -> bool {
+    pub(crate) fn add_data(&self, rank_id : DataId, data : &Vec<T>, weight : f64) -> bool {
         //
         let mut state = self.state.borrow_mut();
         let facilities = state.get_mut_facilities();
         // get nearest facility or open facility
         if facilities.len() <= 0 {
-            log::debug!("Bmor::add_data creating facility rank_id : {} with weight : {:.3e}", rank_id, weight);
-            let mut new_f = Facility::<T>::new(rank_id, data);
+            log::debug!("Bmor::add_data creating facility rank_id : {:?} with weight : {:.3e}", rank_id, weight);
+            let mut new_f = Facility::<DataId, T>::new(rank_id, data);
             new_f.insert(weight, 0.);
             facilities.insert(new_f);
             // we update global state here in facility creation case

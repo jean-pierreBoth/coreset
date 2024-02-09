@@ -19,13 +19,13 @@ use std::collections::HashMap;
 
 use hnsw_rs::dist::*;
 
-/// A facility is a center (or point in data) that correspond to a k medoid point.  
-/// The struture stores the data point which serve as a center, the sum of points weight 
+/// A facility is a dataid and the center (or point in data) that correspond to a k medoid point.  
+/// The struture stores the data vector and point id which serve as a center, the sum of points weight 
 /// attached to this point and the cost (distance between data points and center multiplied by point's weight)
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Facility<T: Send+Sync+Clone> {
+pub struct Facility<DataId, T: Send+Sync+Clone> {
     // rank in data
-    d_rank : usize,
+    d_rank : DataId,
     // facility location
     center : Vec<T>,
     // weight (how many points it represents)
@@ -37,14 +37,13 @@ pub struct Facility<T: Send+Sync+Clone> {
 
 
 
-impl<T: Send+Sync+Clone> Facility<T> {
+impl<DataId : std::fmt::Debug + Clone , T: Send+Sync+Clone> Facility<DataId,T> {
 
     /// creates a facility, around a point characteristics,
-    /// TODO: set its  rank as an option
     /// As the point could be different from data as in kmean we do not set weight.
     /// So an explicit insertion with method insert must be done when creation facility is 
     /// mean to also insert
-    pub fn new(d_rank : usize, center : &[T]) -> Self {
+    pub fn new(d_rank : DataId, center : &[T]) -> Self {
         Facility{d_rank,center : center.to_vec(), weight : 0. , cost : 0.}
     }
 
@@ -54,8 +53,8 @@ impl<T: Send+Sync+Clone> Facility<T> {
     }
 
     /// get data rank this facility is centered on
-    pub fn get_dataid(&self) -> usize {
-        self.d_rank
+    pub fn get_dataid(&self) -> DataId {
+        self.d_rank.clone()
     }
 
     /// return sum of points' weight dipatched to this center
@@ -83,7 +82,7 @@ impl<T: Send+Sync+Clone> Facility<T> {
 
     /// dumps weight, cost and ratio
     pub fn log(&self) {
-        log::info!("facility , d_rank : {:?}  weight : {:.4e},  cost : {:.3e}  cost/weight : {:.3e}", self.d_rank, self.weight, self.cost, self.cost/self.weight);
+        log::info!("facility , dataid : {:?}  weight : {:.4e},  cost : {:.3e}  cost/weight : {:.3e}", self.d_rank, self.weight, self.cost, self.cost/self.weight);
     }
 } // end of block Facility
 
@@ -134,10 +133,10 @@ impl PointMap {
 } // end of PointMap
 
 
-
+/// This structuree represents the list of facilities created
 #[derive(Clone)]
-pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
-    centers : Vec<Arc<RwLock<Facility<T>>>>,
+pub struct Facilities<DataId, T : Send+Sync+Clone, Dist : Distance<T> > {
+    centers : Vec<Arc<RwLock<Facility<DataId, T>>>>,
     //
     distance : Dist,
     // sum of weights dispatched into facilities
@@ -147,11 +146,11 @@ pub struct Facilities<T : Send+Sync+Clone, Dist : Distance<T> > {
 } // end of struct Facilities
 
 
-impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> {
+impl <DataId : std::fmt::Debug + Clone + Send + Sync, T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<DataId, T, Dist> {
 
     /// to be allocated , size should be log(nb_data)
     pub fn new(size : usize, distance : Dist) -> Self {
-        let centers = Vec::<Arc<RwLock<Facility<T>>>>::with_capacity(size);
+        let centers = Vec::<Arc<RwLock<Facility<DataId, T>>>>::with_capacity(size);
         Facilities{centers, distance, weight : 0., cost : 0.}
     }
 
@@ -169,7 +168,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
         &self.distance
     }
 
-
+    /// returns sum of costs dispatched into facilities.
     pub fn get_cost(&self) -> f64 {
         return self.centers.iter().map(|f| f.read().get_cost()).sum();
     }
@@ -184,6 +183,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     // keeps facilities but empty each of them. Enables new dispatching of points in facilities
+    // useful in coreset construction
     pub(crate) fn empty(&mut self) {
         log::debug!("emptying facilities");
         for f in &self.centers {
@@ -194,7 +194,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
     }
 
     // access to internal representation
-    pub(crate) fn get_vec(&self) -> &Vec<Arc<RwLock<Facility<T>>>> {
+    pub(crate) fn get_vec(&self) -> &Vec<Arc<RwLock<Facility<DataId, T>>>> {
         &self.centers
     }
 
@@ -212,7 +212,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     /// insert a new facility
-    pub(crate) fn insert(&mut self, facility : Facility<T>) {
+    pub(crate) fn insert(&mut self, facility : Facility<DataId, T>) {
         self.centers.push(Arc::new(RwLock::new(facility)));
         //
         log::trace!("Facilities: facility insertion nb facilities : {}", self.centers.len());
@@ -220,7 +220,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     /// retrieve facility by rank if rank is Ok
-    pub fn get_facility(&self, rank : usize) -> Option<&Arc<RwLock<Facility<T>>>> {
+    pub fn get_facility(&self, rank : usize) -> Option<&Arc<RwLock<Facility<DataId, T>>>> {
         if rank >= self.centers.len() {
             return None;
         }
@@ -231,7 +231,7 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
     /// retrieve facility of given rank , and returns a clone (to avoid synchro stuff)
     /// useful for easy final analysis
-    pub fn get_cloned_facility(&self, rank : usize) -> Option<Facility<T>> {
+    pub fn get_cloned_facility(&self, rank : usize) -> Option<Facility<DataId, T>> {
         if rank >= self.centers.len() {
             return None;
         }
@@ -489,37 +489,23 @@ impl <T:Send+Sync+Clone, Dist : Distance<T> + Send + Sync > Facilities<T, Dist> 
 
 
     /// extract facility centers and associated weight for possible other clustering step
-    pub fn into_weighted_data(&self) -> Vec<(f64, Vec<T>)> {
+    pub fn into_weighted_data(&self) -> Vec<(f64, Vec<T>, DataId)> {
         log::info!("facility::into_weighted_data");
         //
         let nb_facility = self.len();
-        let mut weighted_data = Vec::<(f64, Vec<T>)>::with_capacity(nb_facility);
+        let mut weighted_data = Vec::<(f64, Vec<T>, DataId)>::with_capacity(nb_facility);
         for i in 0..nb_facility {
             let facility = self.get_facility(i).unwrap().read();
             let weight = facility.get_weight();
             let pos = facility.get_position();
-            weighted_data.push((weight, pos.clone()));
+            let id: DataId = facility.get_dataid();
+            weighted_data.push((weight, pos.clone(), id.clone()));
         }
         weighted_data
     } // end of into_weighted_data
 
 
-    /// returns weights as a Vec\<f32\> and data. Same as [into_weighted_data](Self::into_weighted_data()) but in another format
-    pub fn get_weights_and_data(&self) -> (Vec<f32>, Vec<Vec<T>>) {
-        let nb_facility = self.len();
-        let mut data = Vec::<Vec<T>>::with_capacity(nb_facility);
-        let mut weights = Vec::<f32>::with_capacity(nb_facility);
-        for i in 0..nb_facility {
-            let facility = self.get_facility(i).unwrap().read();
-            weights.push(facility.get_weight() as f32);
-            let pos = facility.get_position();
-            data.push(pos.clone());
-        }
-        (weights, data)       
-    }
 
-
-        // TODO: useful?
     /// computes distances between facility
     pub fn cross_distances(&self) {
         let nb_facility = self.centers.len();
