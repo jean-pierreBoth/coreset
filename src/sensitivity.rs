@@ -224,7 +224,7 @@ impl <DataId, T:Send+Sync+Clone, Dist> Coreset1<DataId, T, Dist>
     /// So the fraction should be set to a value slightly superior to the one desired.  
     /// A value of 0.11 is a good initial guess to get a fraction of 0.1
     pub fn make_coreset<IterGenerator>(&mut self, iter_generator : &IterGenerator, fraction : f64) ->  anyhow::Result<CoreSet<DataId, T,Dist>> 
-        where IterGenerator : IterProvider<DataType = (DataId, Vec<T>)> ,
+        where IterGenerator : IterProvider<DataId=DataId, DataType=Vec<T>> ,
               DataId : Eq + Hash + std::fmt::Debug + Send + Sync {
         //
         let cpu_start = ProcessTime::now();
@@ -268,7 +268,7 @@ impl <DataId, T:Send+Sync+Clone, Dist> Coreset1<DataId, T, Dist>
     // we need to retrieve the data vector corresponding to the id of coreset points
     // Careful , the data are stored in the order they are found by iter_generator and not in the order of the HashMap
     fn retrieve_corepoints_by_id<IterGenerator>(&self, id_weight_map : &HashMap<DataId, f64>, iter_generator : &IterGenerator) -> Vec<(DataId, Vec<T>)>
-                where IterGenerator : IterProvider<DataType = (DataId, Vec<T>)> ,
+                where IterGenerator : IterProvider<DataId=DataId, DataType =Vec<T>> ,
                     DataId : Eq + Hash + std::fmt::Debug {
         //
         let mut iter = iter_generator.makeiter();

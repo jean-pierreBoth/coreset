@@ -5,8 +5,8 @@ This crate is devoted to clustering approximation, in metric spaces, of large nu
 Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
-A coreset is a sampled summary of a much smaller number of points. The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
-It is thus possible to get an approximate clustering.
+A k-coreset is a sampled summary of a much smaller number of points *k*. The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
+It is thus possible to get an approximate clustering of the whole data from the coreset.
 
 ## References to implemented algorithms
 
@@ -90,8 +90,10 @@ The algorithm needs to make more than one pass on the data, so the algorithm tak
 an iterator on the data when needed. (Typically the structure could provide file Io to each data).  
 An example is found for mnist data (Cf *module utils::mnistiter*).  
 
-The implementation will do the buffering and parallelization.
-
+The implementation does the buffering and parallelization internally.
+The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed sperately with
+corresponding modules.  
+The distances are provided by the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
 
 ## License
 

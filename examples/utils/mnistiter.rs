@@ -58,7 +58,8 @@ impl <'a> IteratorProducer<'a> {
 
 
 impl <'a> IterProvider for IteratorProducer<'a> {
-    type DataType = (usize, Vec<f32>);
+    type DataId = usize;
+    type DataType = Vec<f32>;
     //
     fn makeiter(&self) -> DataIterator<'a> {
         let iterator = DataIterator::new(self.images);

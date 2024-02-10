@@ -16,6 +16,7 @@ pub mod discrete;
 pub mod iterprovider;
 
 pub mod wkmedian;
+pub mod clustercore;
 
 
 
