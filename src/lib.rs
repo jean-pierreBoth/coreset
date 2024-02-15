@@ -1,24 +1,18 @@
-
-
-
 use lazy_static::lazy_static;
-
 
 pub mod prelude;
 
-mod scale;
+pub mod bmor;
 pub mod facility;
 pub mod imp;
-pub mod bmor;
+mod scale;
 pub mod sensitivity;
 
 pub mod discrete;
 pub mod iterprovider;
 
-pub mod wkmedian;
 pub mod clustercore;
-
-
+pub mod wkmedian;
 
 lazy_static! {
     static ref LOG: u64 = {
@@ -30,7 +24,7 @@ lazy_static! {
 // install a logger facility
 fn init_log() -> u64 {
     let _res = env_logger::try_init();
-    println!("\n ************** initializing logger *****************\n");    
+    println!("\n ************** initializing logger *****************\n");
     return 1;
 }
 
@@ -41,4 +35,4 @@ mod tests {
     fn init_log() {
         let _res = env_logger::try_init();
     }
-}  // end of tests
+} // end of tests

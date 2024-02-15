@@ -10,7 +10,7 @@ pub use crate::sensitivity::*;
 
 pub use crate::wkmedian::*;
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub enum Algo {
     IMP,
     BMOR,
