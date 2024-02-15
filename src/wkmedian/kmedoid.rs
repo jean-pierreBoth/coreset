@@ -26,6 +26,7 @@ use quantiles::ckms::CKMS;     // we could use also greenwald_khanna
 
 use hnsw_rs::dist::*;
 
+use crate::iterprovider::*;
 use crate::sensitivity::*;
 
 // maintain center and cost of each cluster
@@ -77,10 +78,10 @@ impl <DataId> Medoid<DataId>
 
 //TODO: add field from id to rank
 /// This algorithm stores the whole matrix distance between points as coreset must have reduced the number of points to a few thousands.
-pub struct Kmedoid<DataId> {
+pub struct Kmedoid<DataId, T> {
     //
     nb_cluster : usize,
-    // orginal ids of data by line of matrix
+    // orginal ids of data to cluster i.e those in the coreset (!!) by line of matrix
     ids : Vec<DataId>,
     // distance matrix
     distance : Array2<f32>, 
@@ -90,17 +91,21 @@ pub struct Kmedoid<DataId> {
     membership : Vec<u32>,
     // medoid : a Vector containing the nb_cluster medoid
     medoids : Vec<Medoid<DataId>>,
+    // at end end of computations we keep just the data of the Medoid centers.
+    // It is not stored in each medoid for dispatching computing efficacitty
+    // Storing is in the same order as in field medoids!! 
+    centers : Option<Vec<Vec<T>>>, 
     //
     d_quantiles : CKMS<f32>,
 } // end of struct Kmedoid
 
 
-impl <DataId> Kmedoid<DataId> 
-    where DataId : Eq + std::hash::Hash + Send + Sync + Clone + Default {
+impl <DataId, T> Kmedoid<DataId, T> 
+    where DataId : Eq + std::hash::Hash + Send + Sync + Clone + Default,
+               T : Send + Sync + Clone {
 
-    pub fn new<T, Dist>(coreset : &CoreSet<DataId, T, Dist>, nb_cluster : usize) -> Self 
-            where    T : Send + Sync + Clone,
-                  Dist : Distance<T> + Send + Sync + Clone  {
+    pub fn new<Dist>(coreset : &CoreSet<DataId, T, Dist>, nb_cluster : usize) -> Self 
+            where  Dist : Distance<T> + Send + Sync + Clone  {
         //
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
@@ -122,7 +127,7 @@ impl <DataId> Kmedoid<DataId>
         let medoids = (0..nb_cluster).into_iter().map(|_| Medoid::default()).collect();
         //
         //
-        return Kmedoid{nb_cluster, ids, distance, weights, membership, medoids, d_quantiles : CKMS::<f32>::new(0.01)}
+        return Kmedoid{nb_cluster, ids, distance, weights, membership, medoids, centers : None, d_quantiles : CKMS::<f32>::new(0.01)}
     } // end of new 
 
 
@@ -242,6 +247,41 @@ impl <DataId> Kmedoid<DataId>
 
 
 
+    /// stores data vectors for each cluster
+    pub(crate) fn retrieve_cluster_centers<IterProducer> (& mut self, iter_producer : &IterProducer)
+        where IterProducer : IterProvider<DataId = DataId, DataType = Vec<T>> {
+        //
+        // get a list of ids to find, then scan data
+        //
+        if self.centers.is_some() {
+            log::error!("Kmedoid::retrieve_cluster_centers : centers have already been retrived");
+            return;
+        }
+        let mut data_iter = iter_producer.makeiter();
+        let centers_ids : Vec<DataId> = self.medoids.iter().map(|m| m.get_center_id()).collect();
+        let mut centers_data = vec![Vec::<T>::new(); centers_ids.len()];
+        //
+        let mut nb_found = 0;
+        while let Some((data_id, data)) = data_iter.next() {
+            for i in 0..centers_ids.len() {
+                if centers_ids[i] == data_id {
+                    centers_data[i] = data;
+                    nb_found += 1;
+                    break;
+                }
+            }
+            if nb_found == centers_ids.len() {
+                break;
+            }
+        } // end on data 
+        //
+        assert!(nb_found == centers_ids.len());
+        //
+        self.centers = Some(centers_data);
+    } // end of 
+
+
+
     fn store_state(&mut self,  centers_and_costs: &CenterCost, membership_and_dist : &MemberDist) {
         //
         assert_eq!(centers_and_costs.0.len(), self.medoids.len() );
@@ -261,6 +301,33 @@ impl <DataId> Kmedoid<DataId>
     pub  fn get_clusters(&self) -> &Vec<Medoid<DataId>> {
         &self.medoids
     }
+
+    /// returns a reference to center of Medoid of rank if centers have already been calculated, None otherwise.
+    /// Aborts rank above len
+    pub fn get_cluster_center(&self, rank : usize) -> Option<&Vec<T>> {
+        match &self.centers  {
+            Some(centers) => {
+                if rank < centers.len() {
+                    Some(&centers[rank])
+                }
+                else {
+                    log::error!("Kmedois::get_cluster_center rank asked exceeds len, nb cluster is : {}", centers.len());
+                    std::panic!();
+                }
+            }
+            None => { 
+                log::error!("Kmedois::get_cluster_center centers not computed yet");
+                None
+            }
+        }
+    } // end of get_cluster_center
+
+
+    /// returns centers. Used for dispatching whole data à posteriori
+    pub(crate) fn get_centers(&self) -> Option<&Vec<Vec<T>> > {
+        self.centers.as_ref()
+    } // end of get_centers
+
 
     /// return number of points (to cluster)
     pub fn get_size(&self) -> usize {

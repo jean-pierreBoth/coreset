@@ -1,5 +1,5 @@
 //! This module provides a simple user interface for clustering data via a coreset.  
-//! The data must be accessed via an iterator see [iterprovider]
+//! The data must be accessed via an iterator see [iterprovider](super::iterprovider).  
 //! It chains the bmor and algorithms and  ends with a pass dispatching all data
 //! to their nearest cluster deduced from the coreset clustering, recomputing global
 //! cost and storing membership
@@ -12,8 +12,11 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use dashmap::DashMap;
 
+use rayon::iter::{ParallelIterator,IntoParallelIterator};
+
 use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
+use num_cpus;
 
 use hnsw_rs::dist::*;
 
@@ -42,7 +45,7 @@ impl Default for BmorArg {
 
 //==================================================================
 
-pub struct ClusterCoreset<DataId :  std::fmt::Debug + Eq+ std::hash::Hash + Clone + Send + Sync> {
+pub struct ClusterCoreset<DataId :  std::fmt::Debug + Eq+ std::hash::Hash + Clone + Send + Sync, T> {
     ///
     nb_cluster : usize,
     /// fraction of data to keep in coreset
@@ -50,23 +53,26 @@ pub struct ClusterCoreset<DataId :  std::fmt::Debug + Eq+ std::hash::Hash + Clon
     ///
     bmor_arg: BmorArg,
     /// To store kmedoid result
-    kmedoids : Option<Kmedoid<DataId>>, 
+    kmedoids : Option<Kmedoid<DataId, T>>, 
     /// associate each DataId to its medoid rank (computed by function )
     ids_to_cluster : Option<HashMap<DataId, usize >>,
     //
 }
 
-impl <DataId> ClusterCoreset<DataId>                    
-    where DataId : std::fmt::Debug + Default + Eq + Hash + Send + Sync + Clone
-{
+impl <DataId, T> ClusterCoreset<DataId, T>                    
+    where DataId : std::fmt::Debug + Default + Eq + Hash + Send + Sync + Clone,
+               T : Clone + Send + Sync {
 
     pub fn new(nb_cluster : usize, fraction : f64, bmor_arg : BmorArg) -> Self {
         ClusterCoreset{nb_cluster, fraction, bmor_arg, kmedoids : None, ids_to_cluster : None}
     }
 
-    pub fn compute<T, Dist, IterProducer>(&self, distance : Dist, iter_producer : IterProducer) 
-            where T : Send + Sync + Clone,
-                Dist : Distance<T> + Send + Sync + Clone,
+    /// computes coreset and kmedoid clustering.  
+    /// Just the DataId of the center are stored in kmedoid structure, not the Data vector to spare memory.  
+    /// To extract the data vectors, call [dispatch](Self::dispatch()) which retrive the data vectors and computes the clustering cost with respect to the whole data.
+    /// It needs one more pass on the data.
+    pub fn compute<Dist, IterProducer>(&self, distance : Dist, iter_producer : IterProducer) 
+            where Dist : Distance<T> + Send + Sync + Clone,
                 IterProducer : IterProvider<DataId = DataId, DataType = Vec<T>>  {
         //
         let cpu_start = ProcessTime::now();
@@ -103,56 +109,81 @@ impl <DataId> ClusterCoreset<DataId>
 
 
 
-    fn dispatch<T, Dist, IterProducer>(&mut self, kmedoid : &Kmedoid<DataId>, iter_producer : &IterProducer) 
+    /// Once you have Kmedoid, you can compute the clustering cost for the whole data, not just the coreset.  
+    pub fn dispatch<Dist, IterProducer>(&mut self, kmedoid : &mut Kmedoid<DataId, T>, distance : &Dist, iter_producer : &IterProducer, retrieve_centers : bool) 
                 where T : Send + Sync + Clone,
                 Dist : Distance<T> + Send + Sync + Clone,
                 IterProducer : IterProvider<DataId = DataId, DataType = Vec<T>> {
         //
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
-        // We must bufferise and make distance computation and use a concurrent HashMap (We did it in Bmor)
+        //
+        // We must bufferize and make distance computation
         //
         let mut data_iter = iter_producer.makeiter();
-        let buffer_size = 50000;   //  TODO: ?
-        let mut map = DashMap::<DataId, usize>::with_capacity(self.bmor_arg.nb_data_expected); //TODO:  at this step we know nb_data!
+        let nb_cpus = num_cpus::get();
+        let buffer_size = 5000 * nb_cpus;
+        let mut map_to_medoid = HashMap::<DataId, usize>::with_capacity(self.bmor_arg.nb_data_expected);
+         //TODO:  at this step we know nb_data!
+        // We must retrive datas corresponding to medoid centers
+        kmedoid.retrieve_cluster_centers(iter_producer);
+        let centers = kmedoid.get_centers().unwrap();
         //
-        let dispatch_i = | (id, data) : (DataId, Vec<T>) | -> usize  {
-            // get neaarest medoid. We can retrieve Vec<T> for each medoid from coreset , so we must get access to it
-       
-            std::panic!("not yet");
+        let dispatch_i = | (id, data) : (DataId, &Vec<T>) | -> (DataId, usize,f32)  {
+            // get nearest medoid. We can retrieve Vec<T> for each medoid from coreset , so we must get access to it
+            let dists : Vec<f32> = centers.into_iter().map(|c| distance.eval(data, c)).collect();
+            let mut dmin = f32::MIN;
+            let mut imin = usize::MAX;
+            for i in 0..dists.len() {
+                if dists[i] < dmin {
+                    dmin = dists[i];
+                    imin = i;
+                }
+            }
+            (id, imin, dmin)
         };
+        let mut dispatching_cost : f64 = 0.;
         //
         loop {
-            let buffres = self.get_buffer_data::<T, Dist>(buffer_size, &mut data_iter);
+            let buffres = self.get_buffer_data::<Dist>(buffer_size, &mut data_iter);
             if buffres.is_err() {
                 break;
             }
-            let (ids, datas) = buffres.unwrap();
-            // now a // call to closure
+            let ids_datas = buffres.unwrap();
+            // dispatch buffer
+            let res_dispatch : Vec<(DataId, usize, f32)> = ids_datas.into_par_iter().map(|(i,d)| dispatch_i((i,&d))).collect();
+            for (id, rank, d) in res_dispatch {
+                map_to_medoid.insert(id, rank);
+                dispatching_cost += d as f64;
+            }
         }
-
-        log::info!(" end of data dispatching dispatching all data to their cluster");
+        log::info!(" end of data dispatching dispatching all data to their cluster, globl cost : {:.3e}", dispatching_cost);
         let cpu_time: Duration = cpu_start.elapsed();
+        if retrieve_centers {
+            log::info!("retrieving centers data vectors...");
+            let cpu_start = ProcessTime::now();
+            let sys_now = SystemTime::now(); 
+            kmedoid.retrieve_cluster_centers(iter_producer);
+            log::info!("retrieving centers data vectors done sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis());
+             
+        }
         log::info!("\n  ClusterCoreset::dispatch sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis()); 
     } // end of dispatch
 
 
     /// use iterator to return a block of data
-    fn get_buffer_data<T, Dist>(&self, buffer_size : usize, data_iter : &mut impl Iterator<Item=(DataId, Vec<T>)>) -> Result<(Vec<DataId>, Vec<Vec<T>>), u32>
-        where      T : Send + Sync + Clone,
-                Dist : Distance<T> + Send + Sync + Clone {
+    fn get_buffer_data<Dist>(&self, buffer_size : usize, data_iter : &mut impl Iterator<Item=(DataId, Vec<T>)>) -> Result<Vec<(DataId,Vec<T>)>, u32>
+        where Dist : Distance<T> + Send + Sync + Clone {
         //
-        let mut datas = Vec::<Vec<T>>::with_capacity(buffer_size);
-        let mut ids = Vec::<DataId>::with_capacity(buffer_size);
+        let mut ids_datas = Vec::<(DataId, Vec<T>) >::with_capacity(buffer_size);
         //
         loop {
             let data_opt = data_iter.next();
             match data_opt {
                 Some((id, data)) => {
                     // insert
-                    datas.push(data);
-                    ids.push(id);
-                    if datas.len() == buffer_size {
+                    ids_datas.push((id, data));
+                    if ids_datas.len() == buffer_size {
                         break;
                     }
                 }
@@ -162,12 +193,11 @@ impl <DataId> ClusterCoreset<DataId>
             } // end ma
         } // end loop
         // 
-        assert_eq!(ids.len(), datas.len());
-        if ids.len() > 0 {
-            return Ok((ids, datas));
+        if ids_datas.len() > 0 {
+            Ok(ids_datas)
         }
         else {
-            return Err(0);
+            Err(0)
         }
     } // end of get_buffer_data
 

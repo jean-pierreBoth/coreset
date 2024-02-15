@@ -181,7 +181,8 @@ impl <DataId, T:Send+Sync+Clone, Dist> CoreSet<DataId, T, Dist>
 
 
 
-/// This structure provides Algorithm1 Braverman and al 2022, it relies on [bmor](super::bmor) algorithm.  
+/// This structure provides Algorithm1 Braverman and al 2022, implementing Sensitivity sampling.  
+/// It relies on [bmor](super::bmor) algorithm.  
 /// The algorithm needs  one streaming pass and one sampling pass.  
 /// The data must be given consistent id across the 2 passes. (The data id can be its rank in the stream in which case the 2 pass
 /// must process data in the same order)
@@ -281,7 +282,7 @@ impl <DataId, T:Send+Sync+Clone, Dist> Coreset1<DataId, T, Dist>
                 datas_wid.push((id, data));
             }
         }
-        // TODO: temporary what is the id not found ... some bug here
+        // temporary what is the id not found (bug fixed !)
         if datas_wid.len() < nbpoints {
             let mut set = indexmap::IndexSet::with_capacity(nbpoints + 100);
             for (id, _) in &datas_wid {
