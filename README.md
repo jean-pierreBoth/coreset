@@ -90,15 +90,18 @@ The results are, on the average at 5% above the reference cost obtained by faste
 
 The results are slightly better in the fashion case. The results are, on the average at 5% above the reference cost obtained by faster map, and  within 8% at 3 std deviations.
 
+##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)
+
+
 #### Conclusion:
 
-**Even with our simplistic weighted kmedoid implementation, the results are, on the average at 5% above the reference cost obtained by faster map, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid. 
+**Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by faster map, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid**. 
+
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 
-The speed is one or two orders of magnitude faster**.
+**The speed is one or two orders of magnitude faster**.
 
 
-##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)
 
 
 
