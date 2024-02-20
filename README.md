@@ -53,28 +53,48 @@ The computation times, in seconds, given are system time elapsed and total cpu t
 
 The size of the coreset was set 0.11 * the number of data points. We asked 10 clusters.
 
+We give the  cost of clustering the coreset and the cost (of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
 
-We give the me cost of clustering the coreset and the cost of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
-As the results are random we give  the results in the form (mean +-standard deviation) obtained on a sample of 20 computations
-
-|  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
-|  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
-|   digits     | (1.869 +- 0.025) 10^6  | (1.876 +- 0.018) 10^6 |      1        |    14       |
-|   fashion    | (2.245 +- 0.027) 10^6  | (2.245 +- 0.021) 10^6 |      1        |    14       |
+As the results are random we give  they are given in the form (mean +-standard deviation) obtained on a sample of 20 computations.  
 
 
 
 #### Reference results for medoid computations (L1 distance) with par_fastermap
 
-The timings takes into account the computing of the distance matrix (fully multithreaded)
+The timings takes into account the computing of the distance matrix (fully multithreaded).  
 |  mnist       | cost            | time(sys) s        | time(cpu) s |
 |  :-------:   |  :----------:   |    :-------------: | :---------: | 
 |   digits     |    1.789 10^6   |      55            |    1660     |
-|   fashion    |    2.183 10^6   |      78            |    2212     |
+|   fashion    |    2.181 10^6   |      53            |    1460     |
+
+
+
+#### Results with 15 iterations in Kmedoids.
+
+
+|  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
+|  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
+|   digits     | (1.864 +- 0.025) 10^6  | (1.873 +- 0.022) 10^6 |      1        |    14       |
+|   fashion    | (2.250 +- 0.041) 10^6  | (2.255 +- 0.043) 10^6 |      1        |    14       |
+
+The results are, on the average at 5% above the reference cost obtained by faster map, and consistently within 8% at 2 std deviations.
+
+
+#### Results with 25 iterations in Kmedoids.
+
+
+|  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
+|  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
+|   digits     | (1.868 +- 0.021) 10^6  | (1.876 +- 0.021) 10^6 |      1.1      |    16       |
+|   fashion    | (2.230 +- 0.026) 10^6  | (2.239 +- 0.022) 10^6 |      1.1      |    16       |
+
+The results are slightly better in the fashion case. The results are, on the average at 5% above the reference cost obtained by faster map, and  within 8% at 3 std deviations.
 
 #### Conclusion:
 
-**The results are, on the average at 5% above the reference cost obtained by faster map, and consistently under 8% even with our simplistic weighted kmedoid implementation.  
+**Even with our simplistic weighted kmedoid implementation, the results are, on the average at 5% above the reference cost obtained by faster map, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid. 
+The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
+
 The speed is one or two orders of magnitude faster**.
 
 
@@ -91,7 +111,7 @@ an iterator on the data when needed. (Typically the structure could provide file
 An example is found for mnist data (Cf *module utils::mnistiter*).  
 
 The implementation does the buffering and parallelization internally.
-The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed sperately with
+The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed separately with
 corresponding modules.  
 The distances are provided by the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
 

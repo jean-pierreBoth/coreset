@@ -3,10 +3,10 @@
 //!     with :
 //!       - introduction of weights attached to data beccause coreset data have a weight
 //!       - cost a point is its weight multiplied by distance to centers
-//!       - initialization of medoids is done by decreasing costs
+//!       - initialization of medoids is done by decreasing costs  
 //!
-//!     This mimics the kmean algo. The weights attached to points alleviates the problem of local minima.
-//!     See also Friedmann Hastie Tibshirani, The Elements Of Statistical Learning 2001 (Clustering chapter)
+//!  This mimics the kmean algo. The weights attached to points alleviates the problem of local minima.
+//!  See also Friedmann Hastie Tibshirani, The Elements Of Statistical Learning 2001 (Clustering chapter)
 //!
 //!
 //!
@@ -19,6 +19,7 @@ use rand::{
 };
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+
 
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
@@ -158,8 +159,9 @@ where
         };
     } // end of new
 
+    /// nb_iter is maximal number of iterations  
     /// returns best result as couple (iteration, cost)
-    pub fn compute_medians(&mut self) -> (usize, f32) {
+    pub fn compute_medians(&mut self, nb_iter : usize) -> (usize, f32) {
         //
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
@@ -174,6 +176,7 @@ where
         );
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
+        let mut perturbation_set = Vec::<(usize, usize)>::new();
         //
         // initialize: random selection of centers, dispatch points to nearest centers
         //
@@ -232,9 +235,15 @@ where
             //
             if iter_cost >= last_cost && !perturbation {
                 log::info!("iteration got a local minimum : {}", iteration);
-                let res = self.quality_summary();
+                let res = self.quality_summary(&perturbation_set, false);
                 if res.is_some() {
                     let couple = res.unwrap();
+                    if couple.0 < couple.1 {
+                        perturbation_set.push(couple);
+                    }
+                    else {
+                        perturbation_set.push((couple.1, couple.0));
+                    }
                     for i in 0..medoids.len() {
                         medoids[i] = self.medoids[i].clone();
                     }
@@ -264,7 +273,7 @@ where
                 membership_and_dist = self.dispatch_to_medoids(&centers);
                 assert_eq!(membership_and_dist.0.len(), self.membership.len());
                 iteration += 1;
-                if iteration >= 15 {
+                if iteration >= nb_iter {
                     log::info!("exiting after nb iteration : {}", iteration);
                     break;
                 }
@@ -281,7 +290,7 @@ where
             cpu_time.as_millis()
         );
         //
-        self.quality_summary();
+        self.quality_summary(&perturbation_set, true);
         //
         best_iter
     } // end of compute_medians
@@ -541,6 +550,7 @@ where
         MemberDist(membership_dist)
     } // end of dispatch_to_medoids
 
+
     // find medoid for point i, returns rank of (cluster) center nearest to i
     fn find_medoid_for_i(&self, i: usize, centers: &Vec<u32>) -> (u32, f32) {
         //
@@ -638,75 +648,72 @@ where
         CenterCost(centers)
     } // end of from_membership_to_centers
 
+
+
     // computes statistics (quantiles) of distances to their centers
-    // At this final time we can access internal fiels membership and medoids state
-    fn quality_summary(&self) -> Option<(usize, usize)> {
+    // At this final time we can access internal fields membership and medoids state
+    // Returns possibly a candidate 2-uple of medoid center to be perturbated.
+    fn quality_summary(&self, perturbation_set : &Vec<(usize, usize)>, end : bool) -> Option<(usize, usize)> {
         log::info!("\n\n kmedoids statistics");
         //
-        let mut q_dist = CKMS::<f32>::new(0.01);
-        for i in 0..self.distance.nrows() {
-            let m = self.membership[i];
-            let c = self.medoids[m as usize].center as usize;
-            q_dist.insert(self.distance[[i, c]]);
+        // We compute distance of items to center of their centroid.
+        //
+        if end {
+            let mut q_dist = CKMS::<f32>::new(0.01);
+            for i in 0..self.distance.nrows() {
+                let m = self.membership[i];
+                let c = self.medoids[m as usize].center as usize;
+                q_dist.insert(self.distance[[i, c]]);
+            }
+            println!("\n distance to centroid quantiles at 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
+                q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, 
+                q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.95).unwrap().1);
         }
-        println!("\n distance to centroid quantiles at 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-            q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, 
-            q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.95).unwrap().1);
         //
         let mut medoids_size = vec![0u32; self.nb_cluster];
-        let mut medoids_dist_sum = vec![0.0f32; self.nb_cluster];
+        let mut medoids_dist_mean = vec![0.0f32; self.nb_cluster];
         for i in 0..self.membership.len() {
             let m = self.membership[i] as usize;
             medoids_size[m] += 1;
-            medoids_dist_sum[m] += self.distance[[i, self.medoids[m].center as usize]];
-        }
+            medoids_dist_mean[m] += self.distance[[i, self.medoids[m].center as usize]];
+        } 
         for m in 0..self.medoids.len() {
-            log::info!(
+            medoids_dist_mean[m] = medoids_dist_mean[m]/medoids_size[m] as f32;
+            log::debug!(
                 "medoid : {}, size : {:5} , cost {:.2e} , mean dist : {:.2e}",
                 m,
                 medoids_size[m],
                 self.medoids[m].cost,
-                medoids_dist_sum[m] / medoids_size[m] as f32
+                medoids_dist_mean[m]
             )
         }
         //
-        // compute quantiles of distances between centroids
-        //
-        let mut q_dist = CKMS::<f32>::new(0.01);
-        for i in 0..self.nb_cluster {
-            let i_center = self.medoids[i].get_center() as usize;
-            for j in 0..i {
-                q_dist.insert(self.distance[[i_center, self.medoids[j].get_center() as usize]]);
-            }
+        // if we are at end, we just return
+        if end {
+            return None;
         }
-        log::info!("\n\n quantiles on distance between medoid centers");
-        log::info!("\n centroid to centroid distance quantiles at  0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-            q_dist.query(0.025).unwrap().1, q_dist.query(0.05).unwrap().1, q_dist.query(0.5).unwrap().1, 
-            q_dist.query(0.75).unwrap().1, q_dist.query(0.95).unwrap().1);
         //
         // dump info on too near clusters
         //
-        let proba = 0.1;
-        let near_threshold = self.d_quantiles.query(proba).unwrap().1;
         let mut couple_opt: Option<(usize, usize)> = None;
-        let mut dmin = near_threshold;
-        log::info!(
-            "threshold medoid center distance at proba {:.2e} : {:.2e}",
-            proba,
-            near_threshold
-        );
+        let mut dmin = f32::MAX;
+        //
         for i in 0..self.nb_cluster {
             let i_center = self.medoids[i].get_center() as usize;
             for j in 0..i {
+                if perturbation_set.last().is_some() &&  *perturbation_set.last().unwrap() == ((j,i)) {
+                    continue;
+                }
                 let d = self.distance[[i_center, self.medoids[j].get_center() as usize]];
-                if d < dmin {
-                    log::info!(
-                        " too near medoid centers (i,j) : ({}, {}) , dist = {:.2e}",
+                let crit = 2. * d / (medoids_dist_mean[i] + medoids_dist_mean[j]);
+                if crit < dmin  {
+                    log::debug!(
+                        " mixed medoid centers (i,j) : ({}, {}) , crit = {:.2e}",
                         i,
                         j,
-                        d
+                        crit
                     );
-                    dmin = d;
+                    dmin = crit;
                     couple_opt = Some((i, j));
                 }
             }
@@ -715,8 +722,9 @@ where
         return couple_opt;
     } // end of quality_summary
 
-    /// estimate quantiles of distances
-    pub fn quantile_estimator(&mut self) -> CKMS<f32> {
+
+    /// estimate quantiles of distances between data items. We sample if too many couples.
+    pub fn quantile_estimator(&self) -> CKMS<f32> {
         log::info!("statistics on weights");
         let mut quantiles = CKMS::<f64>::new(0.01);
         for w in &self.weights {
@@ -750,6 +758,7 @@ where
         //
         return quantiles;
     }
+
 
     // perturbation of centers of medoids i and j , call dispatch_to_medoids and return new assignment
     // centers i and j are chosen are abnormally close

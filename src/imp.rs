@@ -1,6 +1,4 @@
-//!  This module implement building blocks used a black box in coreset constructions.
-//!  The algorithms compute an (alfa, beta) k-median approximation  used as input
-//!  to coreset computations.
+
 //!
 //! The module implements variants of the Mettu-Plaxton algorithm:
 //!  1. Facility Location in sublinear time.   
@@ -16,12 +14,10 @@
 //!  The data are of type Vec\<T\> where T can be anything as long as the hnsw crate provides on these vectors.  
 //!  (see [hnsw_rs](https://docs.rs/hnsw_rs/0.1.19/hnsw_rs/dist/index.html))
 //!
-//!  The bmor [Bmor](crate::bmor::Bmor) is really faster but it can be eqsier to control the number of faciities allocated by
+//!  The bmor [Bmor](crate::bmor::Bmor) is really faster but it can be easier to control the number of faciities allocated by
 //!  the algorithms implemented in this module. see [construct_centers](self::MettuPlaxton::construct_centers())
 //!
 
-#![allow(unused)]
-use anyhow::{anyhow, Result};
 
 use parking_lot::RwLock;
 use rayon::prelude::*;
@@ -29,7 +25,6 @@ use rayon::prelude::*;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
-use quantiles::ckms::CKMS;
 use rand::distributions::{Distribution, Uniform}; // we could use also greenwald_khanna
 
 use hnsw_rs::dist::*;
@@ -86,21 +81,19 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
     {
         //
         let c = 2.;
-        let j_shift = scale.log2() as usize;
         let mut j_tmp = self.j;
         // at beginning nb_sample = c * self.j i.e c * log(nb_data) and double at each iteration
         let mut rng = self.rng.clone();
         let mut iter_num = 0;
-        let mut nb_point_done = 0;
         rng.jump();
         let unif = Uniform::<usize>::new(0, self.nb_data);
         let r: f32 = loop {
-            let mut r_test = scale / 2_u32.pow(j_tmp) as f32;
+            let r_test = scale / 2_u32.pow(j_tmp) as f32;
             let nb_sample_f: f32 = c * (self.nb_data as f32 * r_test / scale) / self.j as f32;
             let nb_sample: u32 = nb_sample_f.trunc() as u32;
             log::trace!("estimate_ball_cardinal nb_sample : {:?}", nb_sample);
             let mut nb_in = 1; // count center in!
-            for i in 0..nb_sample {
+            for _ in 0..nb_sample {
                 // sample and compute distance to point ip
                 let k = unif.sample(&mut rng);
                 let dist = self.distance.eval(point, &self.data[k]);
@@ -133,10 +126,6 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
     {
         // get scales
         let q_dist = get_neighborhood_size(1_000_000, self.data, &self.distance);
-        let d_range = (
-            q_dist.query(0.0001).unwrap().1,
-            q_dist.query(0.95).unwrap().1,
-        );
         let threshold = q_dist.query(0.999).unwrap().1;
         log::info!("dist medi : {:.3e}", threshold);
         //
@@ -163,13 +152,13 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
             }
         }
         // We explicitly dispatch data to facilities as imp algo do not do it
-        let data_unweighted: Vec<&Vec<T>> = self.data.iter().map(|d| d).collect();
+        // let data_unweighted: Vec<&Vec<T>> = self.data.iter().map(|d| d).collect();
         //        facilities.dispatch_data(&data_unweighted, None);
         //
         return facilities;
     } // end of construct_centers
 
-    pub fn compute_distances(&self, facilities: &Facilities<usize, T, Dist>, data: &Vec<Vec<T>>)
+    pub fn compute_distances(&self, facilities: &Facilities<usize, T, Dist>)
     where
         Dist: Send + Sync,
     {
@@ -197,7 +186,7 @@ pub struct WeightedMettuPlaxton<'b, T: Send + Sync, Dist: Distance<T>> {
     //
     distance: Dist,
     //
-    rng: Xoshiro256PlusPlus,
+    _rng: Xoshiro256PlusPlus,
 } // end of struct WeightedMettuPlaxton
 
 impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
@@ -214,7 +203,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
             weights,
             j,
             distance,
-            rng: Xoshiro256PlusPlus::seed_from_u64(123),
+            _rng: Xoshiro256PlusPlus::seed_from_u64(123),
         }
     }
 
@@ -228,12 +217,11 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         //
         let mut dists: Vec<RwLock<Vec<f32>>> = Vec::<RwLock<Vec<f32>>>::with_capacity(self.nb_data);
         //
-        for i in 0..self.nb_data {
+        for _ in 0..self.nb_data {
             let d: Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
             dists.push(RwLock::new(d));
         }
 
-        let threshold = 1000;
         let compute_for_i = |i: usize| {
             let mut dist_i: Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
             for j in 0..self.nb_data {
@@ -258,7 +246,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         return dists;
     } // end of compute_all_dists
 
-    fn compute_ball_radius(&self, ball: usize, alfa: f32, dists: &RwLock<Vec<f32>>) -> f32 {
+    fn compute_ball_radius(&self, alfa: f32, dists: &RwLock<Vec<f32>>) -> f32 {
         //
         log::debug!(
             "\n\n WeightedMettuPlaxton compute_ball_radius , coeff value to match {:.3e}",
@@ -324,7 +312,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
                 value
             );
             // we can solve for a large r directly
-            radius = value - upper_value;
+            // radius = value - upper_value;
             std::panic!("not yet implemented");
         } else {
             let mut upper_index = self.get_nb_data() - 1;
@@ -386,7 +374,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         // corresponds to step 1 of algorithm 2.1 paper [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443)
         let mut radii: Vec<(usize, f32)> = (0..self.nb_data)
             .into_par_iter()
-            .map(|i| (i, self.compute_ball_radius(i, alfa, &dists[i])))
+            .map(|i| (i, self.compute_ball_radius(alfa, &dists[i])))
             .collect();
         // sort by increasing radius (step 2 of algo)
         radii.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
@@ -439,12 +427,11 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
     } // end of construct_centers
 } // end of impl WeightedMettuPlaxton
 
+#[cfg(test)]
 mod tests {
 
     use super::*;
-    use rand::distributions::*;
-    use rand::prelude::*;
-    use rand_distr::{uniform::SampleUniform, Normal};
+    use rand_distr::Normal;
     use rand_xoshiro::Xoshiro256PlusPlus;
 
     fn log_init_test() {
@@ -467,15 +454,13 @@ mod tests {
         let normal1 = Normal::new(n_mean1, n_sigma1).unwrap();
         let unif1 = Uniform::<f32>::new(0.5, 3.);
         //
-        let n_mean2 = 4.;
-        let n_sigma2 = 1.;
         let normal2 = Normal::new(n_mean1, n_sigma1).unwrap();
         let unif2 = Uniform::<f32>::new(0.5, 3.);
         //
         // sample
         //
         let half = nbdata / 2;
-        for i in 0..half {
+        for _ in 0..half {
             let d_tmp: Vec<f32> = (0..dim)
                 .into_iter()
                 .map(|_| normal1.sample(&mut rng))
@@ -484,7 +469,7 @@ mod tests {
             weights.push(unif1.sample(&mut rng));
         }
 
-        for i in (half + 1)..nbdata {
+        for _ in (half + 1)..nbdata {
             let d_tmp: Vec<f32> = (0..dim)
                 .into_iter()
                 .map(|_| normal2.sample(&mut rng))
@@ -510,6 +495,6 @@ mod tests {
         let wmp = WeightedMettuPlaxton::new(&data, &weights, distance);
         //
         let alfa = 1.;
-        let facilities = wmp.construct_centers(alfa);
+        let _ = wmp.construct_centers(alfa);
     } // end of test_weight_mp
 } // end of mod tests

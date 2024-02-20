@@ -1,5 +1,5 @@
 //! This module provides a simple user interface for clustering data via a coreset.  
-//! The data must be accessed via an iterator see [iterprovider](super::iterprovider).  
+//! The data must be accessed via an iterator, see [iterprovider](super::iterprovider).  
 //! It chains the bmor and algorithms and  ends with a pass dispatching all data
 //! to their nearest cluster deduced from the coreset clustering, recomputing global
 //! cost and storing membership
@@ -75,10 +75,14 @@ where
     }
 
     /// computes coreset and kmedoid clustering.  
+    /// - distance : the metric to use
+    /// - nb_iter : the maximal number of iterations in kmedoid.  
+    ///    
+    /// **Note:**  
     /// Just the DataId of the center are stored in kmedoid structure, not the Data vector to spare memory.  
     /// To extract the data vectors, call [dispatch](Self::dispatch()) which retrive the data vectors and computes the clustering cost with respect to the whole data.
     /// It needs one more pass on the data.
-    pub fn compute<Dist, IterProducer>(&self, distance: Dist, iter_producer: IterProducer)
+    pub fn compute<Dist, IterProducer>(&self, distance: Dist, nb_iter : usize, iter_producer: IterProducer)
     where
         Dist: Distance<T> + Send + Sync + Clone,
         IterProducer: IterProvider<DataId = DataId, DataType = Vec<T>>,
@@ -109,7 +113,7 @@ where
         log::info!("===================================");
         let nb_cluster = self.nb_cluster;
         let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
-        let (nb_iter, cost) = kmedoids.compute_medians();
+        let (nb_iter, cost) = kmedoids.compute_medians(nb_iter);
         // TODO: we have coreset and kmedoids we must store center (Vec<T>) of each medoid!
 
         std::panic!("not yet");

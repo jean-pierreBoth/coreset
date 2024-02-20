@@ -1,3 +1,7 @@
+//! This module implement building blocks used a black box in coreset constructions.
+//! The algorithm computes an (alfa, beta) k-median approximation and is used as input
+//! to coreset computations.
+//! 
 //! Adaptation of Streaming k-means on well clustered data.  
 //! Braverman Meyerson Ostrovski Roytman ACM-SIAM 2011 [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 //!
@@ -5,7 +9,7 @@
 //!
 //! We do not constrain the clustering output to be exactly some value k but let the number of clusters be
 //! the result of the main algorithms.   
-//! The final of number of facilities can be reduced by running an end step.  
+//!   
 //! **Bmor algorithm dispatch points on the fly so it computes an upper bound of the cost**.  
 //! **But it is possible to [dispatch_data](crate::facility::Facilities::dispatch_data()) explicitly**
 //!

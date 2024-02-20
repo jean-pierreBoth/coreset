@@ -78,7 +78,7 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
         }        
     }
     //
-    mpalgo.compute_distances(&mut facilities, &images);
+    mpalgo.compute_distances(&mut facilities);
 }  // end of marrupaxton
 
 //=================================================================================================
