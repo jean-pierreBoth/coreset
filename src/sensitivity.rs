@@ -471,11 +471,15 @@ where
         return self.point_facility_map.as_ref();
     }
 
+    /// returns the number of data (know after end of first pass)
+    pub fn get_nb_data(&self) -> usize {
+        self.nb_data
+    }
+
     // if needed (as in the case of sensitivity computations) allocate
     fn init_facility_map(&mut self, capacity: usize) {
         self.point_facility_map = Some(Arc::new(DashMap::with_capacity(capacity)))
     }
-
 
     //  initialize point_weights : Option<WeightedIndex<usize>>,
     // The function receive an iterator over data.

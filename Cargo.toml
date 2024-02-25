@@ -65,7 +65,7 @@ lazy_static = { version = "1.4"}
 # decreasing order of log for release build (release_max_level_)  .. idem
 #log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
 log = { version = "0.4"}
-env_logger = { version = "0.10"}
+env_logger = { version = "0.11"}
 
 byteorder = {version = "1.4"}
 

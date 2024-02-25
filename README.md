@@ -62,40 +62,41 @@ As the results are random we give  they are given in the form (mean +-standard d
 #### Reference results for medoid computations (L1 distance) with par_fastermap
 
 The timings takes into account the computing of the distance matrix (fully multithreaded).  
-|  mnist       | cost            | time(sys) s        | time(cpu) s |
-|  :-------:   |  :----------:   |    :-------------: | :---------: | 
-|   digits     |    1.789 10^6   |      55            |    1660     |
-|   fashion    |    2.181 10^6   |      53            |    1460     |
+|  mnist  |    cost    | time(sys) s | time(cpu) s |
+| :-----: | :--------: | :---------: | :---------: |
+| digits  | 1.789 10^6 |     55      |    1660     |
+| fashion | 2.181 10^6 |     53      |    1460     |
 
 
 
 #### Results with 15 iterations in Kmedoids.
 
 
-|  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
-|  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
-|   digits     | (1.864 +- 0.025) 10^6  | (1.873 +- 0.022) 10^6 |      1        |    14       |
-|   fashion    | (2.250 +- 0.041) 10^6  | (2.255 +- 0.043) 10^6 |      1        |    14       |
+|  mnist  |    cost (coreset)     |   cost (whole data)   | time(sys) s | time(cpu) s |
+| :-----: | :-------------------: | :-------------------: | :---------: | :---------: |
+| digits  | (1.864 +- 0.025) 10^6 | (1.873 +- 0.022) 10^6 |      1      |     14      |
+| fashion | (2.250 +- 0.041) 10^6 | (2.255 +- 0.043) 10^6 |      1      |     14      |
 
-The results are, on the average at 5% above the reference cost obtained by faster map, and consistently within 8% at 2 std deviations.
+The results are, on the average at less than 5% above the reference cost obtained by par_fastermap, and consistently within 8% at 2 std deviations.
 
 
 #### Results with 25 iterations in Kmedoids.
 
 
-|  mnist       | cost (coreset)         | cost (whole data)     | time(sys) s   | time(cpu) s |
-|  :-------:   |  :--------------:      | :-------------:       |  :---------:  | :---------: | 
-|   digits     | (1.868 +- 0.021) 10^6  | (1.876 +- 0.021) 10^6 |      1.1      |    16       |
-|   fashion    | (2.230 +- 0.026) 10^6  | (2.239 +- 0.022) 10^6 |      1.1      |    16       |
+|  mnist  |    cost (coreset)     |   cost (whole data)   | time(sys) s | time(cpu) s |
+| :-----: | :-------------------: | :-------------------: | :---------: | :---------: |
+| digits  | (1.868 +- 0.021) 10^6 | (1.876 +- 0.021) 10^6 |     1.1     |     16      |
+| fashion | (2.230 +- 0.026) 10^6 | (2.239 +- 0.022) 10^6 |     1.1     |     16      |
 
-The results are slightly better in the fashion case. The results are, on the average at 5% above the reference cost obtained by faster map, and  within 8% at 3 std deviations.
+The results are slightly better in the fashion case with 2.6% of overestimation of the cost compared with par_fastermap. 
+The results are, on the average less than 5% above the reference cost obtained by par_fastermap, and within 8% at 3 std deviations.
 
 ##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)
 
 
 #### Conclusion:
 
-**Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by faster map, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid**. 
+**Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by par_fastermap, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid**. 
 
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 

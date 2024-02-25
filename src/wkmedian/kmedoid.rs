@@ -345,12 +345,13 @@ where
         }
     } // end of store_state
 
+    /// return Medoids
     pub fn get_clusters(&self) -> &Vec<Medoid<DataId>> {
         &self.medoids
     }
 
     /// returns a reference to center of Medoid of rank if centers have already been calculated, None otherwise.
-    /// Aborts rank above len
+    /// Aborts if rank above len
     pub fn get_cluster_center(&self, rank: usize) -> Option<&Vec<T>> {
         match &self.centers {
             Some(centers) => {
@@ -389,6 +390,16 @@ where
     /// return global partition cost
     pub fn get_global_cost(&self) -> f32 {
         self.medoids.iter().map(|m| m.get_cost()).sum::<f32>()
+    }
+
+    /// return the data id of cluster of rank
+    pub fn get_center_id(&self, k : usize) -> Result<DataId, u8> {
+        if k < self.medoids.len() {
+            Ok(self.medoids[k].get_center_id())
+        }
+        else {
+            Err(1)
+        }
     }
 
     // random initial choice of medoids
