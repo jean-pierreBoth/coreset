@@ -29,7 +29,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator}; // we could use also 
 
 use hnsw_rs::dist::*;
 
-use crate::iterprovider::*;
+use crate::makeiter::*;
 use crate::sensitivity::*;
 
 // maintain center and cost of each cluster
@@ -298,7 +298,7 @@ where
     /// stores data vectors for each cluster
     pub(crate) fn retrieve_cluster_centers<IterProducer>(&mut self, iter_producer: &IterProducer)
     where
-        IterProducer: IterProvider<DataId = DataId, DataType = Vec<T>>,
+        IterProducer: MakeIter<DataId = DataId, DataType = Vec<T>>,
     {
         //
         // get a list of ids to find, then scan data

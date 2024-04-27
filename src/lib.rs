@@ -9,7 +9,7 @@ mod scale;
 pub mod sensitivity;
 
 pub mod discrete;
-pub mod iterprovider;
+pub mod makeiter;
 
 pub mod clustercore;
 pub mod wkmedian;

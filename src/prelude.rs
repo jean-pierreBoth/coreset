@@ -4,7 +4,7 @@ pub use crate::imp::*;
 
 pub use crate::bmor::*;
 
-pub use crate::iterprovider::*;
+pub use crate::makeiter::*;
 
 pub use crate::sensitivity::*;
 

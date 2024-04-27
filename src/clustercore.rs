@@ -1,5 +1,5 @@
 //! This module provides a simple user interface for clustering data via a coreset.  
-//! The data must be accessed via an iterator, see [iterprovider](super::iterprovider).  
+//! The data must be accessed via an iterator, see [makeiter](super::makeiter).  
 //! It chains the bmor and algorithms and  ends with a pass dispatching all data
 //! to their nearest cluster deduced from the coreset clustering, recomputing global
 //! cost and storing membership
@@ -23,7 +23,7 @@ use hnsw_rs::dist::*;
 
 use crate::sensitivity::*;
 // use crate::facility::*;
-use crate::iterprovider::*;
+use crate::makeiter::*;
 use crate::wkmedian::*;
 
 #[derive(Copy, Clone)]
@@ -93,7 +93,7 @@ where
         iter_producer: IterProducer,
     ) where
         Dist: Distance<T> + Send + Sync + Clone,
-        IterProducer: IterProvider<DataId = DataId, DataType = Vec<T>>,
+        IterProducer: MakeIter<DataId = DataId, DataType = Vec<T>>,
     {
         //
         let cpu_start = ProcessTime::now();
@@ -155,7 +155,7 @@ where
     ) where
         T: Send + Sync + Clone,
         Dist: Distance<T> + Send + Sync + Clone,
-        IterProducer: IterProvider<DataId = DataId, DataType = Vec<T>>,
+        IterProducer: MakeIter<DataId = DataId, DataType = Vec<T>>,
     {
         //
         let cpu_start = ProcessTime::now();

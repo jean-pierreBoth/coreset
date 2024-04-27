@@ -28,7 +28,7 @@ use std::time::{Duration, SystemTime};
 use crate::bmor::*;
 use crate::discrete::DiscreteProba;
 use crate::facility::*;
-use crate::iterprovider::*;
+use crate::makeiter::*;
 
 use hnsw_rs::dist::*;
 
@@ -256,7 +256,7 @@ where
         fraction: f64,
     ) -> anyhow::Result<CoreSet<DataId, T, Dist>>
     where
-        IterGenerator: IterProvider<DataId = DataId, DataType = Vec<T>>,
+        IterGenerator: MakeIter<DataId = DataId, DataType = Vec<T>>,
         DataId: Eq + Hash + std::fmt::Debug + Send + Sync,
     {
         //
@@ -313,7 +313,7 @@ where
         iter_generator: &IterGenerator,
     ) -> Vec<(DataId, Vec<T>)>
     where
-        IterGenerator: IterProvider<DataId = DataId, DataType = Vec<T>>,
+        IterGenerator: MakeIter<DataId = DataId, DataType = Vec<T>>,
         DataId: Eq + Hash + std::fmt::Debug,
     {
         //
