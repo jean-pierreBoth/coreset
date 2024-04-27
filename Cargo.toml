@@ -47,10 +47,8 @@ num_cpus = { version = "1.8.0" }
 cpu-time = { version = "1.0" }
 
 
-#hnsw_rs = {git = "https://github.com/jean-pierreBoth/hnswlib-rs", features = ["simdeez_f"]}
-# hnsw_rs = {version = "0.2", features = ["simdeez_f"]}
-
-anndists = { path = "../anndists" }
+#anndists = { path = "../anndists" }
+anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
 
 # rand utilis
 rand = { version = "0.8" }
