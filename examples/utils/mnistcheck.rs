@@ -16,8 +16,8 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 
 use ndarray::{Array1, Array2};
 
+use anndists::prelude::*;
 use coreset::prelude::*;
-use hnsw_rs::prelude::*;
 use std::iter::Iterator;
 
 use super::mnistiter::*;
@@ -44,7 +44,7 @@ impl MnistParams {
 #[allow(unused)]
 // computes sum of distance  of coreset points to nearest cluster centers
 pub fn dispatch_coreset<Dist>(
-    coreset: &CoreSet<DataId, f32, Dist>,
+    coreset: &CoreSet<usize, f32, Dist>,
     c_centers: &Vec<Vec<f32>>,
     distance: &Dist,
     images: &Vec<Vec<f32>>,

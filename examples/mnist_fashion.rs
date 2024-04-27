@@ -1,42 +1,44 @@
 //! Structure and functions to read MNIST fashion database
 //! To run the examples change the line :  
-//! 
+//!
 //! const MNIST_FASHION_DIR : &'static str = "/home.1/jpboth/Data/Fashion-MNIST/";
-//! 
+//!
 //! command : mnist_fashion  --algo imp or bmor.
-//! 
+//!
 //! The data can be downloaded in the same format as the FASHION database from:  
-//! 
+//!
 //! <https://github.com/zalandoresearch/fashion-mnist/tree/master/data/fashion>
-//! 
-
+//!
 
 use ndarray::s;
 
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 
-
-use std::time::{Duration, SystemTime};
 use cpu_time::ProcessTime;
+use std::time::{Duration, SystemTime};
 
-use std::iter::Iterator;
-use hnsw_rs::prelude::*;
+use anndists::prelude::*;
 use coreset::prelude::*;
+use std::iter::Iterator;
 
 mod utils;
-use utils::{mnistio::*, mnistcheck::*};
+use utils::{mnistcheck::*, mnistio::*};
 
 //============================================================================================
 
-
-fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
+fn marrupaxton<Dist: Distance<f32> + Sync + Send + Clone>(
+    _params: &MnistParams,
+    images: &Vec<Vec<f32>>,
+    labels: &Vec<u8>,
+    distance: Dist,
+) {
     //
-    let mpalgo = MettuPlaxton::<f32,Dist>::new(&images, distance);
+    let mpalgo = MettuPlaxton::<f32, Dist>::new(&images, distance);
     let alfa = 0.75;
     let mut facilities = mpalgo.construct_centers(alfa);
     //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels, None);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images, labels, None);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
@@ -54,8 +56,12 @@ fn marrupaxton<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams
 
 //========================================================
 
-
-fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, images : &Vec<Vec<f32>>, labels : &Vec<u8>, distance : Dist) {
+fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
+    _params: &MnistParams,
+    images: &Vec<Vec<f32>>,
+    labels: &Vec<u8>,
+    distance: Dist,
+) {
     //
     // if gamma increases, number of facilities increases.
     // if beta increases , upper bound on cost increases faster so the number of phases decreases
@@ -73,7 +79,7 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
     let contraction = false;
     let mut facilities = bmor_algo.end_data(contraction);
     //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(&images , labels, None);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(&images, labels, None);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
@@ -91,8 +97,7 @@ fn bmor<Dist : Distance<f32> + Sync + Send + Clone>(_params :&MnistParams, image
 
 //=====================================================================
 
-
-pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
+pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
     log::debug!("in parse_cmd");
     if matches.contains_id("algo") {
         println!("decoding argument algo");
@@ -102,7 +107,7 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
             "imp" => {
                 let params = MnistParams::new(Algo::IMP);
                 return Ok(params);
-            },
+            }
             "bmor" => {
                 let params = MnistParams::new(Algo::BMOR);
                 return Ok(params);
@@ -110,9 +115,9 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
             "coreset1" => {
                 let params = MnistParams::new(Algo::CORESET1);
                 return Ok(params);
-            }  
+            }
             //
-            _           => {
+            _ => {
                 log::error!(" algo must be imp or bmor or coreset1 ");
                 std::process::exit(1);
             }
@@ -122,15 +127,11 @@ pub fn parse_cmd(matches : &ArgMatches) -> Result<MnistParams, anyhow::Error> {
     return Err(anyhow::anyhow!("bad command"));
 } // end of parse_cmd
 
-
-
 //========================================================
 
-use clap::{Arg, ArgMatches, ArgAction, Command};
+use clap::{Arg, ArgAction, ArgMatches, Command};
 
-
-
-const MNIST_FASHION_DIR : &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
+const MNIST_FASHION_DIR: &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
 
 pub fn main() {
     //
@@ -139,15 +140,17 @@ pub fn main() {
     log::info!("running mnist_fashion");
     //
     let matches = Command::new("mnist_fashion")
-    //        .subcommand_required(true)
-            .arg_required_else_help(true)
-            .arg(Arg::new("algo")
+        //        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .arg(
+            Arg::new("algo")
                 .required(true)
-                .long("algo")    
+                .long("algo")
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(String))
                 .required(true)
-                .help("expecting a algo option imp, bmor "))
+                .help("expecting a algo option imp, bmor "),
+        )
         .get_matches();
     //
     let mnist_params = parse_cmd(&matches).unwrap();
@@ -168,22 +171,26 @@ pub fn main() {
         println!("could not open label file : {:?}", label_fname);
         return;
     }
-    let mut images_as_v:  Vec::<Vec<f32>>;
-    let mut labels :  Vec<u8>;
+    let mut images_as_v: Vec<Vec<f32>>;
+    let mut labels: Vec<u8>;
     {
-        let mnist_train_data  = MnistData::new(image_fname, label_fname).unwrap();
+        let mnist_train_data = MnistData::new(image_fname, label_fname).unwrap();
         let images = mnist_train_data.get_images();
         labels = mnist_train_data.get_labels().to_vec();
-        let( _, _, nbimages) = images.dim();
+        let (_, _, nbimages) = images.dim();
         //
         images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         for k in 0..nbimages {
-            // we convert to float normalized 
-            let v : Vec<f32> = images.slice(s![.., .., k]).iter().map(|v| *v as f32 / (28. * 28.)).collect();
+            // we convert to float normalized
+            let v: Vec<f32> = images
+                .slice(s![.., .., k])
+                .iter()
+                .map(|v| *v as f32 / (28. * 28.))
+                .collect();
             images_as_v.push(v);
         }
     } // drop mnist_train_data
-    // now read test data
+      // now read test data
     let mut image_fname = String::from(MNIST_FASHION_DIR);
     image_fname.push_str("t10k-images-idx3-ubyte");
     let image_path = PathBuf::from(image_fname.clone());
@@ -200,14 +207,18 @@ pub fn main() {
         return;
     }
     {
-        let mnist_test_data  = MnistData::new(image_fname, label_fname).unwrap();
+        let mnist_test_data = MnistData::new(image_fname, label_fname).unwrap();
         let test_images = mnist_test_data.get_images();
         let mut test_labels = mnist_test_data.get_labels().to_vec();
-        let( _, _, nbimages) = test_images.dim();
+        let (_, _, nbimages) = test_images.dim();
         let mut test_images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
         //
         for k in 0..nbimages {
-            let v : Vec<f32> = test_images.slice(s![.., .., k]).iter().map(|v| *v as f32 / (28.*28.)).collect();
+            let v: Vec<f32> = test_images
+                .slice(s![.., .., k])
+                .iter()
+                .map(|v| *v as f32 / (28. * 28.))
+                .collect();
             test_images_as_v.push(v);
         }
         labels.append(&mut test_labels);
@@ -222,59 +233,54 @@ pub fn main() {
     //
     let distance = DistL1::default();
     match mnist_params.get_algo() {
-        Algo::IMP   => {
-            marrupaxton(&mnist_params, &images_as_v, &labels, distance)
-        }
-        Algo::BMOR   => {
+        Algo::IMP => marrupaxton(&mnist_params, &images_as_v, &labels, distance),
+        Algo::BMOR => {
             bmor(&mnist_params, &images_as_v, &labels, distance);
-        } 
+        }
         Algo::CORESET1 => {
             coreset1(&mnist_params, &images_as_v, &labels, distance);
-        }   
+        }
     }
     //
     let cpu_time: Duration = cpu_start.elapsed();
-    println!("  sys time(ms) {:?} cpu time(ms) {:?}", sys_now.elapsed().unwrap().as_millis(), cpu_time.as_millis());
+    println!(
+        "  sys time(ms) {:?} cpu time(ms) {:?}",
+        sys_now.elapsed().unwrap().as_millis(),
+        cpu_time.as_millis()
+    );
 } // end of main
 
-
 //============================================================================================
-
-
 
 #[cfg(test)]
 
 mod tests {
 
+    use super::*;
 
-use super::*;
+    // test and compare some values obtained with Julia loading
 
-// test and compare some values obtained with Julia loading
+    #[test]
+    fn test_load_mnist_fashion() {
+        let mut image_fname = String::from(MNIST_FASHION_DIR);
+        image_fname.push_str("train-images-idx3-ubyte");
+        let image_path = PathBuf::from(image_fname.clone());
+        let image_file_res = OpenOptions::new().read(true).open(&image_path);
+        if image_file_res.is_err() {
+            println!("could not open image file : {:?}", image_fname);
+            return;
+        }
 
-#[test]
-fn test_load_mnist_fashion() {
-    let mut image_fname = String::from(MNIST_FASHION_DIR);
-    image_fname.push_str("train-images-idx3-ubyte");
-    let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(&image_path);
-    if image_file_res.is_err() {
-        println!("could not open image file : {:?}", image_fname);
-        return;
-    }
+        let mut label_fname = String::from(MNIST_FASHION_DIR);
+        label_fname.push_str("train-labels-idx1-ubyte");
+        let label_path = PathBuf::from(label_fname.clone());
+        let label_file_res = OpenOptions::new().read(true).open(&label_path);
+        if label_file_res.is_err() {
+            println!("could not open label file : {:?}", label_fname);
+            return;
+        }
 
-    let mut label_fname = String::from(MNIST_FASHION_DIR);
-    label_fname.push_str("train-labels-idx1-ubyte");
-    let label_path = PathBuf::from(label_fname.clone());
-    let label_file_res = OpenOptions::new().read(true).open(&label_path);
-    if label_file_res.is_err() {
-        println!("could not open label file : {:?}", label_fname);
-        return;
-    }
-
-    let _mnist_data  = MnistData::new(image_fname, label_fname).unwrap();
-    // check some value of the tenth images
-
-} // end test_load
-
-
-}  // end module tests
+        let _mnist_data = MnistData::new(image_fname, label_fname).unwrap();
+        // check some value of the tenth images
+    } // end test_load
+} // end module tests

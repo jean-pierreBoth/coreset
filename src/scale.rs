@@ -9,7 +9,7 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 use quantiles::ckms::CKMS;
 use rand::distributions::{Distribution, Uniform}; // we could use also greenwald_khanna
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 ///  returns quantiles on distances between points.
 #[allow(unused)]

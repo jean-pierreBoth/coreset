@@ -30,7 +30,7 @@ use crate::discrete::DiscreteProba;
 use crate::facility::*;
 use crate::makeiter::*;
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 #[derive(Copy, Clone, Debug)]
 // a sampled point

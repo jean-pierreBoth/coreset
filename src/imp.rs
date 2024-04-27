@@ -1,4 +1,3 @@
-
 //!
 //! The module implements variants of the Mettu-Plaxton algorithm:
 //!  1. Facility Location in sublinear time.   
@@ -18,7 +17,6 @@
 //!  the algorithms implemented in this module. see [construct_centers](self::MettuPlaxton::construct_centers())
 //!
 
-
 use parking_lot::RwLock;
 use rayon::prelude::*;
 
@@ -27,7 +25,7 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 
 use rand::distributions::{Distribution, Uniform}; // we could use also greenwald_khanna
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 use crate::facility::*;
 use crate::scale::*;

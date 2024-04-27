@@ -1,7 +1,7 @@
 //! This module implement building blocks used a black box in coreset constructions.
 //! The algorithm computes an (alfa, beta) k-median approximation and is used as input
 //! to coreset computations.
-//! 
+//!
 //! Adaptation of Streaming k-means on well clustered data.  
 //! Braverman Meyerson Ostrovski Roytman ACM-SIAM 2011 [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 //!
@@ -29,7 +29,7 @@ use rand::distributions::{Distribution, Uniform};
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 use crate::facility::*;
 

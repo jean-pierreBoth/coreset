@@ -19,7 +19,7 @@ use std::time::{Duration, SystemTime};
 
 use std::io::Write;
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 use crate::sensitivity::*;
 // use crate::facility::*;

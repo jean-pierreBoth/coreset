@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use std::collections::HashMap;
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 /// A facility is a dataid and the center (or point in data) that correspond to a k medoid point.  
 /// The struture stores the data vector and point id which serve as a center, the sum of points weight
