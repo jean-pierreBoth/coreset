@@ -37,20 +37,19 @@ impl<'a> Iterator for DataIterator<'a> {
 } // end of Iterator for MnistData
 
 /// a structure implementing MakeIter
-pub(crate) struct IteratorProducer<'a> {
+pub(crate) struct DataForIterator<'a> {
     // we must have an access to data
     images: &'a Vec<Vec<f32>>,
 }
 
-impl<'a> IteratorProducer<'a> {
+impl<'a> DataForIterator<'a> {
     pub fn new(images: &'a Vec<Vec<f32>>) -> Self {
-        IteratorProducer { images }
+        DataForIterator { images }
     }
-} // end of impl IteratorProducer
+} // end of impl DataForIterator
 
-impl<'a> MakeIter for IteratorProducer<'a> {
-    type DataId = usize;
-    type DataType = Vec<f32>;
+impl<'a> MakeIter for DataForIterator<'a> {
+    type Item = (usize, Vec<f32>);
     //
     fn makeiter(&self) -> DataIterator<'a> {
         let iterator = DataIterator::new(self.images);
