@@ -27,7 +27,7 @@ use std::time::{Duration, SystemTime};
 use quantiles::ckms::CKMS;
 use rayon::iter::{IntoParallelIterator, ParallelIterator}; // we could use also greenwald_khanna
 
-use hnsw_rs::dist::*;
+use anndists::dist::*;
 
 use crate::makeiter::*;
 use crate::sensitivity::*;
