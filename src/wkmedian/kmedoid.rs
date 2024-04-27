@@ -298,7 +298,7 @@ where
     /// stores data vectors for each cluster
     pub(crate) fn retrieve_cluster_centers<IterProducer>(&mut self, iter_producer: &IterProducer)
     where
-        IterProducer: MakeIter<DataId = DataId, DataType = Vec<T>>,
+        IterProducer: MakeIter<Item = (DataId,Vec<T>)>,
     {
         //
         // get a list of ids to find, then scan data

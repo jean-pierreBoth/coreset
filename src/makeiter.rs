@@ -14,9 +14,7 @@
 /// The crate hnsw_rs will provide such an iterator on data stored in hnsw database.
 pub trait MakeIter {
     /// The identificator of a data
-    type DataId;
-    /// The data the iterator will produce
-    type DataType;
+    type Item;
     /// how to get an iterator
-    fn makeiter(&self) -> impl Iterator<Item = (Self::DataId, Self::DataType)>;
+    fn makeiter(&self) -> impl Iterator<Item = Self::Item>;
 }
