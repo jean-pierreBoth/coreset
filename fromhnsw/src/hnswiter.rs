@@ -47,7 +47,7 @@ impl<'a, T> Iterator for HnswIter<'a, T>
 where
     T: 'a + Clone + Send + Sync + std::fmt::Debug,
 {
-    type Item = (usize, &'a [T]);
+    type Item = (usize, Vec<T>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let next_key = self.keys.next();
@@ -56,21 +56,19 @@ where
         }
         let next_key = next_key.unwrap();
         let v = self.mapref.get_data::<T>(next_key);
-        return Some((*next_key, v.unwrap()));
+        return Some((*next_key, Vec::<T>::from(v.unwrap())));
     }
 }
 
 //================================================================
 
-impl<'a, T> MakeIter for HnswMakeIter<'a, T>
+impl<'a, T> MakeIter<(usize, Vec<T>)> for HnswMakeIter<'a, T>
 where
     T: 'a + Clone + Send + Sync + std::fmt::Debug,
 {
-    type Item = (usize, &'a [T]);
-
     fn makeiter(&self) -> HnswIter<'a, T> {
         let keys = self.datamap.get_dataid_iter();
-        //        let hnswiter = HnswIter::<'a, T>::new(&self.datamap);
+        let hnswiter = HnswIter::<'a, T>::new(&self.datamap);
         std::panic!("not yet");
     }
 }

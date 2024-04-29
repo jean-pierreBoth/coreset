@@ -12,9 +12,7 @@
 /// Any algorithm (such as [Coreset1](super::sensitivity::Coreset1)) needing an iterator and more than one pass on data to run must use this trait.  
 ///   
 /// The crate hnsw_rs will provide such an iterator on data stored in hnsw database.
-pub trait MakeIter {
-    /// The identificator of a data
-    type Item;
+pub trait MakeIter<Output> {
     /// how to get an iterator
-    fn makeiter(&self) -> impl Iterator<Item = Self::Item>;
+    fn makeiter(&self) -> impl Iterator<Item = Output>;
 }
