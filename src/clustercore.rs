@@ -93,7 +93,7 @@ where
         iter_producer: IterProducer,
     ) where
         Dist: Distance<T> + Send + Sync + Clone,
-        IterProducer: MakeIter<Item = (DataId, Vec<T>)>,
+        IterProducer: MakeIter<(DataId, Vec<T>)>,
     {
         //
         let cpu_start = ProcessTime::now();
@@ -155,7 +155,7 @@ where
     ) where
         T: Send + Sync + Clone,
         Dist: Distance<T> + Send + Sync + Clone,
-        IterProducer: MakeIter<Item = (DataId, Vec<T>)>,
+        IterProducer: MakeIter<(DataId, Vec<T>)>,
     {
         //
         let cpu_start = ProcessTime::now();

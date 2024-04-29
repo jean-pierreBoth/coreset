@@ -25,6 +25,8 @@ path = "examples/mnist_fashion.rs"
 name = "mnist_digits"
 path = "examples/mnist_digits.rs"
 
+[workspace]
+members = ["fromhnsw"]
 
 [dependencies]
 # default is version spec is ^ meaning can update up to max non null version number

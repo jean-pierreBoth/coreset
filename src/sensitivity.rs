@@ -256,7 +256,7 @@ where
         fraction: f64,
     ) -> anyhow::Result<CoreSet<DataId, T, Dist>>
     where
-        IterGenerator: MakeIter<Item = (DataId, Vec<T>)>,
+        IterGenerator: MakeIter<(DataId, Vec<T>)>,
         DataId: Eq + Hash + std::fmt::Debug + Send + Sync,
     {
         //
@@ -313,7 +313,7 @@ where
         iter_generator: &IterGenerator,
     ) -> Vec<(DataId, Vec<T>)>
     where
-        IterGenerator: MakeIter<Item = (DataId, Vec<T>)>,
+        IterGenerator: MakeIter<(DataId, Vec<T>)>,
         DataId: Eq + Hash + std::fmt::Debug,
     {
         //
