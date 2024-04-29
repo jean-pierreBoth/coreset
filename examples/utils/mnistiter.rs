@@ -48,8 +48,7 @@ impl<'a> DataForIterator<'a> {
     }
 } // end of impl DataForIterator
 
-impl<'a> MakeIter for DataForIterator<'a> {
-    type Item = (usize, Vec<f32>);
+impl<'a> MakeIter<(usize, Vec<f32>)> for DataForIterator<'a> {
     //
     fn makeiter(&self) -> DataIterator<'a> {
         let iterator = DataIterator::new(self.images);
