@@ -47,8 +47,8 @@ num_cpus = { version = "1.8.0" }
 cpu-time = { version = "1.0" }
 
 
-#anndists = { path = "../anndists" }
-anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
+anndists = { version = "0.1" }
+#anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
 
 # rand utilis
 rand = { version = "0.8" }
@@ -86,4 +86,4 @@ default = ["simdeez_f"]
 # feature for std simd on nightly
 stdsimd = []
 # feature for simd on stable for x86*
-simdeez_f = ["anndists/simdeez"]
+simdeez_f = ["anndists/simdeez_f"]
