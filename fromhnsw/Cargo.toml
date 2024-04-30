@@ -16,6 +16,8 @@ anyhow = { version = "1.0" }
 log = { version = "0.4" }
 cpu-time = { version = "1.0" }
 env_logger = { version = "0.11" }
+clap = { version = "4.4", features = ["derive"] }
+
 
 coreset = { path = "../" }
 hnsw_rs = { path = "/home/jpboth/Rust/hnswlib-rs" }
