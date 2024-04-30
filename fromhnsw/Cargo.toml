@@ -3,10 +3,19 @@ name = "fromhnsw"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "hcore"
+path = "src/bin/hnswcore.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 
 indexmap = { version = "2.2" }
+anyhow = { version = "1.0" }
+log = { version = "0.4" }
+cpu-time = { version = "1.0" }
+env_logger = { version = "0.11" }
+
 coreset = { path = "../" }
 hnsw_rs = { path = "/home/jpboth/Rust/hnswlib-rs" }
