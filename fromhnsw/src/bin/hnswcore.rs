@@ -21,13 +21,32 @@ use std::iter::Iterator;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::default::Default;
 
-//========================================
+use fromhnsw::getdatamap::get_datamap;
 
+//========================================
+// Parameters
+
+#[derive(Debug, Clone)]
+struct HcoreParams {
+    path: HnswPathParams,
+    corearg: CoresetParams,
+}
 #[derive(Debug, Clone)]
 struct HnswPathParams {
     dir: String,
-    basename: String,
+    hname: String,
 }
+
+impl HnswPathParams {
+    pub fn new(hdir: &String, hname: &String) -> Self {
+        HnswPathParams {
+            dir: hdir.clone(),
+            hname: hname.clone(),
+        }
+    }
+}
+
+//
 /// Coreset parameters
 #[derive(Copy, Clone, Debug)]
 struct CoresetParams {
@@ -59,6 +78,14 @@ impl Default for CoresetParams {
     }
 }
 
+#[derive(Clone, Debug)]
+struct HnswCore {
+    // paths
+    hparams: HnswPathParams,
+    // algo parameters
+    coreparams: CoresetParams,
+}
+
 //===========================================================
 
 fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Error> {
@@ -69,7 +96,7 @@ fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Erro
     //
     log::info!("got CoresetParams : {:?}", params);
     //
-    std::panic!("not yet");
+    return Ok(params);
 }
 
 //===========================================================
@@ -81,6 +108,7 @@ fn main() {
     log::info!("running hnswcore");
     //
     let hparams: HnswPathParams;
+    let core_params: CoresetParams;
 
     //
     let params: CoresetParams;
@@ -105,8 +133,11 @@ fn main() {
                 .value_parser(clap::value_parser!(f32))
                 .help("gamma"),
         );
+    //
     // global command
-    let matches = Command::new("hcore")
+    // =============
+    //
+    let matches = Command::new("hnswcore")
         .arg_required_else_help(true)
         .arg(
             Arg::new("dir")
@@ -119,8 +150,8 @@ fn main() {
         )
         .arg(
             Arg::new("fname")
-                .long("name")
-                .short('n')
+                .long("fname")
+                .short('f')
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(String))
                 .required(true)
@@ -128,4 +159,41 @@ fn main() {
         )
         .subcommand(coresetcmd)
         .get_matches();
+    //
+    // retrieve HnswPathParams
+    //
+    let hdir = matches
+        .get_one::<String>("dir")
+        .expect("dir argument needed");
+    let hname = matches
+        .get_one::<String>("fname")
+        .expect("hnsw base name needed");
+    let hparams = HnswPathParams::new(hdir, hname);
+    //
+    // parse coreset parameters
+    //
+    if let Some(core_match) = matches.subcommand_matches("coreset") {
+        log::debug!("subcommand for coreset parameters");
+        let res = parse_coreset_cmd(core_match);
+        match res {
+            Ok(params) => {
+                core_params = params;
+            }
+            _ => {
+                log::error!("parsing coreset command failed");
+                println!("exiting with error {}", res.err().as_ref().unwrap());
+                //  log::error!("exiting with error {}", res.err().unwrap());
+                std::process::exit(1);
+            }
+        }
+    } else {
+        core_params = CoresetParams::default();
+    }
+    log::debug!("coreset params : {:?}", core_params);
+    // retrieve
+    //
+    // Datamap Creation
+    //
+    let typename = "u32";
+    let datamap = get_datamap(hparams.dir, hparams.hname, typename);
 }

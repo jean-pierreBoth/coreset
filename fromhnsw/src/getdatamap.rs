@@ -7,11 +7,12 @@ use anyhow;
 use hnsw_rs::datamap::*;
 
 /// reloads a datamap and checks for type T.
-pub(crate) fn get_datamap<T: 'static + Send + Sync + Clone + std::fmt::Debug>(
+pub fn get_typed_datamap<T: 'static + std::fmt::Debug>(
     directory: String,
     basename: String,
 ) -> anyhow::Result<DataMap> {
-    let res = DataMap::from_hnswdump::<u32>(&directory, &basename);
+    //
+    let res = DataMap::from_hnswdump::<T>(&directory, &basename);
     if res.is_err() {
         log::error!(
             "get_datamap, could not get datamap from hnsw, directory {}, basename : {}",
@@ -32,4 +33,18 @@ pub(crate) fn get_datamap<T: 'static + Send + Sync + Clone + std::fmt::Debug>(
     }
     //
     return Ok(datamap);
+}
+
+//
+pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyhow::Result<DataMap> {
+    //
+    let _datamap = match &typename {
+        &"u32" => get_typed_datamap::<u32>(directory, basename),
+        &"u64" => get_typed_datamap::<u64>(directory, basename),
+        _ => {
+            log::error!("get_datamap : unimplemented type");
+            std::panic!("get_datamap : unimplemented type");
+        }
+    };
+    std::panic!("not yet");
 }
