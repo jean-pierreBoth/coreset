@@ -1,11 +1,17 @@
 //! This binary is dedicated to coreset computations on data stored in Hnsw created by crate [hnsw_rs](https://crates.io/crates/hnsw_rs)
 //!
-//! command is :hnscore --dir dirname --name hnswname [--beta b] [--gamma g]
+//! command is :hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename [--beta b] [--gamma g]
 //!
 //! - dirname : directory where hnsw files reside
 //! - hnswname : name used for naming the 2 hnsw related files: name.hnsw.data and name.hnsw.graph
+//! - typename : can be u16, u32, u64, f32, f64, i16, i32, i64
+//!
+//! The coreset command takes as arguments:
 //! - beta:
 //! - gamma:
+//!
+//! Note: It is easy to add any adhoc type T  by adding a line in [get_datamap()].  
+//! The only constraints on T comes from hnsw and is T: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
 
 #![allow(unused)]
 
@@ -29,20 +35,22 @@ use hnsw_rs::datamap::*;
 
 #[derive(Debug, Clone)]
 struct HcoreParams {
-    path: HnswPathParams,
+    path: HnswParams,
     corearg: CoresetParams,
 }
 #[derive(Debug, Clone)]
-struct HnswPathParams {
+struct HnswParams {
     dir: String,
     hname: String,
+    typename: String,
 }
 
-impl HnswPathParams {
-    pub fn new(hdir: &String, hname: &String) -> Self {
-        HnswPathParams {
+impl HnswParams {
+    pub fn new(hdir: &String, hname: &String, typename: &String) -> Self {
+        HnswParams {
             dir: hdir.clone(),
             hname: hname.clone(),
+            typename: typename.clone(),
         }
     }
 }
@@ -82,7 +90,7 @@ impl Default for CoresetParams {
 #[derive(Clone, Debug)]
 struct HnswCore {
     // paths
-    hparams: HnswPathParams,
+    hparams: HnswParams,
     // algo parameters
     coreparams: CoresetParams,
 }
@@ -102,7 +110,7 @@ fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Erro
 
 //============================================================================================
 
-/// This function dispatch its call to get_typed_datamap::<T> according to type T
+/// This function dispatch its call to get_typed_datamap::\<T\> according to type T
 /// The cuurent function dispatch to u16, u32, u64, i32, i64, f32 and f64 according to typename.
 /// For another type, the functio is easily modifiable.  
 /// The only constraints on T comes from hnsw and is T: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
@@ -135,7 +143,7 @@ fn main() {
     //
     log::info!("running hnswcore");
     //
-    let hparams: HnswPathParams;
+    let hparams: HnswParams;
     let core_params: CoresetParams;
 
     //
@@ -146,7 +154,7 @@ fn main() {
                 .required(false)
                 .short('b')
                 .long("beta")
-                .default_value("2.0 f32")
+                .default_value("2.0")
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(f32))
                 .help("beta"),
@@ -156,7 +164,7 @@ fn main() {
                 .required(false)
                 .short('g')
                 .long("gamma")
-                .default_value("2.0 f32")
+                .default_value("2.0")
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(f32))
                 .help("gamma"),
@@ -185,6 +193,14 @@ fn main() {
                 .required(true)
                 .help("expecting a file  basename"),
         )
+        .arg(
+            Arg::new("typename")
+                .short('t')
+                .long("type")
+                .value_parser(clap::value_parser!(String))
+                .required(true)
+                .help("expecting a directory name"),
+        )
         .subcommand(coresetcmd)
         .get_matches();
     //
@@ -196,7 +212,11 @@ fn main() {
     let hname = matches
         .get_one::<String>("fname")
         .expect("hnsw base name needed");
-    let hparams = HnswPathParams::new(hdir, hname);
+    let tname: &String = matches
+        .get_one::<String>("fname")
+        .expect("typename required");
+    //
+    let hparams = HnswParams::new(hdir, hname, tname);
     //
     // parse coreset parameters
     //
