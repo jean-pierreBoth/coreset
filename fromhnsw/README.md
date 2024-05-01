@@ -9,7 +9,7 @@ Provides coreset computations from data stored in hnsw structures coming from cr
 
 ## Building
 
-To compile main crate :
+To compile main crate run:  
 **cargo build --release --workspace --all**
 
 To compile the subcrate *fromhnsw* enabling coreset computations on hnsw data run :  

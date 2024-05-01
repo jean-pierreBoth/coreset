@@ -21,3 +21,4 @@ clap = { version = "4.4", features = ["derive"] }
 
 coreset = { path = "../" }
 hnsw_rs = { path = "/home/jpboth/Rust/hnswlib-rs" }
+#hnsw_rs = { version = "2.2" }

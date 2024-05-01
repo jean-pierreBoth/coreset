@@ -5,8 +5,8 @@ This crate is devoted to clustering approximation, in metric spaces, of large nu
 Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
-A k-coreset is a sampled summary of a much smaller number of points *k*. The points have a weight attached and are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
-It is thus possible to get an approximate clustering of the whole data from the coreset.
+A k-coreset is a sampled summary of a much smaller number of points *k*. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
+The drawback is that the selected points have now **weights** attached to the selected points.
 
 ## References to implemented algorithms
 
@@ -39,10 +39,10 @@ The third  highlights the progress made by the 2 first as it requires an order o
 ### Results
 
 Detailed results are given [here](./Results.md).
+We run a simple weighted kmean after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running ono whole data.
 
 #### conclusion
-
-**Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by par_fastermap, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid**. 
+Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid. 
 
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 
@@ -55,15 +55,17 @@ The number of iterations for the Kmedoid have a small impact on speed and 25 ite
 
 ## Usage 
 
-The data must be associated to a structure implementing the trait *IteratorProvider*.  
+The data must be associated to a structure implementing the trait **MakeIter**.  
 The algorithm needs to make more than one pass on the data, so the algorithm takes as argument a structure  providing
 an iterator on the data when needed. (Typically the structure could provide file Io to each data).  
-An example is found for mnist data (Cf *module utils::mnistiter*).  
+**An example is found for mnist data** (Cf *module utils::mnistiter*).  
 
 The implementation does the buffering and parallelization internally.
 The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed separately with
 corresponding modules.  
-The distances are provided by the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
+The distances are provided by the crate [anndists](https://crates.io/crates/anndists).
+
+A sub-crate provides the binary *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures provided by the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
 
 ## License
 
