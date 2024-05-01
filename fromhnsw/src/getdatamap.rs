@@ -34,17 +34,3 @@ pub fn get_typed_datamap<T: 'static + std::fmt::Debug>(
     //
     return Ok(datamap);
 }
-
-//
-pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyhow::Result<DataMap> {
-    //
-    let _datamap = match &typename {
-        &"u32" => get_typed_datamap::<u32>(directory, basename),
-        &"u64" => get_typed_datamap::<u64>(directory, basename),
-        _ => {
-            log::error!("get_datamap : unimplemented type");
-            std::panic!("get_datamap : unimplemented type");
-        }
-    };
-    std::panic!("not yet");
-}

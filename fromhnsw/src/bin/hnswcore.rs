@@ -21,7 +21,8 @@ use std::iter::Iterator;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::default::Default;
 
-use fromhnsw::getdatamap::get_datamap;
+use fromhnsw::getdatamap::get_typed_datamap;
+use hnsw_rs::datamap::*;
 
 //========================================
 // Parameters
@@ -97,6 +98,33 @@ fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Erro
     log::info!("got CoresetParams : {:?}", params);
     //
     return Ok(params);
+}
+
+//============================================================================================
+
+/// This function dispatch its call to get_typed_datamap::<T> according to type T
+/// The cuurent function dispatch to u16, u32, u64, i32, i64, f32 and f64 according to typename.
+/// For another type, the functio is easily modifiable.  
+/// The only constraints on T comes from hnsw and is T: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
+pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyhow::Result<DataMap> {
+    //
+    let _datamap = match &typename {
+        &"u16" => get_typed_datamap::<u16>(directory, basename),
+        &"u32" => get_typed_datamap::<u32>(directory, basename),
+        &"u64" => get_typed_datamap::<u64>(directory, basename),
+        &"f32" => get_typed_datamap::<f32>(directory, basename),
+        &"f64" => get_typed_datamap::<f64>(directory, basename),
+        &"i32" => get_typed_datamap::<i32>(directory, basename),
+        &"i64" => get_typed_datamap::<i64>(directory, basename),
+        _ => {
+            log::error!(
+                "get_datamap : unimplemented type, type received : {}",
+                typename
+            );
+            std::panic!("get_datamap : unimplemented type");
+        }
+    };
+    std::panic!("not yet");
 }
 
 //===========================================================
