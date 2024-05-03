@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
 
-use anndists::prelude::*;
+use anndists::dist::*;
 use coreset::prelude::*;
 use std::iter::Iterator;
 

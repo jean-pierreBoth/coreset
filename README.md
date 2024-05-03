@@ -28,18 +28,11 @@ The drawback is that the selected points have now **weights** attached to the se
     - takes into accound points weights,
     - random parturbation of cluster pairs with centroids too near of each other.
 
-4. We also implemented 
-   -  Facility Location in sublinear time.   
-       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
-       [indyk](https://people.csail.mit.edu/indyk/fl.pdf)
-
-The third  highlights the progress made by the 2 first as it requires an order of magnitude more cpu.
-
 
 ### Results
 
 Detailed results are given [here](./Results.md).
-We run a simple weighted kmean after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running ono whole data.
+We run a simple weighted kmean after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running on the whole data.
 
 #### conclusion
 Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid. 
@@ -49,14 +42,20 @@ The number of iterations for the Kmedoid have a small impact on speed and 25 ite
 **The speed is one or two orders of magnitude faster**.
 
 
-
-
-
-
 ## Usage 
 
-The data must be associated to a structure implementing the trait **MakeIter**.  
-The algorithm needs to make more than one pass on the data, so the algorithm takes as argument a structure  providing
+The data must be associated to a structure implementing the trait **MakeIter**:  
+
+```
+pub trait MakeIter {
+    /// The identificator of a data
+    type Item;
+    /// how to get an iterator
+    fn makeiter(&self) -> impl Iterator<Item = Self::Item>;
+}
+```
+
+The algorithm needs more than one pass on the data, so the algorithm takes as argument a structure  providing
 an iterator on the data when needed. (Typically the structure could provide file Io to each data).  
 **An example is found for mnist data** (Cf *module utils::mnistiter*).  
 
@@ -65,7 +64,7 @@ The most synthetic interface is provided in the module *clustercore*, but corese
 corresponding modules.  
 The distances are provided by the crate [anndists](https://crates.io/crates/anndists).
 
-A sub-crate provides the binary *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures provided by the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
+The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
 
 ## License
 

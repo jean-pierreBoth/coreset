@@ -13,7 +13,7 @@
 //! Note: It is easy to add any adhoc type T  by adding a line in [get_datamap()].  
 //! The only constraints on T comes from hnsw and is T: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
 
-#![allow(unused)]
+//#![allow(unused)]
 
 use std::fs::OpenOptions;
 use std::path::PathBuf;
@@ -22,13 +22,15 @@ use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
 
 use coreset::prelude::*;
-use std::iter::Iterator;
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::default::Default;
 
+use anndists::dist::*;
 use fromhnsw::getdatamap::get_typed_datamap;
 use hnsw_rs::datamap::*;
+
+use fromhnsw::hnswiter::HnswMakeIter;
 
 //========================================
 // Parameters
@@ -58,7 +60,7 @@ impl HnswParams {
 //
 /// Coreset parameters
 #[derive(Copy, Clone, Debug)]
-struct CoresetParams {
+pub struct CoresetParams {
     beta: f32,
     gamma: f32,
 }
@@ -134,6 +136,70 @@ pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyho
     };
     std::panic!("not yet");
 }
+
+//
+/*
+use anndists::dist::*;
+macro_rules! implement_get_l1(
+    ($ty:ty) => $ty{}
+);
+
+implement_get_l1!(DistL1);
+
+*/
+
+pub fn get_distance_l1() -> DistL1 {
+    DistL1 {}
+}
+
+pub fn get_distance<T: Send + Sync>(distname: &str) -> Box<dyn Distance<T>>
+where
+    DistL1: Distance<T>,
+    DistL2: Distance<T>,
+    DistJaccard: Distance<T>,
+{
+    match distname {
+        "DistL1" => Box::new(DistL1 {}),
+        "DistL2" => Box::new(DistL2 {}),
+        "DistJaccard" => Box::new(DistJaccard {}),
+        _ => std::panic!("get_distance got bad distance"),
+    }
+    //  std::panic!("not yet");
+}
+
+//===========================================================
+
+pub fn coreset1<T, Dist>(coreparams: &CoresetParams, datamap: &DataMap, distance: Dist)
+where
+    T: Send + Sync + Clone + std::fmt::Debug,
+    Dist: Distance<T> + Sync + Send + Clone,
+{
+    //
+    println!("\n\n entering coreset + our kmedoids");
+    println!("==================================");
+    //
+    let beta = coreparams.get_beta().into();
+    let gamma = coreparams.get_gamma().into();
+    let nb_data = 50000;
+    //
+    let dl1 = DistL1 {};
+    let k = 10; // as we have 10 classes, but this gives a lower bound
+    let mut core1 = Coreset1::<usize, T, Dist>::new(k, nb_data, beta, gamma, distance.clone());
+    //
+    let iterproducer = HnswMakeIter::<T>::new(datamap);
+    //
+
+    let res = core1.make_coreset(&iterproducer, 0.11);
+    if res.is_err() {
+        log::error!("construction of coreset1 failed");
+    }
+    let coreset = res.unwrap();
+    // get some info
+    log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
+    //
+    let dist_name = std::any::type_name::<Dist>();
+    log::info!("dist name = {:?}", dist_name);
+} // end of
 
 //===========================================================
 
@@ -244,4 +310,15 @@ fn main() {
     //
     let typename = "u32";
     let datamap = get_datamap(hparams.dir, hparams.hname, typename);
+    if datamap.is_err() {
+        log::error!(
+            "datamap could not be constructed : {}",
+            datamap.err().unwrap()
+        );
+        std::process::exit(1);
+    }
+    let datamap = datamap.unwrap();
+    // Distance instanciation
+    let distname = datamap.get_distname();
+    let distance = get_distance::<u32>(&distname);
 }

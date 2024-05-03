@@ -12,19 +12,20 @@ use hnsw_rs::datamap::DataMap;
 use coreset::makeiter::MakeIter;
 
 /// The structure implementing MakeIter trait for Hnsw data
-struct HnswMakeIter<'a, T> {
+pub struct HnswMakeIter<'a, T> {
     datamap: &'a DataMap,
     phantom: PhantomData<T>,
 }
 
 impl<'a, T> HnswMakeIter<'a, T> {
-    pub fn new(datamap: &'a DataMap, phantom: PhantomData<T>) -> Self {
+    pub fn new(datamap: &'a DataMap) -> Self {
+        let phantom = PhantomData::<T>;
         HnswMakeIter { datamap, phantom }
     }
 }
 
 // our Iterator over hnsw data
-struct HnswIter<'a, T> {
+pub struct HnswIter<'a, T> {
     mapref: &'a DataMap,
     keys: Keys<'a, usize, usize>,
     phantom: PhantomData<T>,
@@ -66,7 +67,7 @@ where
 {
     type Item = (usize, Vec<T>);
 
-    fn makeiter(&self) -> HnswIter<'a, T> {
+    fn makeiter(&self) -> impl Iterator<Item = <Self as MakeIter>::Item> {
         let keys = self.datamap.get_dataid_iter();
         let hnswiter = HnswIter::<'a, T>::new(&self.datamap);
         return hnswiter;
