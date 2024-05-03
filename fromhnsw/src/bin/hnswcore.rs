@@ -15,9 +15,6 @@
 
 //#![allow(unused)]
 
-use std::fs::OpenOptions;
-use std::path::PathBuf;
-
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
 
@@ -63,11 +60,16 @@ impl HnswParams {
 pub struct CoresetParams {
     beta: f32,
     gamma: f32,
+    freduc: f32,
 }
 
 impl CoresetParams {
-    fn new(beta: f32, gamma: f32) -> CoresetParams {
-        CoresetParams { beta, gamma }
+    fn new(beta: f32, gamma: f32, freduc: f32) -> CoresetParams {
+        CoresetParams {
+            beta,
+            gamma,
+            freduc,
+        }
     }
     //
     fn get_beta(&self) -> f32 {
@@ -78,6 +80,10 @@ impl CoresetParams {
     fn get_gamma(&self) -> f32 {
         self.gamma
     }
+    //
+    fn get_reduction(&self) -> f32 {
+        self.freduc
+    }
 }
 
 impl Default for CoresetParams {
@@ -85,6 +91,7 @@ impl Default for CoresetParams {
         CoresetParams {
             beta: 2.,
             gamma: 2.,
+            freduc: 0.11,
         }
     }
 }
@@ -177,19 +184,21 @@ where
     //
     println!("\n\n entering coreset + our kmedoids");
     println!("==================================");
+    let cpu_start = ProcessTime::now();
+    let sys_now = SystemTime::now();
     //
     let beta = coreparams.get_beta().into();
     let gamma = coreparams.get_gamma().into();
+    let freduc: f64 = coreparams.get_reduction().into();
     let nb_data = 50000;
     //
-    let dl1 = DistL1 {};
     let k = 10; // as we have 10 classes, but this gives a lower bound
     let mut core1 = Coreset1::<usize, T, Dist>::new(k, nb_data, beta, gamma, distance.clone());
     //
     let iterproducer = HnswMakeIter::<T>::new(datamap);
     //
 
-    let res = core1.make_coreset(&iterproducer, 0.11);
+    let res = core1.make_coreset(&iterproducer, freduc);
     if res.is_err() {
         log::error!("construction of coreset1 failed");
     }
@@ -199,6 +208,13 @@ where
     //
     let dist_name = std::any::type_name::<Dist>();
     log::info!("dist name = {:?}", dist_name);
+    //
+    let cpu_time: Duration = cpu_start.elapsed();
+    println!(
+        "  sys time(ms) {:?} cpu time(ms) {:?}",
+        sys_now.elapsed().unwrap().as_millis(),
+        cpu_time.as_millis()
+    );
 } // end of
 
 //===========================================================
@@ -234,6 +250,16 @@ fn main() {
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(f32))
                 .help("gamma"),
+        )
+        .arg(
+            Arg::new("reduction")
+                .required(false)
+                .short('f')
+                .long("freduc")
+                .default_value("0.1")
+                .action(ArgAction::Set)
+                .value_parser(clap::value_parser!(f32))
+                .help("reduction"),
         );
     //
     // global command
@@ -304,7 +330,6 @@ fn main() {
         core_params = CoresetParams::default();
     }
     log::debug!("coreset params : {:?}", core_params);
-    // retrieve
     //
     // Datamap Creation
     //
@@ -319,6 +344,7 @@ fn main() {
     }
     let datamap = datamap.unwrap();
     // Distance instanciation
-    let distname = datamap.get_distname();
-    let distance = get_distance::<u32>(&distname);
+    let _distname = datamap.get_distname();
+    let _typename = datamap.get_data_typename();
+    // need a macro or switch function to dispatch on types
 }
