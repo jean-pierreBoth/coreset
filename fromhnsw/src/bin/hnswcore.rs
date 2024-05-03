@@ -111,6 +111,7 @@ fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Erro
     let mut params = CoresetParams::default();
     params.beta = *matches.get_one::<f32>("beta").unwrap();
     params.gamma = *matches.get_one::<f32>("gamma").unwrap();
+    params.freduc = *matches.get_one::<f32>("freduc").unwrap();
     //
     log::info!("got CoresetParams : {:?}", params);
     //
@@ -144,6 +145,7 @@ pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyho
     std::panic!("not yet");
 }
 
+//=========================================================================================
 //
 /*
 use anndists::dist::*;
@@ -154,6 +156,11 @@ macro_rules! implement_get_l1(
 implement_get_l1!(DistL1);
 
 */
+macro_rules! gen_coreset1 {
+    ($t:ty , $d:ty ,  &$a1:tt ,  &$a2:expr) => {
+        coreset1::<$t, $d>(&$a1, &$a2)
+    };
+}
 
 pub fn get_distance_l1() -> DistL1 {
     DistL1 {}
@@ -176,11 +183,12 @@ where
 
 //===========================================================
 
-pub fn coreset1<T, Dist>(coreparams: &CoresetParams, datamap: &DataMap, distance: Dist)
+pub fn coreset1<T, Dist>(coreparams: &CoresetParams, datamap: &DataMap) -> usize
 where
     T: Send + Sync + Clone + std::fmt::Debug,
-    Dist: Distance<T> + Sync + Send + Clone,
+    Dist: Distance<T> + Sync + Send + Clone + Default,
 {
+    let distance = Dist::default();
     //
     println!("\n\n entering coreset + our kmedoids");
     println!("==================================");
@@ -215,6 +223,7 @@ where
         sys_now.elapsed().unwrap().as_millis(),
         cpu_time.as_millis()
     );
+    return 1;
 } // end of
 
 //===========================================================
@@ -344,7 +353,39 @@ fn main() {
     }
     let datamap = datamap.unwrap();
     // Distance instanciation
-    let _distname = datamap.get_distname();
-    let _typename = datamap.get_data_typename();
+    let distname = &datamap.get_distname();
+    let typename = &datamap.get_data_typename();
+    //
+    let res = if distname == "DistL1" {
+        match typename.as_str() {
+            "u16" => coreset1::<u16, DistL1>(&core_params, &datamap),
+            "u32" => coreset1::<u32, DistL1>(&core_params, &datamap),
+            "f32" => coreset1::<f32, DistL1>(&core_params, &datamap),
+            _ => panic!("not yet"),
+        }
+    } else if distname == "DistL2" {
+        match typename.as_str() {
+            "u16" => coreset1::<u16, DistL2>(&core_params, &datamap),
+            "u32" => coreset1::<u32, DistL2>(&core_params, &datamap),
+            "f32" => coreset1::<f32, DistL2>(&core_params, &datamap),
+            _ => panic!("not yet implemented type"),
+        }
+    } else if typename == "DistCosine" {
+        match typename.as_str() {
+            "f32" => coreset1::<f32, DistCosine>(&core_params, &datamap),
+            "uf64" => coreset1::<f64, DistCosine>(&core_params, &datamap),
+            _ => panic!("not yet implemented type"),
+        }
+    } else if distname == "DistHamming" {
+        match typename.as_str() {
+            "u16" => coreset1::<u16, DistHamming>(&core_params, &datamap),
+            "u32" => coreset1::<u32, DistHamming>(&core_params, &datamap),
+            "f32" => coreset1::<f32, DistHamming>(&core_params, &datamap),
+            _ => panic!("not yet implemented type"),
+        }
+    } else {
+        panic!("not yet implemented distance");
+    };
+
     // need a macro or switch function to dispatch on types
 }
