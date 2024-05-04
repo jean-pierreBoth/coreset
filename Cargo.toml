@@ -28,14 +28,10 @@ path = "examples/mnist_digits.rs"
 [workspace]
 members = ["fromhnsw"]
 
-[dependencies]
-# default is version spec is ^ meaning can update up to max non null version number
-# cargo doc --no-deps avoid dependencies doc generation
-#
-
+# common depencies versions
+[workspace.dependencies]
 
 clap = { version = "4.4", features = ["derive"] }
-
 serde = { version = "1.0", features = ["derive"] }
 bincode = { version = "1.3" }
 
@@ -45,12 +41,7 @@ rayon = { version = "1.6" }
 dashmap = { version = "5.5" }
 indexmap = { version = "2.2" }
 num_cpus = { version = "1.8.0" }
-
 cpu-time = { version = "1.0" }
-
-
-anndists = { version = "0.1" }
-#anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
 
 # rand utilis
 rand = { version = "0.8" }
@@ -61,18 +52,64 @@ quantiles = { version = "0.7" }
 num-traits = { version = "0.2" }
 lazy_static = { version = "1.4" }
 
+anyhow = { version = "1.0" }
+katexit = { version = "0.1" }
+
+ndarray = { version = "0.15" }
+
+#anndists = { version = "0.1" }
+#anndists = { path = "../anndists" }
+anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
+hnsw_rs = { git = "https://github.com/jean-pierreBoth/hnswlib-rs" }
+
+
 # decreasing order of log for debug build : (max_level_)trace debug info warn error off
 # decreasing order of log for release build (release_max_level_)  .. idem
 #log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
 log = { version = "0.4" }
 env_logger = { version = "0.11" }
 
-byteorder = { version = "1.4" }
+# dependencies of main crate
+# cargo doc --no-deps avoid dependencies doc generation
+[dependencies]
 
-anyhow = { version = "1.0" }
-katexit = { version = "0.1" }
+clap = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
 
-ndarray = { version = "0.15" }
+# for //
+parking_lot = { workspace = true }
+rayon = { workspace = true }
+dashmap = { workspace = true }
+indexmap = { workspace = true }
+num_cpus = { workspace = true }
+cpu-time = { workspace = true }
+
+
+# rand utilis
+rand = { workspace = true }
+rand_distr = { workspace = true }
+rand_xoshiro = { workspace = true }
+quantiles = { workspace = true }
+
+num-traits = { workspace = true }
+ndarray = { workspace = true }
+
+lazy_static = { workspace = true }
+
+# decreasing order of log for debug build : (max_level_)trace debug info warn error off
+# decreasing order of log for release build (release_max_level_)  .. idem
+#log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
+log = { workspace = true }
+env_logger = { workspace = true }
+
+
+anyhow = { workspace = true }
+katexit = { workspace = true }
+
+
+anndists = { workspace = true }
+
 
 [dev-dependencies]
 kmedoids = { version = "0.5" }
