@@ -1,6 +1,6 @@
 //! This module provides a simple user interface for clustering data via a coreset.  
 //! The data must be accessed via an iterator, see [makeiter](super::makeiter).  
-//! It chains the bmor and algorithms and  ends with a pass dispatching all data
+//! It chains the bmor and coreset algorithms and  ends with a pass dispatching all data
 //! to their nearest cluster deduced from the coreset clustering, recomputing global
 //! cost and storing membership
 //!
@@ -33,6 +33,16 @@ pub struct BmorArg {
     beta: f64,
     ///
     gamma: f64,
+}
+
+impl BmorArg {
+    pub fn new(nb_data_expected: usize, beta: f64, gamma: f64) -> Self {
+        BmorArg {
+            nb_data_expected,
+            beta,
+            gamma,
+        }
+    }
 }
 
 impl Default for BmorArg {
@@ -90,8 +100,9 @@ where
         &mut self,
         distance: Dist,
         nb_iter: usize,
-        iter_producer: IterProducer,
-    ) where
+        iter_producer: &IterProducer,
+    ) -> Kmedoid<DataId, T>
+    where
         Dist: Distance<T> + Send + Sync + Clone,
         IterProducer: MakeIter<Item = (DataId, Vec<T>)>,
     {
@@ -107,7 +118,7 @@ where
             distance.clone(),
         );
         //
-        let result = coreset1.make_coreset(&iter_producer, self.fraction);
+        let result = coreset1.make_coreset(iter_producer, self.fraction);
         if result.is_err() {
             log::error!("construction of coreset1 failed");
         }
@@ -124,6 +135,7 @@ where
         // TODO: we have coreset and kmedoids we must store center (Vec<T>) of each medoid!
         self.nb_data = coreset1.get_nb_data();
         let cpu_time: Duration = cpu_start.elapsed();
+        //
         log::info!(
             " kmedoids finished at nb_iter : {}, cost = {:.3e}",
             nb_iter,
@@ -142,13 +154,15 @@ where
             sys_now.elapsed().unwrap().as_millis(),
             cpu_time.as_millis()
         );
+        //
+        return kmedoids;
     } // end of compute
 
     /// Once you have Kmedoid, you can compute the clustering cost for the whole data, not just the coreset.
     /// This function can also fill in  [Kmedoid] structure the data vector associated to each center, see [Kmedoid::get_cluster_center]
     pub fn dispatch<Dist, IterProducer>(
         &mut self,
-        kmedoid: &mut Kmedoid<DataId, T>,
+        kmedoids: &mut Kmedoid<DataId, T>,
         distance: &Dist,
         iter_producer: &IterProducer,
         retrieve_centers: bool,
@@ -168,8 +182,8 @@ where
         let buffer_size = 5000 * nb_cpus;
         let mut map_to_medoid = HashMap::<DataId, DataId>::with_capacity(self.nb_data);
         // We must retrive datas corresponding to medoid centers
-        kmedoid.retrieve_cluster_centers(iter_producer);
-        let centers = kmedoid.get_centers().unwrap();
+        kmedoids.retrieve_cluster_centers(iter_producer);
+        let centers = self.kmedoids.as_ref().unwrap().get_centers().unwrap();
         //
         // This function returns for each data (id,data) a triplet (id, rank of center and distance to its cluster center)
         //
@@ -228,7 +242,7 @@ where
             log::info!("retrieving centers data vectors...");
             let cpu_start = ProcessTime::now();
             let sys_now = SystemTime::now();
-            kmedoid.retrieve_cluster_centers(iter_producer);
+            kmedoids.retrieve_cluster_centers(iter_producer);
             log::info!(
                 "retrieving centers data vectors done sys time(ms) {:?} cpu time(ms) {:?}",
                 sys_now.elapsed().unwrap().as_millis(),
@@ -304,4 +318,8 @@ where
             Err(0)
         }
     } // end of get_buffer_data
+
+    fn get_kmedoids(&mut self) -> &mut Kmedoid<DataId, T> {
+        self.kmedoids.as_mut().unwrap()
+    }
 } // end of impl ClusterCorese

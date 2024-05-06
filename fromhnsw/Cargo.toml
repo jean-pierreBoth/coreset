@@ -18,7 +18,7 @@ cpu-time = { workspace = true }
 env_logger = { workspace = true }
 clap = { workspace = true }
 
-anndists = { workspace = true }
+#anndists provided by hnsw_rs
 hnsw_rs = { workspace = true }
 
 coreset = { path = "../" }
