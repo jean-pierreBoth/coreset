@@ -94,7 +94,7 @@ pub struct Kmedoid<DataId, T> {
     nb_cluster: usize,
     // orginal ids of data to cluster i.e those in the coreset (!!) by line of matrix
     ids: Vec<DataId>,
-    // distance matrix
+    // distance matrix between kmedoid centers
     distance: Array2<f32>,
     // weights of points in coreset in order corresponding to lines of distance matrix
     weights: Vec<f64>,
@@ -112,10 +112,10 @@ pub struct Kmedoid<DataId, T> {
 
 impl<DataId, T> Kmedoid<DataId, T>
 where
-    DataId: Eq + std::hash::Hash + Send + Sync + Clone + Default,
-    T: Send + Sync + Clone,
+    DataId: Eq + std::hash::Hash + Send + Sync + Clone + Default + std::fmt::Debug,
+    T: Send + Sync + Clone + std::fmt::Debug,
 {
-    pub fn new<Dist>(coreset: &CoreSet<DataId, T, Dist>, nb_cluster: usize) -> Self
+    pub fn new<Dist>(coreset: &CoreSet<DataId, T, Dist>, nb_cluster_arg: usize) -> Self
     where
         Dist: Distance<T> + Send + Sync + Clone,
     {
@@ -131,6 +131,15 @@ where
         //
         let nbpoints = coreset.get_nb_points();
         log::info!("Kmedoid received coreset of size : {}", nbpoints);
+        // must check for that!
+        let nb_cluster = if nbpoints <= nb_cluster_arg {
+            log::info!("asked number of cluster : {} is greater than number of points : {}", nb_cluster_arg, nbpoints);
+            log::info!("setting number of cluster to :{}", nbpoints/10);
+            nbpoints/10
+        }
+        else {
+            nb_cluster_arg
+        };
         // weight[i] corresponds to row[i] in distance matrix. From now on all computation use center as raks and no ids.
         let mut weights = Vec::<f64>::with_capacity(nbpoints);
         for i in 0..ids.len() {
@@ -212,7 +221,7 @@ where
         monitoring.push((0, last_cost));
         let mut best_iter = (0, last_cost);
         //
-        log::info!("medoids initialized , global cost : {:.3e}", last_cost);
+        log::info!("medoids initialized , nb medoids : {}, global cost : {:.3e}", costs.len(), last_cost);
         log::info!(
             "======kmedoid medoids initialized  sys time(ms) {:?} cpu time(ms) {:?}\n ",
             sys_now.elapsed().unwrap().as_millis(),
@@ -299,8 +308,6 @@ where
     pub(crate) fn retrieve_cluster_centers<IterProducer>(&mut self, iter_producer: &IterProducer)
     where
         IterProducer: MakeIter<Item = (DataId,Vec<T>)>,
-//        T : std::fmt::Debug,
- //       DataId : std::fmt::Debug,
     {
         //
         // get a list of ids to find, then scan data
@@ -319,7 +326,7 @@ where
                 if centers_ids[i] == data_id {
                     centers_data[i] = data;
                     nb_found += 1;
-//                    log::debug!(" data id : {:?}, coordinates : {:?}", data_id,centers_data[i][0..centers_data[i].len().min(10)]);
+                    log::trace!(" center rank {},  centers_ids[i] : {:?}, coordinates : {:?}", i, data_id,centers_data[i].first());
                     break;
                 }
             }
@@ -440,7 +447,7 @@ where
         }
         already[max_item.0] = true;
         centers.push(max_item.0 as u32);
-        log::info!(
+        log::debug!(
             "new center; i : {:6}, weight : {:.3e} dist to previous centers : {:.3e}",
             max_item.0,
             max_item.1,
@@ -465,10 +472,14 @@ where
                     max_item = (i, cost_i as f64);
                 }
             }
+            if max_item.0 >= usize::MAX {
+                // means we have more clusters than center points
+                break;
+            }
             assert!(!already[max_item.0]);
             already[max_item.0] = true;
             centers.push(max_item.0 as u32);
-            log::info!(
+            log::debug!(
                 "new center; i : {:6}, cost : {:.3e} dist to previous centers : {:.3e}",
                 max_item.0,
                 max_item.1,
@@ -492,6 +503,9 @@ where
                 }
             }
         }
+        //
+        log::info!("number of medoid center initilized : {}", centers.len());
+        //
         return centers;
     } // end of max_cost_init
 
@@ -680,9 +694,9 @@ where
                 let c = self.medoids[m as usize].center as usize;
                 q_dist.insert(self.distance[[i, c]]);
             }
-            println!("\n distance to centroid quantiles at 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-                q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, 
-                q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.95).unwrap().1);
+            println!("\n distance to centroid quantiles at 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
+                q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1,  q_dist.query(0.25).unwrap().1,
+                q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.99).unwrap().1);
         }
         //
         let mut medoids_size = vec![0u32; self.nb_cluster];
@@ -753,7 +767,7 @@ where
         let nbrow = self.distance.nrows();
         let between = Uniform::new::<usize, usize>(0, nbrow);
         let to_sample = 10000.min(nbrow * (nbrow - 1) / 2);
-        log::info!("statistics on distances");
+        log::info!("statistics on distances between points to cluster");
         let mut nb_sampled = 0;
         let mut quantiles = CKMS::<f32>::new(0.01);
         loop {

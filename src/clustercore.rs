@@ -71,8 +71,8 @@ pub struct ClusterCoreset<DataId: std::fmt::Debug + Eq + std::hash::Hash + Clone
 
 impl<DataId, T> ClusterCoreset<DataId, T>
 where
-    DataId: std::fmt::Debug + Default + Eq + Hash + Send + Sync + Clone,
-    T: Clone + Send + Sync,
+    DataId: std::fmt::Debug + Default + Eq + Hash + Send + Sync + Clone + std::fmt::Debug,
+    T: Clone + Send + Sync + std::fmt::Debug,
 {
     pub fn new(nb_cluster: usize, fraction: f64, bmor_arg: BmorArg) -> Self {
         ClusterCoreset {
@@ -197,7 +197,7 @@ where
                 .into_iter()
                 .map(|c| distance.eval(data, c))
                 .collect();
-            let mut dmin = f32::MIN;
+            let mut dmin = f32::MAX;
             let mut imin = usize::MAX;
             for i in 0..dists.len() {
                 if dists[i] < dmin {
@@ -205,7 +205,11 @@ where
                     imin = i;
                 }
             }
-            assert!(imin < dists.len(), "dispatch failed for id {:?}", id);
+            if imin >= dists.len() {
+                log::error!("\n dispatch failed for id {:?}, FATAL EXITING", id);
+                std::process::exit(1);
+            }
+            //
             (id, imin, dmin)
         };
         let mut dispatching_cost: f64 = 0.;
@@ -225,7 +229,7 @@ where
                 let c_id_res = self.kmedoids.as_ref().unwrap().get_center_id(cluster_rank);
                 if c_id_res.is_err() {
                     log::error!("cannot get center of cluster n° : {}", cluster_rank);
-                    std::panic!("cannot get center of cluster n° : {}", cluster_rank);
+                    std::process::exit(1);
                 }
                 let c_id = c_id_res.unwrap();
                 map_to_medoid.insert(id, c_id);
@@ -282,7 +286,7 @@ where
         let mut nb_record = 0;
         //
         for (d, c) in self.ids_to_cluster.as_ref().unwrap() {
-            write!(bufw, "{:?},{:?}", d, c).unwrap();
+            write!(bufw, "{:?},{:?}\n", d, c).unwrap();
             nb_record += 1;
         }
         log::info!(

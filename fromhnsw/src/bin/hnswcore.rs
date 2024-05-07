@@ -33,6 +33,9 @@ use hnsw_rs::prelude::*;
 
 use fromhnsw::hnswiter::HnswMakeIter;
 
+use quantiles::ckms::CKMS;
+use rand::Rng;
+
 //========================================
 // Parameters
 
@@ -171,6 +174,43 @@ macro_rules! gen_coreset1 {
 
 //===========================================================
 
+#[allow(unused)]
+fn check_distances<T, Dist>(distance: &Dist, datamap: &DataMap)
+where
+    T: Send + Sync + Clone + std::fmt::Debug,
+    Dist: Distance<T> + Sync + Send + Clone + Default,
+{
+    log::info!("check_distances");
+    let mut q_dist = CKMS::<f32>::new(0.01);
+    let nb_to_load = 1000.min(datamap.get_nb_data());
+    let mut data_v = Vec::<Vec<T>>::with_capacity(nb_to_load);
+    let mut keys = datamap.get_dataid_iter();
+    while data_v.len() < nb_to_load {
+        let dataid = keys.next().unwrap();
+        let v = datamap.get_data::<T>(dataid).unwrap();
+        data_v.push(Vec::from(v));
+    }
+    // now sample indexes and compute dists
+    let nb_sample = 50000;
+    let mut sampled = 0;
+    let mut rng = rand::thread_rng();
+    while sampled < nb_sample {
+        let i = rng.gen_range(0..nb_to_load);
+        let j = rng.gen_range(0..nb_to_load);
+        if i != j {
+            let dist = distance.eval(&data_v[i], &data_v[j]);
+            q_dist.insert(dist);
+            sampled += 1;
+        }
+    }
+    //
+    println!("\n distance quantiles at  0.0005 : {:.2e} , 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
+    q_dist.query(0.0005).unwrap().1, q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, q_dist.query(0.25).unwrap().1,
+    q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.99).unwrap().1);
+}
+
+//===========================================================
+
 pub fn coreset1<T, Dist>(coreparams: &CoresetParams, datamap: &DataMap) -> usize
 where
     T: Send + Sync + Clone + std::fmt::Debug,
@@ -181,6 +221,8 @@ where
     log::info!("coreset1 instantiated for distance = {:?}", dist_name);
     let distance = Dist::default();
     //
+    check_distances(&distance, datamap);
+    //
     println!("\n\n entering coreset + our kmedoids");
     println!("==================================");
     let cpu_start = ProcessTime::now();
@@ -189,7 +231,7 @@ where
     let beta = coreparams.get_beta().into();
     let gamma = coreparams.get_gamma().into();
     let freduc: f64 = coreparams.get_reduction().into();
-    let nb_data = 50000;
+    let nb_data = datamap.get_nb_data();
     //
     let iter_producer = HnswMakeIter::<T>::new(datamap);
     // now do we have only coreset computation or also clusterization
@@ -210,9 +252,8 @@ where
         let nb_max_kmedoid_iter = 15;
         let mut clustercoreset =
             ClusterCoreset::<usize, T>::new(coreparams.get_cluster(), freduc, bmor_arg);
-        let mut kmedoids =
-            clustercoreset.compute(distance.clone(), nb_max_kmedoid_iter, &iter_producer);
-        clustercoreset.dispatch(&mut kmedoids, &distance, &iter_producer, true);
+        clustercoreset.compute(distance.clone(), nb_max_kmedoid_iter, &iter_producer);
+        clustercoreset.dispatch(&distance, &iter_producer, true);
     }
     // dump a csv with membership.
     //
