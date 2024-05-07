@@ -8,3 +8,4 @@ rls*
 .vscode/
 *log*
 Runs/
+*.csv

@@ -17,6 +17,8 @@ log = { workspace = true }
 cpu-time = { workspace = true }
 env_logger = { workspace = true }
 clap = { workspace = true }
+quantiles = { workspace = true }
+rand = { workspace = true }
 
 #anndists provided by hnsw_rs
 hnsw_rs = { workspace = true }
