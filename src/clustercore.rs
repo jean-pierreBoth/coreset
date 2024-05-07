@@ -5,9 +5,6 @@
 //! cost and storing membership
 //!
 
-#![allow(unused)] // temporary
-
-use dashmap::DashMap;
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -101,8 +98,7 @@ where
         distance: Dist,
         nb_iter: usize,
         iter_producer: &IterProducer,
-    ) -> Kmedoid<DataId, T>
-    where
+    ) where
         Dist: Distance<T> + Send + Sync + Clone,
         IterProducer: MakeIter<Item = (DataId, Vec<T>)>,
     {
@@ -155,14 +151,17 @@ where
             cpu_time.as_millis()
         );
         //
-        return kmedoids;
+        self.kmedoids = Some(kmedoids);
+        //
+        return;
     } // end of compute
+
+    //
 
     /// Once you have Kmedoid, you can compute the clustering cost for the whole data, not just the coreset.
     /// This function can also fill in  [Kmedoid] structure the data vector associated to each center, see [Kmedoid::get_cluster_center]
     pub fn dispatch<Dist, IterProducer>(
         &mut self,
-        kmedoids: &mut Kmedoid<DataId, T>,
         distance: &Dist,
         iter_producer: &IterProducer,
         retrieve_centers: bool,
@@ -182,13 +181,18 @@ where
         let buffer_size = 5000 * nb_cpus;
         let mut map_to_medoid = HashMap::<DataId, DataId>::with_capacity(self.nb_data);
         // We must retrive datas corresponding to medoid centers
-        kmedoids.retrieve_cluster_centers(iter_producer);
+        self.get_kmedoids().retrieve_cluster_centers(iter_producer);
         let centers = self.kmedoids.as_ref().unwrap().get_centers().unwrap();
+        if centers.len() == 0 {
+            log::error!("ClusterCore::dispatch, kmedoids centers have not yet been computed");
+            std::process::exit(1);
+        }
         //
-        // This function returns for each data (id,data) a triplet (id, rank of center and distance to its cluster center)
+        // This function returns for each data (id,data) a triplet (id, rank of nearest center found and distance to its cluster center)
         //
         let dispatch_i = |(id, data): (DataId, &Vec<T>)| -> (DataId, usize, f32) {
             // get nearest medoid. We can retrieve Vec<T> for each medoid from coreset , so we must get access to it
+            assert!(data.len() > 0);
             let dists: Vec<f32> = centers
                 .into_iter()
                 .map(|c| distance.eval(data, c))
@@ -201,6 +205,7 @@ where
                     imin = i;
                 }
             }
+            assert!(imin < dists.len(), "dispatch failed for id {:?}", id);
             (id, imin, dmin)
         };
         let mut dispatching_cost: f64 = 0.;
@@ -217,12 +222,12 @@ where
                 .map(|(i, d)| dispatch_i((i, &d)))
                 .collect();
             for (id, cluster_rank, d) in res_dispatch {
-                let c_id = self
-                    .kmedoids
-                    .as_ref()
-                    .unwrap()
-                    .get_center_id(cluster_rank)
-                    .unwrap();
+                let c_id_res = self.kmedoids.as_ref().unwrap().get_center_id(cluster_rank);
+                if c_id_res.is_err() {
+                    log::error!("cannot get center of cluster n° : {}", cluster_rank);
+                    std::panic!("cannot get center of cluster n° : {}", cluster_rank);
+                }
+                let c_id = c_id_res.unwrap();
                 map_to_medoid.insert(id, c_id);
                 dispatching_cost += d as f64;
             }
@@ -231,30 +236,35 @@ where
             " end of data dispatching dispatching all data to their cluster, globl cost : {:.3e}",
             dispatching_cost
         );
-        let cpu_time: Duration = cpu_start.elapsed();
         //
         // dump clusters DataId info
         //
         self.ids_to_cluster = Some(map_to_medoid);
-        self.dump_clusters();
+        let _ = self.dump_clusters();
         //
         if retrieve_centers {
             log::info!("retrieving centers data vectors...");
             let cpu_start = ProcessTime::now();
             let sys_now = SystemTime::now();
-            kmedoids.retrieve_cluster_centers(iter_producer);
+            //
+            self.kmedoids
+                .as_mut()
+                .unwrap()
+                .retrieve_cluster_centers(iter_producer);
             log::info!(
                 "retrieving centers data vectors done sys time(ms) {:?} cpu time(ms) {:?}",
                 sys_now.elapsed().unwrap().as_millis(),
-                cpu_time.as_millis()
+                cpu_start.elapsed().as_millis()
             );
         }
         log::info!(
             "\n  ClusterCoreset::dispatch sys time(ms) {:?} cpu time(ms) {:?}",
             sys_now.elapsed().unwrap().as_millis(),
-            cpu_time.as_millis()
+            cpu_start.elapsed().as_millis()
         );
     } // end of dispatch
+
+    //
 
     /// Dumps in file for each dataId, the DataId of corresponding cluster center. If Ok returns number of record dumped.  
     /// The dump is a csv file whose name is *clustercoreset-pid.csv* where pid is the pid of the process.
@@ -266,13 +276,13 @@ where
         let mut name = String::from("clustercoreset-");
         name.push_str(&pid);
         name.push_str(".csv");
-        let mut file = std::fs::File::create(&name)?;
+        let file = std::fs::File::create(&name)?;
         log::info!("clustercorest, dumping cluster info in file : {:?}", name);
         let mut bufw = std::io::BufWriter::new(file);
         let mut nb_record = 0;
         //
         for (d, c) in self.ids_to_cluster.as_ref().unwrap() {
-            write!(bufw, "{:?},{:?}", d, c);
+            write!(bufw, "{:?},{:?}", d, c).unwrap();
             nb_record += 1;
         }
         log::info!(

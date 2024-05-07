@@ -44,7 +44,7 @@ pub struct Medoid<DataId> {
     center_id: DataId,
     /// rank of points in ids of points as given in struct Coreset
     center: u32,
-    /// cost of thi cluster
+    /// cost of this cluster
     cost: f32,
 }
 
@@ -299,6 +299,8 @@ where
     pub(crate) fn retrieve_cluster_centers<IterProducer>(&mut self, iter_producer: &IterProducer)
     where
         IterProducer: MakeIter<Item = (DataId,Vec<T>)>,
+//        T : std::fmt::Debug,
+ //       DataId : std::fmt::Debug,
     {
         //
         // get a list of ids to find, then scan data
@@ -317,6 +319,7 @@ where
                 if centers_ids[i] == data_id {
                     centers_data[i] = data;
                     nb_found += 1;
+//                    log::debug!(" data id : {:?}, coordinates : {:?}", data_id,centers_data[i][0..centers_data[i].len().min(10)]);
                     break;
                 }
             }
@@ -550,6 +553,7 @@ where
         return centers;
     }
 
+    // given centers at given iteration, dispach each point to nearest center.
     // dispatch data to medoids. Returns for each data point cluster number and distance to center of the cluster
     fn dispatch_to_medoids(&mut self, centers: &Vec<u32>) -> MemberDist {
         //
