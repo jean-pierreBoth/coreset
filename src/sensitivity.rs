@@ -271,7 +271,7 @@ where
             return Err(anyhow!("first pass failed"));
         }
         // In phase 2, we have facilities, we empty them and redispatch data and store the facility of each point
-        log::info!("end of first pass, second pass to compute point facility map");
+        log::debug!("end of first pass, second pass to compute point facility map");
         self.facilities.as_mut().unwrap().empty();
         self.init_facility_map(self.nb_data);
         let iter = iter_generator.makeiter();
@@ -281,7 +281,7 @@ where
             return Err(anyhow!("second pass failed"));
         }
         // now we have info for building sampling distribution in self.p_facility_map
-        log::info!("end of second pass, doing sensitivity and sampling computations");
+        log::debug!("end of second pass, doing sensitivity and sampling computations");
         let sampler = self.build_sampling_distribution();
         // we can now get rid of p_facility_map
         self.point_facility_map = None;

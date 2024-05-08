@@ -176,10 +176,9 @@ where
         let sys_now = SystemTime::now();
         //
         log::info!("\n\nentering Kmedoid::Kmedoid");
-        log::info!("==============================");
         self.d_quantiles = self.quantile_estimator();
         log::info!(
-            "======kmedoids  quantiles done sys time(ms) {:?} cpu time(ms) {:?}\n ",
+            "   kmedoids  quantiles done sys time(ms) {:?} cpu time(ms) {:?}\n ",
             sys_now.elapsed().unwrap().as_millis(),
             cpu_start.elapsed().as_millis()
         );
@@ -191,7 +190,7 @@ where
         //
         let mut centers = self.max_cost_init(); // select nb_cluster different points
         log::info!(
-            "======kmedoids  center init done sys time(ms) {:?} cpu time(ms) {:?}\n ",
+            "   kmedoids  center init done sys time(ms) {:?} cpu time(ms) {:?}\n ",
             sys_now.elapsed().unwrap().as_millis(),
             cpu_start.elapsed().as_millis()
         );
@@ -223,7 +222,7 @@ where
         //
         log::info!("medoids initialized , nb medoids : {}, global cost : {:.3e}", costs.len(), last_cost);
         log::info!(
-            "======kmedoid medoids initialized  sys time(ms) {:?} cpu time(ms) {:?}\n ",
+            "kmedoid initialization  sys time(ms) {:?} cpu time(ms) {:?}\n ",
             sys_now.elapsed().unwrap().as_millis(),
             cpu_start.elapsed().as_millis()
         );
@@ -243,7 +242,7 @@ where
             let iter_cost: f32 = centers_and_costs.0.iter().map(|x| x.1).sum();
             //
             if iter_cost >= last_cost && !perturbation {
-                log::info!("iteration got a local minimum : {}", iteration);
+                log::debug!("iteration got a local minimum : {}", iteration);
                 let res = self.quality_summary(&perturbation_set, false);
                 if res.is_some() {
                     let couple = res.unwrap();
@@ -258,7 +257,7 @@ where
                     }
                     perturbation = self.center_perturbation(couple, &mut medoids);
                     if perturbation {
-                        log::info!("perturbated couple : {:?}", couple);
+                        log::debug!("perturbated couple : {:?}", couple);
                         for i in 0..medoids.len() {
                             centers[i] = medoids[i].get_center();
                         }
@@ -272,7 +271,7 @@ where
             } else {
                 perturbation = false;
                 last_cost = iter_cost;
-                log::info!("iteration {}, global cost : {:.3e}", iteration, last_cost);
+                log::info!("medoid iteration {}, global cost : {:.3e}", iteration, last_cost);
                 // we must store our best state
                 if iter_cost < best_iter.1 {
                     best_iter = (iteration, iter_cost);
@@ -599,9 +598,14 @@ where
 
     fn compute_medoids_cost(&self, memberdist: &MemberDist) -> Vec<f32> {
         //
+         let detailed = false;
         let mut costs = vec![0.0f32; self.nb_cluster];
         let mut weights = vec![0.0f64; self.nb_cluster];
-        let mut cluster_size = vec![0usize; self.nb_cluster];
+        let mut cluster_size = vec![0u32; self.nb_cluster];
+        //
+        let mut q_size: CKMS<u32> = CKMS::<u32>::new(0.01);
+        let mut q_cost_size: CKMS<f32> = CKMS::<f32>::new(0.01);
+
         //
         for i in 0..memberdist.0.len() {
             let (c, d) = memberdist.0[i];
@@ -611,6 +615,18 @@ where
         }
         //
         for i in 0..self.nb_cluster {
+            q_size.insert(cluster_size[i]);
+            q_cost_size.insert(costs[i] / cluster_size[i] as f32);
+        }
+        let ratio = vec![0.01, 0.1, 0.2, 0.3, 0.4 , 0.5 , 0.6, 0.7, 0.8, 0.9, 0.99];
+        println!(" statistics on cluster size and cost by element");
+        println!(" proba        size     cost/size ");
+        for r in ratio {
+            println!(" {:.2e}       {}      {:.2e}", r, q_size.query(r).unwrap().1, q_cost_size.query(r).unwrap().1);
+        }
+        //
+        if detailed {
+        for i in 0..self.nb_cluster {
             log::info!(
                 "medoid i : {}, weight : {:.3e} cost : {:.3e} size : {:5} ",
                 i,
@@ -619,6 +635,7 @@ where
                 cluster_size[i]
             );
         }
+    }
         //
         costs
     }
@@ -683,7 +700,7 @@ where
     // At this final time we can access internal fields membership and medoids state
     // Returns possibly a candidate 2-uple of medoid center to be perturbated.
     fn quality_summary(&self, perturbation_set : &Vec<(usize, usize)>, end : bool) -> Option<(usize, usize)> {
-        log::info!("\n\n kmedoids statistics");
+        log::debug!("\n in quality_summary");
         //
         // We compute distance of items to center of their centroid.
         //
@@ -754,11 +771,11 @@ where
 
     /// estimate quantiles of distances between data items. We sample if too many couples.
     pub fn quantile_estimator(&self) -> CKMS<f32> {
-        log::info!("statistics on weights");
         let mut quantiles = CKMS::<f64>::new(0.01);
         for w in &self.weights {
             quantiles.insert(*w);
         }
+        println!("statistics on items weights to cluster");
         println!("\n weights quantiles at  0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
                 quantiles.query(0.01).unwrap().1,  quantiles.query(0.025).unwrap().1,  quantiles.query(0.05).unwrap().1,
                 quantiles.query(0.5).unwrap().1, quantiles.query(0.75).unwrap().1, quantiles.query(0.99).unwrap().1);
@@ -767,7 +784,6 @@ where
         let nbrow = self.distance.nrows();
         let between = Uniform::new::<usize, usize>(0, nbrow);
         let to_sample = 10000.min(nbrow * (nbrow - 1) / 2);
-        log::info!("statistics on distances between points to cluster");
         let mut nb_sampled = 0;
         let mut quantiles = CKMS::<f32>::new(0.01);
         loop {
@@ -781,6 +797,7 @@ where
                 }
             }
         }
+        println!("statistics on distances between points to cluster");
         println!("\n distance quantiles at 0.0001 : {:.2e} , 0.001 : {:.2e}, 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e},, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
             quantiles.query(0.0001).unwrap().1, quantiles.query(0.001).unwrap().1,  quantiles.query(0.01).unwrap().1,  quantiles.query(0.025).unwrap().1, 
             quantiles.query(0.05).unwrap().1, quantiles.query(0.5).unwrap().1, quantiles.query(0.75).unwrap().1, quantiles.query(0.99).unwrap().1);
@@ -797,7 +814,7 @@ where
         medoids: &mut Vec<Medoid<DataId>>,
     ) -> bool {
         //
-        log::info!("in center_perturbation m1 = {}  m2 = {}", m1, m2);
+        log::debug!("in center_perturbation m1 = {}  m2 = {}", m1, m2);
         //
         let mut rng = rand::thread_rng();
         let unif = rand::distributions::Uniform::new(0., 1.);
@@ -824,7 +841,7 @@ where
         }
         //
         let has_changed = medoids[changed].center as usize != max_i;
-        log::info!(" center has changed");
+        log::debug!(" center changed : {}", has_changed);
         //
         medoids[changed].center = max_i as u32;
         //

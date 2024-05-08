@@ -281,7 +281,6 @@ where
         name.push_str(&pid);
         name.push_str(".csv");
         let file = std::fs::File::create(&name)?;
-        log::info!("clustercorest, dumping cluster info in file : {:?}", name);
         let mut bufw = std::io::BufWriter::new(file);
         let mut nb_record = 0;
         //
