@@ -296,8 +296,16 @@ where
     /// - gamma : slackness factor for number facilities upper bound.
     /// - end_step : if true a second step is done to further reduc the number of facilities.
     ///         
-    pub fn new(k: usize, nbdata_expected: usize, beta: f64, gamma: f64, distance: Dist) -> Self {
-        // TODO: to be adapted?
+    pub fn new(
+        k_arg: usize,
+        nbdata_expected: usize,
+        beta: f64,
+        gamma: f64,
+        distance: Dist,
+    ) -> Self {
+        // We restrict k to be adjusted to nbdata_expected !
+        let k = k_arg.min((nbdata_expected as f64).sqrt() as usize);
+        // This is orginal formula of the paper
         let nb_centers_bound =
             ((gamma - 1.) * (1. + nbdata_expected.ilog2() as f64) * k as f64).trunc() as usize;
         let upper_cost = gamma;
