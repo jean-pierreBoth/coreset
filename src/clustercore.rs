@@ -256,7 +256,7 @@ where
     /// Dumps in file for each dataId, the DataId of corresponding cluster center. If Ok returns number of record dumped.  
     /// The dump is a csv file whose name is *clustercoreset-pid.csv* where pid is the pid of the process.
     /// Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
-    /// This function requires dispatch to have been called previously
+    /// This function requires [dispatch][Self::dispatch()] to have been called previously
     pub fn dump_clusters(&self) -> anyhow::Result<usize> {
         //
         let mut name = String::from("clustercoreset");
@@ -265,6 +265,14 @@ where
         let mut bufw = std::io::BufWriter::new(file);
         let mut nb_record = 0;
         //
+        if self.ids_to_cluster.is_none() {
+            log::error!(
+                "ClusterCorest::dump_clusters: The method dispatch should have been alled before"
+            );
+            return Err(anyhow::anyhow!(
+                "ClusterCorest::dump_clusters: The method dispatch should have been alled before"
+            ));
+        }
         for (d, c) in self.ids_to_cluster.as_ref().unwrap() {
             write!(bufw, "{:?},{:?}\n", d, c).unwrap();
             nb_record += 1;

@@ -8,6 +8,8 @@ The method relies on obtaining a coreset for the metric used in the problem.
 A k-coreset is a sampled summary of a much smaller number of points *k*. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
 The drawback is that the selected points have now **weights** attached to the selected points.
 
+The crates comes in the form of a library and a specific binary in the subcrate [fromhnsw](#fromhnsw)
+
 ## References to implemented algorithms
 
 1. We consider coreset construction as described in the paper:  
@@ -63,6 +65,8 @@ The implementation does the buffering and parallelization internally.
 The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed separately with
 corresponding modules.  
 The distances are provided by the crate [anndists](https://crates.io/crates/anndists).
+
+### fromhnsw
 
 The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
 

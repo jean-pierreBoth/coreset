@@ -6,16 +6,20 @@
 //!
 //! - dirname : directory where hnsw files reside
 //! - hnswname : name used for naming the 2 hnsw related files: name.hnsw.data and name.hnsw.graph
-//! - typename : can be u16, u32, u64, f32, f64, i16, i32, i64 depending on the Distance type
-//! - cluster : number of cluster asked. This argument is optional. With it there is a clustering pass on the coreset and a global
-//!     dispatching to cluster.
+//! - typename : can be u16, u32, u64, f32, f64, i16, i32, i64 depending on the Distance type.
+//!
+//! - cluster : number of cluster asked. This argument is optional.  
+//!     With it there is a Kmedoid clustering pass on the coreset with nbcluster asked for.
+//!     Then all data are re-scanned and dispatched to cluster of nearest center.
+//!     A csv file name clustercorest.csv is dumped in current directory.  
+//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
 //!
 //! The coreset command takes as arguments:
 //! - beta:
 //! - gamma:
 //!
 //! Note: It is easy to add any adhoc type T  by adding a line in [get_datamap()].  
-//! The only constraints on T comes from hnsw and is T: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
+//! The type T used in hnsw must satisfy: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
 
 //#![allow(unused)]
 
@@ -108,6 +112,7 @@ impl Default for CoresetParams {
     }
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 struct HnswCore {
     // paths
