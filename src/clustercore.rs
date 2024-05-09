@@ -1,8 +1,11 @@
 //! This module provides a simple user interface for clustering data via a coreset.  
 //! The data must be accessed via an iterator, see [makeiter](super::makeiter).  
-//! It chains the bmor and coreset algorithms and  ends with a pass dispatching all data
-//! to their nearest cluster deduced from the coreset clustering, recomputing global
+//! It chains the bmor,coreset. Then the coreset is clustered with kmedoid algorithms and ends with a pass dispatching all data
+//! to their nearest coreset clustering center, recomputing global
 //! cost and storing membership
+//!
+//! Clusters are dumped in a csv file name "clustercoreset.csv".  
+//! Each line consists in the DataId of an item, the DataId of its cluster center
 //!
 
 use std::collections::HashMap;
@@ -12,7 +15,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use cpu_time::ProcessTime;
 use num_cpus;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use std::io::Write;
 
@@ -71,7 +74,7 @@ pub struct ClusterCoreset<DataId: std::fmt::Debug + Eq + std::hash::Hash + Clone
 
 impl<DataId, T> ClusterCoreset<DataId, T>
 where
-    DataId: std::fmt::Debug + Default + Eq + Hash + Send + Sync + Clone + std::fmt::Debug,
+    DataId: Default + Eq + Hash + Send + Sync + Clone + std::fmt::Debug,
     T: Clone + Send + Sync + std::fmt::Debug,
 {
     pub fn new(nb_cluster: usize, fraction: f64, bmor_arg: BmorArg) -> Self {
@@ -115,6 +118,11 @@ where
         );
         //
         let result = coreset1.make_coreset(iter_producer, self.fraction);
+        log::info!(
+            "make_coreset done sys time {}, cpu time {}",
+            sys_now.elapsed().unwrap().as_millis(),
+            cpu_start.elapsed().as_millis()
+        );
         if result.is_err() {
             log::error!("construction of coreset1 failed");
         }
@@ -130,7 +138,6 @@ where
         let (nb_iter, cost) = kmedoids.compute_medians(nb_iter);
         // TODO: we have coreset and kmedoids we must store center (Vec<T>) of each medoid!
         self.nb_data = coreset1.get_nb_data();
-        let cpu_time: Duration = cpu_start.elapsed();
         //
         log::info!(
             " kmedoids finished at nb_iter : {}, cost = {:.3e}",
@@ -138,17 +145,9 @@ where
             cost
         );
         log::info!(
-            " sys time(ms) {:?} cpu time(ms) {:?}",
+            " ClusterCoreset::compute (coreset+kmedoids sys time(ms) {:?} cpu time(ms) {:?}",
             sys_now.elapsed().unwrap().as_millis(),
-            cpu_time.as_millis()
-        );
-        //
-        log::info!(" dispatching all data to their cluster, needs one pass more through data");
-        let cpu_time: Duration = cpu_start.elapsed();
-        log::info!(
-            "\n  ClusterCoreset::compute sys time(ms) {:?} cpu time(ms) {:?}",
-            sys_now.elapsed().unwrap().as_millis(),
-            cpu_time.as_millis()
+            cpu_start.elapsed().as_millis()
         );
         //
         self.kmedoids = Some(kmedoids);
@@ -160,12 +159,8 @@ where
 
     /// Once you have Kmedoid, you can compute the clustering cost for the whole data, not just the coreset.
     /// This function can also fill in  [Kmedoid] structure the data vector associated to each center, see [Kmedoid::get_cluster_center]
-    pub fn dispatch<Dist, IterProducer>(
-        &mut self,
-        distance: &Dist,
-        iter_producer: &IterProducer,
-        retrieve_centers: bool,
-    ) where
+    pub fn dispatch<Dist, IterProducer>(&mut self, distance: &Dist, iter_producer: &IterProducer)
+    where
         T: Send + Sync + Clone,
         Dist: Distance<T> + Send + Sync + Clone,
         IterProducer: MakeIter<Item = (DataId, Vec<T>)>,
@@ -213,6 +208,7 @@ where
             (id, imin, dmin)
         };
         let mut dispatching_cost: f64 = 0.;
+        let mut nb_total_data = 0usize;
         //
         loop {
             let buffres = self.get_buffer_data::<Dist>(buffer_size, &mut data_iter);
@@ -220,6 +216,7 @@ where
                 break;
             }
             let ids_datas = buffres.unwrap();
+            nb_total_data += ids_datas.len();
             // dispatch buffer
             let res_dispatch: Vec<(DataId, usize, f32)> = ids_datas
                 .into_par_iter()
@@ -236,9 +233,10 @@ where
                 dispatching_cost += d as f64;
             }
         }
-        log::info!(
-            " end of data dispatching dispatching all data to their cluster, globl cost : {:.3e}",
-            dispatching_cost
+        println!(
+            "\n end of data dispatching dispatching all data to their cluster, global cost : {:.3e}, cost by data : {:.3e}",
+            dispatching_cost,
+            dispatching_cost/ nb_total_data as f64
         );
         //
         // dump clusters DataId info
@@ -246,21 +244,6 @@ where
         self.ids_to_cluster = Some(map_to_medoid);
         let _ = self.dump_clusters();
         //
-        if retrieve_centers {
-            log::info!("retrieving centers data vectors...");
-            let cpu_start = ProcessTime::now();
-            let sys_now = SystemTime::now();
-            //
-            self.kmedoids
-                .as_mut()
-                .unwrap()
-                .retrieve_cluster_centers(iter_producer);
-            log::info!(
-                "retrieving centers data vectors done sys time(ms) {:?} cpu time(ms) {:?}",
-                sys_now.elapsed().unwrap().as_millis(),
-                cpu_start.elapsed().as_millis()
-            );
-        }
         log::info!(
             "\n  ClusterCoreset::dispatch sys time(ms) {:?} cpu time(ms) {:?}",
             sys_now.elapsed().unwrap().as_millis(),
@@ -276,9 +259,7 @@ where
     /// This function requires dispatch to have been called previously
     pub fn dump_clusters(&self) -> anyhow::Result<usize> {
         //
-        let pid = std::process::id().to_string();
-        let mut name = String::from("clustercoreset-");
-        name.push_str(&pid);
+        let mut name = String::from("clustercoreset");
         name.push_str(".csv");
         let file = std::fs::File::create(&name)?;
         let mut bufw = std::io::BufWriter::new(file);
@@ -288,6 +269,7 @@ where
             write!(bufw, "{:?},{:?}\n", d, c).unwrap();
             nb_record += 1;
         }
+        bufw.flush().unwrap();
         log::info!(
             "clustercorest, dumping cluster info in file {:?} , nb_record : {:?} ",
             name,

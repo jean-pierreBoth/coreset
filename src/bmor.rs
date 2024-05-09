@@ -303,8 +303,14 @@ where
         gamma: f64,
         distance: Dist,
     ) -> Self {
-        // We restrict k to be adjusted to nbdata_expected !
-        let k = k_arg.min((nbdata_expected as f64).sqrt() as usize);
+        // We restrict k to be adjusted to nbdata_expected to avoid k too large compared to nb_data !
+        let k = if k_arg > (nbdata_expected as f64).sqrt().trunc() as usize {
+            let kmax = k_arg.min((1. + nbdata_expected as f64).sqrt() as usize);
+            log::info!("resetting number of centers to : {}", kmax);
+            kmax
+        } else {
+            k_arg
+        };
         // This is orginal formula of the paper
         let nb_centers_bound =
             ((gamma - 1.) * (1. + nbdata_expected.ilog2() as f64) * k as f64).trunc() as usize;

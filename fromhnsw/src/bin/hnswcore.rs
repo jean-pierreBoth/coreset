@@ -204,8 +204,9 @@ where
         }
     }
     //
-    println!("\n distance quantiles at  0.0005 : {:.2e} , 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-    q_dist.query(0.0005).unwrap().1, q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, q_dist.query(0.25).unwrap().1,
+    println!("statistics on sampled distances : ");
+    println!("\n distance quantiles at  0.005 : {:.2e} , 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
+    q_dist.query(0.005).unwrap().1, q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, q_dist.query(0.25).unwrap().1,
     q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.99).unwrap().1);
 }
 
@@ -244,8 +245,10 @@ where
             log::error!("construction of coreset1 failed");
         }
         let coreset = res.unwrap();
-        // get some info
-        log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
+        let dump_res = coreset.dump();
+        if dump_res.is_err() {
+            log::error!("error occurred dump coreset in csv file");
+        }
     } else {
         // we must do coreset + clusterization
         let bmor_arg = BmorArg::new(nb_data, beta, gamma);
@@ -253,7 +256,7 @@ where
         let mut clustercoreset =
             ClusterCoreset::<usize, T>::new(coreparams.get_cluster(), freduc, bmor_arg);
         clustercoreset.compute(distance.clone(), nb_max_kmedoid_iter, &iter_producer);
-        clustercoreset.dispatch(&distance, &iter_producer, true);
+        clustercoreset.dispatch(&distance, &iter_producer);
     }
     // dump a csv with membership.
     //

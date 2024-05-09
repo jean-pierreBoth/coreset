@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use ndarray::{Array1, Array2};
+use std::io::Write;
 
 use rand::Rng;
 use rand_xoshiro::rand_core::SeedableRng;
@@ -91,7 +92,7 @@ pub struct CoreSet<DataId, T: Send + Sync + Clone, Dist: Distance<T> + Clone + S
 
 impl<DataId, T: Send + Sync + Clone, Dist> CoreSet<DataId, T, Dist>
 where
-    DataId: Eq + Hash + Send + Sync + Clone,
+    DataId: Eq + Hash + Send + Sync + Clone + std::fmt::Debug,
     Dist: Distance<T> + Clone + Sync + Send,
 {
     pub fn new(
@@ -158,6 +159,37 @@ where
         //
         return res;
     } // end of get_point
+
+    //
+
+    /// dump info in a csv file name coreset.csv
+    /// Csv file contains:
+    /// - DataId of coreset point
+    /// - weight of coreset point
+    pub fn dump(&self) -> anyhow::Result<usize> {
+        let mut name = String::from("coreset");
+        name.push_str(".csv");
+        let file = std::fs::File::create(&name)?;
+        let mut bufw = std::io::BufWriter::new(file);
+        let mut nb_record = 0usize;
+        //
+        for (id, weight) in &self.id_weight_map {
+            write!(bufw, "{:?},{:.3e}\n", id, weight)?;
+            nb_record += 1;
+        }
+        bufw.flush().unwrap();
+        //
+        println!(
+            " coreset dumped in file : {}, nb_record {}",
+            name, nb_record
+        );
+        //
+        assert_eq!(nb_record, self.get_nb_points());
+        //
+        Ok(nb_record)
+    } // end of dump
+
+    //
 
     /// computes matrix distances between points.
     /// line i of matrix corresponds to id in the Vec\<usize\> i'th element of first argument of the option returned
@@ -450,12 +482,12 @@ where
                 // we have facilities
                 let contraction = false;
                 self.facilities = Some(self.bmor.end_data(contraction));
-                log::info!("end of first pass, processed nb data : {:?}", self.nb_data);
+                log::debug!("end of first pass, processed nb data : {:?}", self.nb_data);
             }
 
             1 => {
                 // we have every thing to compute sensitivity and do sampling
-                log::info!("end of second pass, doing sensitivity and sampling computations");
+                log::debug!("end of second pass, doing sensitivity and sampling computations");
                 let _ = self.facilities.as_mut().unwrap().compute_weight_cost();
                 self.facilities.as_ref().unwrap().log(0);
             }
@@ -489,7 +521,7 @@ where
         let facilities_ref = self.facilities.as_ref().unwrap();
         // denominator used in line 3  of algo 1 for Coreset in Braverman
         let global_cost = facilities_ref.get_cost();
-        log::info!(
+        log::debug!(
             "build_sampling_distribution got global cost : {:.3e}",
             global_cost
         );

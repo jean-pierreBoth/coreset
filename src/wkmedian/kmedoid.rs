@@ -123,8 +123,8 @@ where
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
         let (ids, distance) = coreset.compute_distances().unwrap();
-        log::info!(
-            "\n ======kmedoids  distance matrix init sys time(ms) {:?} cpu time(ms) {:?}\n ",
+        log::debug!(
+            "kmedoids  distance matrix init sys time(ms) {:?} cpu time(ms) {:?} ",
             sys_now.elapsed().unwrap().as_millis(),
             cpu_start.elapsed().as_millis()
         );
@@ -172,16 +172,8 @@ where
     /// returns best result as couple (iteration, cost)
     pub fn compute_medians(&mut self, nb_iter : usize) -> (usize, f32) {
         //
-        let cpu_start = ProcessTime::now();
-        let sys_now = SystemTime::now();
-        //
         log::info!("\n\nentering Kmedoid::Kmedoid");
         self.d_quantiles = self.quantile_estimator();
-        log::info!(
-            "   kmedoids  quantiles done sys time(ms) {:?} cpu time(ms) {:?}\n ",
-            sys_now.elapsed().unwrap().as_millis(),
-            cpu_start.elapsed().as_millis()
-        );
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
         let mut perturbation_set = Vec::<(usize, usize)>::new();
@@ -189,7 +181,7 @@ where
         // initialize: random selection of centers, dispatch points to nearest centers
         //
         let mut centers = self.max_cost_init(); // select nb_cluster different points
-        log::info!(
+        log::debug!(
             "   kmedoids  center init done sys time(ms) {:?} cpu time(ms) {:?}\n ",
             sys_now.elapsed().unwrap().as_millis(),
             cpu_start.elapsed().as_millis()
@@ -271,9 +263,10 @@ where
             } else {
                 perturbation = false;
                 last_cost = iter_cost;
-                log::info!("medoid iteration {}, global cost : {:.3e}", iteration, last_cost);
+                log::debug!("medoid iteration {}, global cost : {:.3e}", iteration, last_cost);
                 // we must store our best state
                 if iter_cost < best_iter.1 {
+                    log::info!("medoid iteration best : {}, global cost : {:.3e}", iteration, last_cost);
                     best_iter = (iteration, iter_cost);
                     self.store_state(&centers_and_costs, &membership_and_dist);
                 }
@@ -598,44 +591,45 @@ where
 
     fn compute_medoids_cost(&self, memberdist: &MemberDist) -> Vec<f32> {
         //
-         let detailed = false;
+        let detailed = false;
+        //
         let mut costs = vec![0.0f32; self.nb_cluster];
         let mut weights = vec![0.0f64; self.nb_cluster];
         let mut cluster_size = vec![0u32; self.nb_cluster];
         //
         let mut q_size: CKMS<u32> = CKMS::<u32>::new(0.01);
-        let mut q_cost_size: CKMS<f32> = CKMS::<f32>::new(0.01);
+        let mut q_cost_size: CKMS<f64> = CKMS::<f64>::new(0.01);
 
         //
         for i in 0..memberdist.0.len() {
             let (c, d) = memberdist.0[i];
-            costs[c as usize] += (self.weights[i] as f32) * d;
+            costs[c as usize] += (self.weights[i] * d as f64) as f32;
             cluster_size[c as usize] += 1;
             weights[c as usize] += self.weights[i];
         }
         //
         for i in 0..self.nb_cluster {
             q_size.insert(cluster_size[i]);
-            q_cost_size.insert(costs[i] / cluster_size[i] as f32);
+            q_cost_size.insert(costs[i] as f64 / weights[i]);
         }
         let ratio = vec![0.01, 0.1, 0.2, 0.3, 0.4 , 0.5 , 0.6, 0.7, 0.8, 0.9, 0.99];
         println!(" statistics on cluster size and cost by element");
         println!(" proba        size     cost/size ");
         for r in ratio {
-            println!(" {:.2e}       {}      {:.2e}", r, q_size.query(r).unwrap().1, q_cost_size.query(r).unwrap().1);
+            println!(" {:.2e}       {:^6}      {:^6.2e}", r, q_size.query(r).unwrap().1, q_cost_size.query(r).unwrap().1);
         }
         //
         if detailed {
-        for i in 0..self.nb_cluster {
-            log::info!(
-                "medoid i : {}, weight : {:.3e} cost : {:.3e} size : {:5} ",
-                i,
-                weights[i],
-                costs[i],
-                cluster_size[i]
-            );
+            for i in 0..self.nb_cluster {
+                log::info!(
+                    "medoid i : {}, weight : {:.3e} cost : {:.3e} size : {:5} ",
+                    i,
+                    weights[i],
+                    costs[i],
+                    cluster_size[i]
+                );
+            }
         }
-    }
         //
         costs
     }

@@ -342,12 +342,11 @@ impl<
             total_weight += f_access.get_weight();
         }
         log::info!(
-            "\n\n sum of facilities weight : {:.3e}, total cost : {:.3e}",
+            "\n\n nb facilities : {} sum of facilities weight : {:.3e}, total cost : {:.3e}",
+            self.centers.len(),
             total_weight,
             total_cost
         );
-        log::info!("nb facilities : {}", self.centers.len());
-        log::info!("\n *************************************************");
     } // end of log
 
     /// This function affects each point to its nearest facility and compute cost of each facility and returns global cost and vector of weight by facility
