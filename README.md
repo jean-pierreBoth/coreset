@@ -66,9 +66,9 @@ The most synthetic interface is provided in the module *clustercore*, but corese
 corresponding modules.  
 The distances are provided by the crate [anndists](https://crates.io/crates/anndists).
 
-### fromhnsw
+## Fromhnsw
 
-The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs).
+The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset ore coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md)
 
 ## License
 

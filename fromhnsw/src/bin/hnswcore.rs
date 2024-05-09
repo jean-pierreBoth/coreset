@@ -14,9 +14,9 @@
 //!     A csv file name clustercorest.csv is dumped in current directory.  
 //!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
 //!
-//! The coreset command takes as arguments:
-//! - beta:
-//! - gamma:
+//! The coreset command takes as arguments (they are explained in detail in Bmor documentation):
+//! - beta:  defaults to 2.
+//! - gamma: defaults to 2. Increasing it allocates a greater number of facilites.
 //!
 //! Note: It is easy to add any adhoc type T  by adding a line in [get_datamap()].  
 //! The type T used in hnsw must satisfy: 'static + Clone + Sized + Send + Sync + std::fmt::Debug

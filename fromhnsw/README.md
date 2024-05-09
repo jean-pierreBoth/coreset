@@ -4,17 +4,20 @@ Provides coreset computations from data stored in hnsw structures coming from cr
 
 ## Parameters
 
+The coreset command takes as arguments (they are explained in detail in Bmor documentation):
+ - beta:  defaults to 2.
+ - gamma: defaults to 2. Increasing it allocates a greater number of facilites.
 
 ## Command line
 
 ## Building
 
-To compile main crate run:  
+To compile the whole crate run:  
 **cargo build --release --workspace --all**
 
 
 To compile the subcrate *fromhnsw* enabling coreset computations on hnsw data run :  
-**cargo build --release --all**
+**cargo build --release --all  --bin hcore**
 
 Doc building of the library
 
@@ -22,6 +25,6 @@ Doc building of the library
 
 Building doc of the whole workspace and binary 
 
-**cargo doc --no-deps  --workspace --all  --open --bin hcore**
+**cargo doc --no-deps  --workspace --all   [--open] --bin hcore**
 
 ## Extensions
