@@ -1,27 +1,44 @@
 //! This binary is dedicated to coreset computations on data stored in Hnsw created by crate [hnsw_rs](https://crates.io/crates/hnsw_rs)
 //!
-//! command is :hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename [ clustercore [--beta b] [--gamma g] [--cluster nbcluster]]
+//! 1. The simple default command just computes a coreset
+//! The command is:
+//! **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**.
 //!
-//!  the clustercore command is assumed with default parameters if not explicitly present
-//!
+//!  The following arguments are mandatory: the clustercore command is assumed with default parameters if not explicitly present
 //! - dirname : directory where hnsw files reside
 //! - hnswname : name used for naming the 2 hnsw related files: name.hnsw.data and name.hnsw.graph
 //! - typename : can be u16, u32, u64, f32, f64, i16, i32, i64 depending on the Distance type.
 //!
-//! - cluster : number of cluster asked. This argument is optional.  
-//!     With it there is a Kmedoid clustering pass on the coreset with nbcluster asked for.
-//!     Then all data are re-scanned and dispatched to cluster of nearest center.
-//!     A csv file name clustercorest.csv is dumped in current directory.  
-//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
+//! At the end of coreset computations all data are re-scanned and dispatched to cluster of nearest center.  
+//!  A csv file named *clustercorest.csv* is dumped in current directory.  
+//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding facility.
 //!
-//! The coreset command takes as arguments (they are explained in detail in Bmor documentation):
-//! - beta:  defaults to 2.
-//! - gamma: defaults to 2. Increasing it allocates a greater number of facilites.
+//!
+//! 2. It is also possible to do coreset and clusterisation, using coreset::kmedoid::Kmedoids algorithm
+//!
+//! At the end of coreset computations all data are re-scanned and dispatched to cluster of nearest center.  
+//!  A csv file named *clustercorest.csv* is dumped in current directory.  
+//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.
+//!
+//! command is :hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename  clustercore --cluster nbcluster [--beta b] [--gamma g] [--cluster nbcluster]]
+//!
+//!
+//! The clustercore command takes as arguments:
+//! - cluster : number of cluster asked in the Kmedoid pass. This argument is optional.  
+//!     With it there is a Kmedoid clustering pass on the coreset with nbcluster asked for.
+//! - fraction :
+//!      The size of the coreset generated will be around fraction * size of data.
+//!      A point can be sampled many times, in this case the sampled points are merged and their weight added.
+//!      So the fraction should be set to a value slightly superior to the one desired.  
+//!      A value of 0.11 is a good initial guess to get a fraction of 0.1.  
+//!
+//! The following optional arguments  are explained in detail in Bmor documentation):  
+//!  - beta:  defaults to 2. The accepted cost evolves as beta^iter during iterations. Increasing beta makes the accepted cost greater, and sp
+//!     reduces the number of facilities generated.  
+//!  - gamma: defaults to 2. Increasing gamma allocates a greater number of facilites.
 //!
 //! Note: It is easy to add any adhoc type T  by adding a line in [get_datamap()].  
 //! The type T used in hnsw must satisfy: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
-
-//#![allow(unused)]
 
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
@@ -112,6 +129,7 @@ impl Default for CoresetParams {
     }
 }
 
+#[doc(hidden)]
 #[allow(unused)]
 #[derive(Clone, Debug)]
 struct HnswCore {
@@ -170,6 +188,7 @@ pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyho
 //=========================================================================================
 //
 
+#[doc(hidden)]
 #[allow(unused)]
 macro_rules! gen_coreset1 {
     ($t:ty , $d:ty ,  &$a1:tt ,  &$a2:expr) => {
@@ -217,7 +236,7 @@ where
 
 //===========================================================
 
-pub fn coreset1<T, Dist>(coreparams: &CoresetParams, datamap: &DataMap) -> usize
+fn coreset1<T, Dist>(coreparams: &CoresetParams, datamap: &DataMap) -> usize
 where
     T: Send + Sync + Clone + std::fmt::Debug,
     Dist: Distance<T> + Sync + Send + Clone + Default,

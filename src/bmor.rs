@@ -294,7 +294,7 @@ where
     ///     [process_weighted_data](Self::process_weighted_data())) the number of expected data can be larger than the length or arguments passed to these methods.
     /// - beta : upper cost multiplicative factor
     /// - gamma : slackness factor for number facilities upper bound.
-    /// - end_step : if true a second step is done to further reduc the number of facilities.
+    /// - end_step : if true a second step is done to further reduce the number of facilities.
     ///         
     pub fn new(
         k_arg: usize,

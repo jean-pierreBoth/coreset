@@ -6,9 +6,9 @@ Especially we are interested in case where the data cannot be loaded entirely in
 
 The method relies on obtaining a coreset for the metric used in the problem.  
 A k-coreset is a sampled summary of a much smaller number of points *k*. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
-The drawback is that the selected points have now **weights** attached to the selected points.
+Since the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
-The crates comes in the form of a library and a specific binary in the subcrate [fromhnsw](#fromhnsw)
+The crate comes in the form of a library and a specific binary in the subcrate [fromhnsw](#fromhnsw)
 
 ## References to implemented algorithms
 
@@ -58,7 +58,7 @@ pub trait MakeIter {
 ```
 
 The algorithm needs more than one pass on the data, so the algorithm takes as argument a structure  providing
-an iterator on the data when needed. (Typically the structure could provide file Io to each data).  
+an iterator on the data when needed. (Typically the structure could provide file Io to iterates on data, or just a basic Vec of data).  
 **An example is found for mnist data** (Cf *module utils::mnistiter*).  
 
 The implementation does the buffering and parallelization internally.
@@ -68,7 +68,7 @@ The distances are provided by the crate [anndists](https://crates.io/crates/annd
 
 ## Fromhnsw
 
-The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset ore coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md)
+The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset or coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md).
 
 ## License
 

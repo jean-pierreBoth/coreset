@@ -136,6 +136,16 @@ where
         self.id_weight_map.iter()
     }
 
+    /// retrieve information on coreset points as a vector of couple containing DataId and coordinates of point DataId
+    pub fn get_data_points(&self) -> Option<&Vec<(DataId, Vec<T>)>> {
+        match &self.datas_wid {
+            Some(_) => self.datas_wid.as_ref(),
+            _ => None,
+        }
+    }
+
+    //
+
     /// for a coreset point of rank r returns id and data vector.
     pub(crate) fn get_point_by_rank(&self, r: usize) -> Option<(DataId, &Vec<T>)> {
         let res = match self.datas_wid.as_ref() {
@@ -278,10 +288,12 @@ where
 
     /// The main interface to the algorithm.  
     ///
-    /// The size of the coreset generated will be about fraction * size of data.
-    /// In fact a point can be sampled many times, but in this case the sampled points are merged and their weight added.
-    /// So the fraction should be set to a value slightly superior to the one desired.  
-    /// A value of 0.11 is a good initial guess to get a fraction of 0.1
+    /// - iter_generator: An object satisfying the MakeIter trait
+    /// - fraction :
+    ///     The size of the coreset generated will be around fraction * size of data.  
+    ///     A point can be sampled many times, in this case the sampled points are merged and their weight added.
+    ///     So the fraction should be set to a value slightly superior to the one desired.  
+    ///     A value of 0.11 is a good initial guess to get a fraction of 0.1
     pub fn make_coreset<IterGenerator>(
         &mut self,
         iter_generator: &IterGenerator,
