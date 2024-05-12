@@ -5,8 +5,9 @@ This crate is devoted to clustering approximation, in metric spaces, of large nu
 Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
-A k-coreset is a sampled summary of a much smaller number of points *k*. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  
-Since the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
+A k-coreset is a sampled summary of a much smaller number of points called facilities. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  So searchin a k-clustering the point facilites will be a good approximation 
+to the clustering of the whole data.
+But the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
 The crate comes in the form of a library and a specific binary in the subcrate [fromhnsw](#fromhnsw)
 

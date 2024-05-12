@@ -4,38 +4,40 @@
 //! The command is:
 //! **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**.
 //!
-//!  The following arguments are mandatory: the clustercore command is assumed with default parameters if not explicitly present
+//!  The following arguments are mandatory:
 //! - dirname : directory where hnsw files reside
 //! - hnswname : name used for naming the 2 hnsw related files: name.hnsw.data and name.hnsw.graph
 //! - typename : can be u16, u32, u64, f32, f64, i16, i32, i64 depending on the Distance type.
 //!
 //! At the end of coreset computations all data are re-scanned and dispatched to cluster of nearest center.  
-//!  A csv file named *clustercorest.csv* is dumped in current directory.  
+//!  A csv file named *corest.csv* is dumped in current directory.  
 //!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding facility.
 //!
+//! 2. The clustercore subcommand parses the following parameters optional parameters:
 //!
-//! 2. It is also possible to do coreset and clusterisation, using coreset::kmedoid::Kmedoids algorithm
+//! - cluster :
+//!     number of cluster asked in the Kmedoid pass. This argument is optional and defaults to 0. If non zero, it asks for a Kmedoid end pass on the facilities created by
+//!     the coreset algorithm, generating the *nbcluster* asked for.
+//!     At the end of coreset/cluster computations all data are re-scanned and dispatched to nearest cluster.  
+//!   
+//!     A csv file named *clustercorest.csv* is dumped in current directory.  
+//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
 //!
-//! At the end of coreset computations all data are re-scanned and dispatched to cluster of nearest center.  
-//!  A csv file named *clustercorest.csv* is dumped in current directory.  
-//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.
-//!
-//! command is :hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename  clustercore --cluster nbcluster [--beta b] [--gamma g] [--cluster nbcluster]]
-//!
-//!
-//! The clustercore command takes as arguments:
-//! - cluster : number of cluster asked in the Kmedoid pass. This argument is optional.  
-//!     With it there is a Kmedoid clustering pass on the coreset with nbcluster asked for.
 //! - fraction :
 //!      The size of the coreset generated will be around fraction * size of data.
 //!      A point can be sampled many times, in this case the sampled points are merged and their weight added.
 //!      So the fraction should be set to a value slightly superior to the one desired.  
 //!      A value of 0.11 is a good initial guess to get a fraction of 0.1.  
 //!
-//! The following optional arguments  are explained in detail in Bmor documentation):  
+//! The following optional arguments are related to the first Bmor pass of the algorithm. They are explained in detail in Bmor documentation):  
 //!  - beta:  defaults to 2. The accepted cost evolves as beta^iter during iterations. Increasing beta makes the accepted cost greater, and sp
 //!     reduces the number of facilities generated.  
 //!  - gamma: defaults to 2. Increasing gamma allocates a greater number of facilites.
+//!
+//! command is :  
+//! **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename  clustercore --cluster nbcluster [--beta b] [--gamma g] --**
+//!
+//!
 //!
 //! Note: It is easy to add any adhoc type T  by adding a line in [get_datamap()].  
 //! The type T used in hnsw must satisfy: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
@@ -329,7 +331,7 @@ fn main() {
             Arg::new("reduction")
                 .required(false)
                 .short('f')
-                .long("freduc")
+                .long("fraction")
                 .default_value("0.1")
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(f32))

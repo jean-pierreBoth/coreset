@@ -57,12 +57,12 @@ katexit = { version = "0.1" }
 
 ndarray = { version = "0.15" }
 
-#anndists = { version = "0.1" }
-anndists = { path = "../anndists" }
-#anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
+#anndists = { version = "0.1.2" }
+#anndists = { path = "../anndists" }
+anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
 
-hnsw_rs = { path = "../hnswlib-rs" }
-# hnsw_rs = { git = "https://github.com/jean-pierreBoth/hnswlib-rs" }
+# hnsw_rs = { path = "../hnswlib-rs" }
+hnsw_rs = { git = "https://github.com/jean-pierreBoth/hnswlib-rs" }
 
 
 # decreasing order of log for debug build : (max_level_)trace debug info warn error off
