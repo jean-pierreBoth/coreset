@@ -62,6 +62,7 @@ ndarray = { version = "0.15" }
 anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
 
 # hnsw_rs = { path = "../hnswlib-rs" }
+# hnsw_rs = {version = "0.3"}
 hnsw_rs = { git = "https://github.com/jean-pierreBoth/hnswlib-rs" }
 
 
@@ -121,9 +122,9 @@ clustering = { git = "https://github.com/jean-pierreBoth/clustering", branch = "
 
 [features]
 
-default = ["simdeez_f"]
+default = []
 
 # feature for std simd on nightly
-stdsimd = []
+stdsimd = ["anndists/stdsimd"]
 # feature for simd on stable for x86*
 simdeez_f = ["anndists/simdeez_f"]

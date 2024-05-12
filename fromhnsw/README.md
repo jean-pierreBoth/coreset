@@ -1,14 +1,17 @@
-# fromhnsw
+# sub crate fromhnsw
 
 Provides coreset computations from data stored in hnsw structures coming from crate [hsnw_rs](https://crates.io/crates/hnsw_rs).
 
-## Parameters
-
-The coreset command takes as arguments (they are explained in detail in Bmor documentation):
- - beta:  defaults to 2.
- - gamma: defaults to 2. Increasing it allocates a greater number of facilites.
-
 ## Command line
+
+The documentation of the binary **hcore** explains the parameters of the command and ouptut
+which has two forms:
+  - **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**
+  or in its complete form:  
+  - **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename  clustercore --cluster nbcluster [--beta b] [--gamma g] --**
+
+To get the whole doc:  
+**cargo doc --no-deps --all**
 
 ## Building
 
@@ -19,12 +22,5 @@ To compile the whole crate run:
 To compile the subcrate *fromhnsw* enabling coreset computations on hnsw data run :  
 **cargo build --release --all  --bin hcore**
 
-Doc building of the library
 
-**cargo doc --no-deps  --all**
 
-Building doc of the whole workspace and binary 
-
-**cargo doc --no-deps  --workspace --all   [--open] --bin hcore**
-
-## Extensions

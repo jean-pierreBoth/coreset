@@ -59,7 +59,7 @@ pub trait MakeIter {
 ```
 
 The algorithm needs more than one pass on the data, so the algorithm takes as argument a structure  providing
-an iterator on the data when needed. (Typically the structure could provide file Io to iterates on data, or just a basic Vec of data).  
+an iterator on the data when needed. (Typically the structure could provide file Io to iterates on data, or if there is no memory constraint just constain a reference to a Vec of data and provide an iterator on data reference).  
 **An example is found for mnist data** (Cf *module utils::mnistiter*).  
 
 The implementation does the buffering and parallelization internally.
@@ -70,6 +70,18 @@ The distances are provided by the crate [anndists](https://crates.io/crates/annd
 ## Fromhnsw
 
 The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset or coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md).
+
+## Building
+
+To compile the whole crate (and subcrate *fromhnsw*) enabling coreset computations on hnsw data run :  
+**cargo build --release --all  --bin hcore**  
+
+To get the whole doc:  
+**cargo doc --no-deps --all**
+
+### Simd 
+
+The crate anndists provides simd via 2 features *simdeez_f* on Intel, or stdsimd (portable but requires rust nightly). You can choose the feature you want in Cargo.toml of this crate or use the --features in the cargo command.
 
 ## License
 
