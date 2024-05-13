@@ -219,10 +219,11 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
     // get some info
     log::info!("coreset1 nb different points : {}", coreset.get_nb_points());
     //
-    let dist_name = std::any::type_name::<Dist>();
+    let full_dist_name = std::any::type_name::<Dist>();
+    let dist_name = full_dist_name.split("::").last().unwrap();
     log::info!("dist name = {:?}", dist_name);
     match dist_name {
-        "hnsw_rs::dist::DistL1" => {
+        "DistL1" => {
             // going to medoid
             log::info!("\n\n doing kmedoid clustering using L1");
             log::info!("===================================");
@@ -248,7 +249,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             //            kmedoids_reference(images, _labels, nb_cluster, &distance);
         }
 
-        "hnsw_rs::dist::DistL2" => {
+        "DistL2" => {
             // going to kmean
             log::info!("doing kmean clustering on whole data .... takes time");
             let nb_iter = 50;

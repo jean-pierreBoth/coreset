@@ -149,7 +149,7 @@ pub fn main() {
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(String))
                 .required(true)
-                .help("expecting a algo option imp, bmor "),
+                .help("expecting a algo option imp, bmor or coreset1"),
         )
         .get_matches();
     //
