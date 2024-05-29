@@ -1,8 +1,6 @@
 //! implement trait for iterating on file hnsw.data
 //!
 
-#![allow(unused)]
-
 use std::marker::PhantomData;
 
 use indexmap::map::Keys;
@@ -68,7 +66,7 @@ where
     type Item = (usize, Vec<T>);
 
     fn makeiter(&self) -> impl Iterator<Item = <Self as MakeIter>::Item> {
-        let keys = self.datamap.get_dataid_iter();
+        let _keys = self.datamap.get_dataid_iter();
         let hnswiter = HnswIter::<'a, T>::new(&self.datamap);
         return hnswiter;
     }
