@@ -2,7 +2,7 @@
 name = "coreset"
 version = "0.0.1"
 authors = ["jeanpierre.both@gmail.com"]
-description = "Coreset "
+description = "Coreset and clustering"
 license = "MIT/Apache-2.0"
 readme = "README.md"
 keywords = ["algorithms", "coreset", "cluster"]

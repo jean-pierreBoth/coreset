@@ -51,7 +51,7 @@ impl<'a> DataForIterator<'a> {
 impl<'a> MakeIter for DataForIterator<'a> {
     type Item = (usize, Vec<f32>);
     //
-    fn makeiter(&self) -> DataIterator<'a> {
+    fn makeiter(&self) -> impl Iterator<Item = <Self as coreset::prelude::MakeIter>::Item> {
         let iterator = DataIterator::new(self.images);
         return iterator;
     }
