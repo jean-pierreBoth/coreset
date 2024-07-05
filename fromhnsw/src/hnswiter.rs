@@ -48,12 +48,10 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let next_key = self.keys.next();
-        if next_key.is_none() {
-            return None;
-        }
+        next_key?;
         let next_key = next_key.unwrap();
         let v = self.mapref.get_data::<T>(next_key);
-        return Some((*next_key, Vec::<T>::from(v.unwrap())));
+        Some((*next_key, Vec::<T>::from(v.unwrap())))
     }
 }
 
@@ -67,7 +65,7 @@ where
 
     fn makeiter(&self) -> impl Iterator<Item = <Self as MakeIter>::Item> {
         let _keys = self.datamap.get_dataid_iter();
-        let hnswiter = HnswIter::<'a, T>::new(&self.datamap);
-        return hnswiter;
+        let hnswiter = HnswIter::<'a, T>::new(self.datamap);
+        hnswiter
     }
 }

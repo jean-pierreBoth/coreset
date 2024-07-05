@@ -50,7 +50,7 @@ impl<DataId: std::fmt::Debug + Clone, T: Send + Sync + Clone> Facility<DataId, T
 
     /// get a data point corresponding to the facility location
     pub fn get_position(&self) -> &Vec<T> {
-        return &self.center;
+        &self.center
     }
 
     /// get data rank this facility is centered on
@@ -176,7 +176,11 @@ impl<
 
     /// return number of facility
     pub fn len(&self) -> usize {
-        return self.centers.len();
+        self.centers.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        matches!(self.centers.len(), 0)
     }
 
     /// total weight already inserted
@@ -218,14 +222,14 @@ impl<
     }
 
     /// return true if there is a facility around point at distance less than dmax
-    pub fn match_point(&self, point: &Vec<T>, dmax: f32, distance: &Dist) -> bool {
+    pub fn match_point(&self, point: &[T], dmax: f32, distance: &Dist) -> bool {
         //
         for f in &self.centers {
             if distance.eval(f.read().get_position(), point) <= dmax {
                 return true;
             }
         }
-        return false;
+        false
     } // end of match_facility
 
     /// insert a new facility
@@ -241,9 +245,9 @@ impl<
     /// retrieve facility by rank if rank is Ok
     pub fn get_facility(&self, rank: usize) -> Option<&Arc<RwLock<Facility<DataId, T>>>> {
         if rank >= self.centers.len() {
-            return None;
+            None
         } else {
-            return Some(&self.centers[rank]);
+            Some(&self.centers[rank])
         }
     }
 
@@ -251,7 +255,7 @@ impl<
     /// useful for easy final analysis
     pub fn get_cloned_facility(&self, rank: usize) -> Option<Facility<DataId, T>> {
         if rank >= self.centers.len() {
-            return None;
+            None
         } else {
             return Some(self.centers[rank].read().clone());
         }
@@ -262,7 +266,7 @@ impl<
         if rank <= self.centers.len() {
             return Ok(self.centers[rank].read().get_weight());
         } else {
-            return Err(anyhow!("not so many facilities , rank is {}", rank));
+            Err(anyhow!("not so many facilities , rank is {}", rank))
         }
     } // end of facililities_ref
 
@@ -271,7 +275,7 @@ impl<
     pub fn get_nearest_facility(&self, data: &[T], parallel: bool) -> anyhow::Result<(usize, f32)> {
         let mut dist = f32::INFINITY;
         let mut rank_f: usize = usize::MAX;
-        if self.centers.len() == 0 {
+        if self.centers.is_empty() {
             return Err(anyhow!("Empty facility"));
         }
         //
@@ -284,12 +288,9 @@ impl<
         let dist_slot: Vec<(usize, f32)> = match parallel {
             true => (0..self.centers.len())
                 .into_par_iter()
-                .map(|i| dist_to_f(i))
+                .map(dist_to_f)
                 .collect(),
-            false => (0..self.centers.len())
-                .into_iter()
-                .map(|i| dist_to_f(i))
-                .collect(),
+            false => (0..self.centers.len()).map(dist_to_f).collect(),
         };
         for (f, d) in dist_slot {
             if d < dist {
@@ -299,7 +300,7 @@ impl<
         }
         assert!(rank_f < usize::MAX);
         //
-        return Ok((rank_f as usize, dist));
+        Ok((rank_f, dist))
     } // end of get_nearest_facility
 
     /// insert a point into given facility (must be the one given by get_nearest_facility)
@@ -324,7 +325,7 @@ impl<
             self.cost = total_cost;
             self.weight = total_weight;
         }
-        return (self.weight, self.cost);
+        (self.weight, self.cost)
     } // end of compute_cost
 
     /// a function to log info on dist and cost inside facilities
@@ -360,8 +361,8 @@ impl<
     #[allow(unused)]
     pub fn dispatch_data(
         &mut self,
-        data: &Vec<&Vec<T>>,
-        ids: &Vec<usize>,
+        data: &[&Vec<T>],
+        ids: &[usize],
         weights: Option<&Vec<f32>>,
     ) -> f64 {
         //
@@ -376,18 +377,16 @@ impl<
         let dispatch_i = |item: usize| {
             // get facility rank and weight
             // parallel flag is set to false as we // on data.
-            let (facility, dist) = self.get_nearest_facility(&data[item], false).unwrap();
-            let weight = if weights.is_none() {
-                1.
+            let (facility, dist) = self.get_nearest_facility(data[item], false).unwrap();
+            let weight = if let Some(w_values) = weights {
+                w_values[item]
             } else {
-                weights.unwrap()[item]
+                1.
             };
             self.insert_point(facility, dist, weight);
         };
         //
-        (0..data.len())
-            .into_par_iter()
-            .for_each(|item| dispatch_i(item));
+        (0..data.len()).into_par_iter().for_each(dispatch_i);
         //
         let mut global_cost = 0_f64;
         let mut total_weight = 0.;
@@ -412,8 +411,8 @@ impl<
     /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
     pub fn dispatch_labels<L: PartialEq + Eq + Copy + std::hash::Hash + Sync + Send>(
         &mut self,
-        data: &Vec<Vec<T>>,
-        labels: &Vec<L>,
+        data: &[Vec<T>],
+        labels: &[L],
         weights: Option<&Vec<f32>>,
     ) -> (Vec<f64>, Vec<HashMap<L, u32>>) {
         //
@@ -438,10 +437,10 @@ impl<
             // find facility
             let (itemf, dist) = self.get_nearest_facility(&data[i], false).unwrap();
             // dispatch data
-            let weight = if weights.is_none() {
-                1.
+            let weight = if let Some(w_values) = weights {
+                w_values[itemf] as f64
             } else {
-                weights.unwrap()[itemf] as f64
+                1.
             };
             let cost_incr = dist as f64 * weight;
             {
@@ -462,9 +461,7 @@ impl<
         };
         //
         log::info!("computing global cost and weights");
-        (0..data.len())
-            .into_par_iter()
-            .for_each(|item| dispatch_i(item));
+        (0..data.len()).into_par_iter().for_each(dispatch_i);
         // recompute globlas cost and weight
         let mut global_cost = 0_f64;
         let mut total_weight = 0.;
@@ -483,8 +480,8 @@ impl<
         //
         log::info!("computing label distribution entropy");
         let mut entropies = Vec::<f64>::with_capacity(nb_facility);
-        for i in 0..nb_facility {
-            let distribution = label_distribution[i].read();
+        for (i, ld) in label_distribution.iter().enumerate() {
+            let distribution = ld.read();
             let mut mass = 0.0f64;
             let nb_label = distribution.len();
             let mut weights = Vec::<f64>::with_capacity(nb_label);
@@ -508,8 +505,8 @@ impl<
         // Construct global weighted entropy measure
         let mut global_entropy = 0.;
         let mut total_weight = 0.;
-        for i in 0..nb_facility {
-            let facility = self.centers[i].read();
+        for (i, f) in self.centers.iter().enumerate() {
+            let facility = f.read();
             let weight = facility.get_weight();
             total_weight += weight;
             global_entropy += weight * entropies[i];
@@ -522,11 +519,11 @@ impl<
         println!("\n **************************************************************************");
         //
         let mut simple_label_distribution = Vec::<HashMap<L, u32>>::with_capacity(nb_facility);
-        for i in 0..nb_facility {
-            simple_label_distribution.push(label_distribution[i].read().clone());
+        for ld in &label_distribution {
+            simple_label_distribution.push(ld.read().clone());
         }
         //
-        return (entropies, simple_label_distribution);
+        (entropies, simple_label_distribution)
     } // end of dispatch_labels
 
     /// extract facility centers and associated weight for possible other clustering step

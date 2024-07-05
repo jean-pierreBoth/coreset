@@ -9,11 +9,11 @@ pub(crate) struct DataIterator<'a> {
     // we must keep the rank
     rank: usize,
     // we must have an access to data
-    images: &'a Vec<Vec<f32>>,
+    images: &'a [Vec<f32>],
 }
 
 impl<'a> DataIterator<'a> {
-    pub fn new(images: &'a Vec<Vec<f32>>) -> Self {
+    pub fn new(images: &'a [Vec<f32>]) -> Self {
         log::debug!("new data iterator size : {}", images.len());
         DataIterator { rank: 0, images }
     }
@@ -29,9 +29,9 @@ impl<'a> Iterator for DataIterator<'a> {
         if self.rank < self.images.len() {
             let rank1 = self.rank;
             self.rank += 1;
-            return Some((rank1, self.images[rank1].clone()));
+            Some((rank1, self.images[rank1].clone()))
         } else {
-            return None;
+            None
         }
     }
 } // end of Iterator for MnistData
@@ -39,11 +39,11 @@ impl<'a> Iterator for DataIterator<'a> {
 /// a structure implementing MakeIter
 pub(crate) struct DataForIterator<'a> {
     // we must have an access to data
-    images: &'a Vec<Vec<f32>>,
+    images: &'a [Vec<f32>],
 }
 
 impl<'a> DataForIterator<'a> {
-    pub fn new(images: &'a Vec<Vec<f32>>) -> Self {
+    pub fn new(images: &'a [Vec<f32>]) -> Self {
         DataForIterator { images }
     }
 } // end of impl DataForIterator
@@ -53,6 +53,6 @@ impl<'a> MakeIter for DataForIterator<'a> {
     //
     fn makeiter(&self) -> impl Iterator<Item = <Self as coreset::prelude::MakeIter>::Item> {
         let iterator = DataIterator::new(self.images);
-        return iterator;
+        iterator
     }
 } //end impl MakeIter

@@ -40,7 +40,7 @@ pub struct MettuPlaxton<'b, T: Send + Sync, Dist: Distance<T>> {
     //
     nb_data: usize,
     //
-    data: &'b Vec<Vec<T>>,
+    data: &'b [Vec<T>],
     // j is integer value of log data.len()
     j: u32,
     //
@@ -51,9 +51,9 @@ pub struct MettuPlaxton<'b, T: Send + Sync, Dist: Distance<T>> {
 
 impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
     /// initialization for unweighted data
-    pub fn new(data: &'b Vec<Vec<T>>, distance: Dist) -> Self {
+    pub fn new(data: &'b [Vec<T>], distance: Dist) -> Self {
         let nb_data: usize = data.len();
-        let j: u32 = data.len().ilog2() as u32;
+        let j: u32 = data.len().ilog2();
         //
         MettuPlaxton {
             nb_data,
@@ -109,11 +109,11 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
                     log::error!("error in estimate_ball_cardinal, j_tmp becomes negative");
                     std::process::exit(1);
                 }
-                j_tmp = j_tmp - 1;
+                j_tmp -= 1;
                 iter_num += 1;
             }
         };
-        return (ip, r);
+        (ip, r)
     }
 
     /// construct centers (facilities) for a given distance and returns allocated facilities (or centers)
@@ -153,7 +153,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
         // let data_unweighted: Vec<&Vec<T>> = self.data.iter().map(|d| d).collect();
         //        facilities.dispatch_data(&data_unweighted, None);
         //
-        return facilities;
+        facilities
     } // end of construct_centers
 
     pub fn compute_distances(&self, facilities: &Facilities<usize, T, Dist>)
@@ -193,7 +193,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
     /// initialization for unweighted data
     pub fn new(data: &'b Vec<Vec<T>>, weights: &'b Vec<f32>, distance: Dist) -> Self {
         let nb_data: usize = data.len();
-        let j: u32 = data.len().ilog2() as u32;
+        let j: u32 = data.len().ilog2();
         //
         WeightedMettuPlaxton {
             nb_data,
@@ -216,12 +216,12 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         let mut dists: Vec<RwLock<Vec<f32>>> = Vec::<RwLock<Vec<f32>>>::with_capacity(self.nb_data);
         //
         for _ in 0..self.nb_data {
-            let d: Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
+            let d: Vec<f32> = (0..self.nb_data).map(|_| -1.).collect();
             dists.push(RwLock::new(d));
         }
 
         let compute_for_i = |i: usize| {
-            let mut dist_i: Vec<f32> = (0..self.nb_data).into_iter().map(|_| -1.).collect();
+            let mut dist_i: Vec<f32> = (0..self.nb_data).map(|_| -1.).collect();
             for j in 0..self.nb_data {
                 // has symetric benn computed?
                 let dist = dists[j].read()[i];
@@ -233,15 +233,15 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
                 dist_i[j] = dist_i_j;
             } // end of for j
             *dists[i].write() = dist_i;
-            return 1;
+            1
         };
         //
         let _res: Vec<i32> = (0..self.nb_data)
             .into_par_iter()
-            .map(|i| compute_for_i(i))
+            .map(compute_for_i)
             .collect();
         // now we have all dists
-        return dists;
+        dists
     } // end of compute_all_dists
 
     fn compute_ball_radius(&self, alfa: f32, dists: &RwLock<Vec<f32>>) -> f32 {
@@ -257,7 +257,6 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         //
         // we sort distances
         let mut indexed_dist: Vec<(usize, f32)> = (0..self.nb_data)
-            .into_iter()
             .zip(dists.read().iter())
             .map(|(i, f)| (i, *f))
             .collect();
@@ -287,10 +286,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         let value = alfa * value_at_j(radius_index.try_into().unwrap());
         log::debug!("value to match : {:.2e}", value);
         if log::log_enabled!(log::Level::Debug) {
-            let check: Vec<f32> = (0..self.get_nb_data())
-                .into_iter()
-                .map(|j| value_at_j(j))
-                .collect();
+            let check: Vec<f32> = (0..self.get_nb_data()).map(value_at_j).collect();
             log::debug!("check : {:?}", check);
         }
         //
@@ -351,7 +347,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         }
         //
         if radius > 0. {
-            return radius;
+            radius
         } else {
             std::panic!("error in compute_ball_radius, radius : {:?}", radius);
         }
@@ -364,7 +360,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
     fn compute_balls_at_value(
         &self,
         alfa: f32,
-        dists: &Vec<RwLock<Vec<f32>>>,
+        dists: &[RwLock<Vec<f32>>],
     ) -> Facilities<usize, T, Dist> {
         //
         log::debug!("in WeightedMettuPlaxton::compute_balls_at_value");
@@ -385,7 +381,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
             if !matched {
                 // we insert a facility
                 let mut facility = Facility::new(p.0, &self.data[p.0]);
-                facility.insert(self.weights[p.0] as f64, p.1 as f32);
+                facility.insert(self.weights[p.0] as f64, p.1);
                 log::info!(
                     "inserting facility at {:?}, radius : {:.3e}, weight : {:.3e}",
                     p.0,
@@ -396,7 +392,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
             }
         }
         //
-        return facilities;
+        facilities
     } // end of compute_balls_at_value
 
     /// alfa governs the cost of facility creation so the number of facilities we will get.
@@ -415,13 +411,11 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T> + Send + Sync + Clone>
         let mut facilities = self.compute_balls_at_value(alfa, &dists);
         //
         // We explicitly dispatch data to facilities as imp algo do not do it
-        let data_unweighted: Vec<&Vec<T>> = self.data.iter().map(|d| d).collect();
-        let ids = (0..data_unweighted.len())
-            .into_iter()
-            .collect::<Vec<usize>>();
+        let data_unweighted: Vec<&Vec<T>> = self.data.iter().collect();
+        let ids = (0..data_unweighted.len()).collect::<Vec<usize>>();
         facilities.dispatch_data(&data_unweighted, &ids, None);
         //
-        return facilities;
+        facilities
     } // end of construct_centers
 } // end of impl WeightedMettuPlaxton
 
@@ -459,26 +453,20 @@ mod tests {
         //
         let half = nbdata / 2;
         for _ in 0..half {
-            let d_tmp: Vec<f32> = (0..dim)
-                .into_iter()
-                .map(|_| normal1.sample(&mut rng))
-                .collect();
+            let d_tmp: Vec<f32> = (0..dim).map(|_| normal1.sample(&mut rng)).collect();
             data.push(d_tmp);
             weights.push(unif1.sample(&mut rng));
         }
 
         for _ in (half + 1)..nbdata {
-            let d_tmp: Vec<f32> = (0..dim)
-                .into_iter()
-                .map(|_| normal2.sample(&mut rng))
-                .collect();
+            let d_tmp: Vec<f32> = (0..dim).map(|_| normal2.sample(&mut rng)).collect();
             data.push(d_tmp);
             weights.push(unif2.sample(&mut rng));
         }
         // log::debug!("data : {:?}", data);
         // log::debug!("weights : {:?}", weights);
         //
-        return (data, weights);
+        (data, weights)
     } // end of generate_weighted_data
 
     #[test]
@@ -488,7 +476,7 @@ mod tests {
         log::info!("in test_weight_mp");
         //
         let (data, weights) = generate_weighted_data(12);
-        let distance = DistL2::default();
+        let distance = DistL2;
         //
         let wmp = WeightedMettuPlaxton::new(&data, &weights, distance);
         //

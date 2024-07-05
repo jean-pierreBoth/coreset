@@ -101,12 +101,12 @@ impl<
 
     /// returns facilities as computed by the algorithm
     pub fn get_facilities(&self) -> &Facilities<DataId, T, Dist> {
-        return &self.centers;
+        &self.centers
     }
 
     /// returns a mutable reference to facilities (useful for calling [dispatch_labesl](crate::facility::Facilities::dispatch_data())).
     pub fn get_mut_facilities(&mut self) -> &mut Facilities<DataId, T, Dist> {
-        return &mut self.centers;
+        &mut self.centers
     }
 
     // get current phase num of processing
@@ -148,6 +148,7 @@ impl<
     }
 
     /// get nearest center/facility of a point, its rank and distance to facility
+    #[allow(clippy::type_complexity)]
     pub fn get_nearest_center(
         &self,
         point: &[T],
@@ -192,16 +193,16 @@ impl<
         {
             // we create a new facility. No cost increment
             let mut new_f = Facility::<DataId, T>::new(rank_id, point);
-            new_f.insert(weight as f64, 0.);
+            new_f.insert(weight, 0.);
             self.centers.insert(new_f);
             // log::debug!("in BmorState::update  creating new facility around {}, nb_facilities : {}", rank_id, self.centers.len());
         } else {
             // log::debug!("in BmorState::update rank_id: {:?}, inserting in old facility dist : {:.3e}", rank_id, dist_to_nearest);
             nearest_facility.write().insert(weight, dist_to_nearest);
-            self.total_cost += weight.abs() as f64 * dist_to_nearest as f64;
+            self.total_cost += weight.abs() * dist_to_nearest as f64;
         }
         // we increments weight monitoring and number of insertions
-        self.absolute_weight += weight.abs() as f64;
+        self.absolute_weight += weight.abs();
         self.nb_inserted += 1;
         // check if we are above constraints
         if self.total_cost > self.phase_cost_upper || self.centers.len() > self.facility_bound {
@@ -209,9 +210,9 @@ impl<
                 log::debug!("constraint violation");
                 self.log();
             }
-            return false;
+            false
         } else {
-            return true;
+            true
         }
     } // end of update
 
@@ -320,7 +321,7 @@ where
             nbdata_expected,
             0,
             nb_centers_bound as usize,
-            upper_cost as f64,
+            upper_cost,
             nb_centers_bound,
             distance.clone(),
         );
@@ -358,7 +359,6 @@ where
     pub fn process_data(&mut self, data: &[Vec<T>], id: &[DataId]) -> anyhow::Result<usize> {
         //
         let weighted_data: Vec<(f64, &Vec<T>, DataId)> = (0..data.len())
-            .into_iter()
             .map(|i| (1., &data[i], id[i].clone()))
             .collect();
         self.process_weighted_block(&weighted_data);
@@ -396,8 +396,7 @@ where
                 state_2.log();
                 //
                 let facilities = state_2.get_facilities();
-                let facilities_ret = facilities.clone();
-                facilities_ret
+                facilities.clone()
             }
         };
         facilities
@@ -440,7 +439,6 @@ where
         );
         //
         let weighted_data: Vec<(f64, &Vec<T>, DataId)> = (0..facility_data.len())
-            .into_iter()
             .map(|i| {
                 (
                     facility_data[i].0,
@@ -474,12 +472,12 @@ where
             }
             let state_2 = bmor_algo_2.state.borrow();
             state_2.get_facilities().log(0);
-            return Ok(state_2.clone());
+            Ok(state_2.clone())
         } else {
             let state = self.state.borrow();
             state.log();
             state.get_facilities().log(0);
-            return Ok(state.clone());
+            Ok(state.clone())
         }
     } // end of bmor_recur
 
@@ -497,7 +495,7 @@ where
         for d in data {
             // TODO: now we use rank as rank_id (sufficicent for ordered ids)
             log::trace!("treating rank_id : {:?}, weight : {:.4e}", d.2, d.0);
-            let add_res = self.add_data(d.2.clone(), &d.1, d.0);
+            let add_res = self.add_data(d.2.clone(), d.1, d.0);
             if !add_res {
                 // allocate new state
                 log::debug!(
@@ -505,8 +503,7 @@ where
                     self.state.borrow().get_facilities().len()
                 );
                 // recycle facilitites in process adding them
-                let weighted_data: Vec<(f64, Vec<T>, DataId)>;
-                weighted_data = self
+                let weighted_data: Vec<(f64, Vec<T>, DataId)> = self
                     .state
                     .borrow()
                     .centers
@@ -520,12 +517,12 @@ where
                         )
                     })
                     .collect();
-                assert!(weighted_data.len() > 0);
+                assert!(!weighted_data.is_empty());
                 let weighted_ref_data: Vec<(f64, &Vec<T>, DataId)> = weighted_data
                     .iter()
                     .map(|wd| (wd.0, &wd.1, wd.2.clone()))
                     .collect();
-                assert!(weighted_ref_data.len() > 0);
+                assert!(!weighted_ref_data.is_empty());
                 self.state.borrow_mut().reinit(self.beta);
                 self.process_weighted_block(&weighted_ref_data);
             }
@@ -534,12 +531,12 @@ where
 
     // This function return true except if we got beyond bound for cost or number of facilities
     // The data added can be a facility extracted during a preceding phase
-    pub(crate) fn add_data(&self, rank_id: DataId, data: &Vec<T>, weight: f64) -> bool {
+    pub(crate) fn add_data(&self, rank_id: DataId, data: &[T], weight: f64) -> bool {
         //
         let mut state = self.state.borrow_mut();
         let facilities = state.get_mut_facilities();
         // get nearest facility or open facility
-        if facilities.len() <= 0 {
+        if facilities.is_empty() {
             log::debug!(
                 "Bmor::add_data creating facility rank_id : {:?} with weight : {:.3e}",
                 rank_id,
@@ -550,13 +547,11 @@ where
             facilities.insert(new_f);
             // we update global state here in facility creation case
             state.nb_inserted += 1;
-            state.absolute_weight += weight as f64;
+            state.absolute_weight += weight;
             return true;
         }
         // we already have a facility we update state
-        let status = state.update(rank_id, data, weight);
-        //
-        return status;
+        state.update(rank_id, data, weight)
     } // end of add_data
 
     pub fn log(&self) {

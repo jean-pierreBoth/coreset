@@ -31,7 +31,7 @@ pub struct BmorArg {
     nb_data_expected: usize,
     /// drives upper cost acceptable through iterations. 2. is a standard default.
     beta: f64,
-    ///
+    //
     gamma: f64,
 }
 
@@ -58,11 +58,11 @@ impl Default for BmorArg {
 //==================================================================
 
 pub struct ClusterCoreset<DataId: std::fmt::Debug + Eq + std::hash::Hash + Clone + Send + Sync, T> {
-    ///
+    //
     nb_cluster: usize,
     /// fraction of data to keep in coreset
     fraction: f64,
-    ///
+    //
     bmor_arg: BmorArg,
     // total nb data processed
     nb_data: usize,
@@ -151,8 +151,6 @@ where
         );
         //
         self.kmedoids = Some(kmedoids);
-        //
-        return;
     } // end of compute
 
     //
@@ -178,7 +176,7 @@ where
         // We must retrive datas corresponding to medoid centers
         self.get_kmedoids().retrieve_cluster_centers(iter_producer);
         let centers = self.kmedoids.as_ref().unwrap().get_centers().unwrap();
-        if centers.len() == 0 {
+        if centers.is_empty() {
             log::error!("ClusterCore::dispatch, kmedoids centers have not yet been computed");
             std::process::exit(1);
         }
@@ -187,16 +185,13 @@ where
         //
         let dispatch_i = |(id, data): (DataId, &Vec<T>)| -> (DataId, usize, f32) {
             // get nearest medoid. We can retrieve Vec<T> for each medoid from coreset , so we must get access to it
-            assert!(data.len() > 0);
-            let dists: Vec<f32> = centers
-                .into_iter()
-                .map(|c| distance.eval(data, c))
-                .collect();
+            assert!(!data.is_empty());
+            let dists: Vec<f32> = centers.iter().map(|c| distance.eval(data, c)).collect();
             let mut dmin = f32::MAX;
             let mut imin = usize::MAX;
-            for i in 0..dists.len() {
-                if dists[i] < dmin {
-                    dmin = dists[i];
+            for (i, d) in dists.iter().enumerate() {
+                if *d < dmin {
+                    dmin = *d;
                     imin = i;
                 }
             }
@@ -211,7 +206,7 @@ where
         let mut nb_total_data = 0usize;
         //
         loop {
-            let buffres = self.get_buffer_data::<Dist>(buffer_size, &mut data_iter);
+            let buffres = self.get_buffer_data(buffer_size, &mut data_iter);
             if buffres.is_err() {
                 break;
             }
@@ -274,7 +269,7 @@ where
             ));
         }
         for (d, c) in self.ids_to_cluster.as_ref().unwrap() {
-            write!(bufw, "{:?},{:?}\n", d, c).unwrap();
+            writeln!(bufw, "{:?},{:?}\n", d, c).unwrap();
             nb_record += 1;
         }
         bufw.flush().unwrap();
@@ -288,14 +283,11 @@ where
     }
 
     /// use iterator to return a block of data
-    fn get_buffer_data<Dist>(
+    fn get_buffer_data(
         &self,
         buffer_size: usize,
         data_iter: &mut impl Iterator<Item = (DataId, Vec<T>)>,
-    ) -> Result<Vec<(DataId, Vec<T>)>, u32>
-    where
-        Dist: Distance<T> + Send + Sync + Clone,
-    {
+    ) -> Result<Vec<(DataId, Vec<T>)>, u32> {
         //
         let mut ids_datas = Vec::<(DataId, Vec<T>)>::with_capacity(buffer_size);
         //
@@ -315,7 +307,7 @@ where
             } // end ma
         } // end loop
           //
-        if ids_datas.len() > 0 {
+        if !ids_datas.is_empty() {
             Ok(ids_datas)
         } else {
             Err(0)

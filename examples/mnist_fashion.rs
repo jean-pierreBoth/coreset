@@ -3,7 +3,8 @@
 //!
 //! const MNIST_FASHION_DIR : &'static str = "/home.1/jpboth/Data/Fashion-MNIST/";
 //!
-//! command : mnist_fashion  --algo imp or bmor.
+//! command : mnist_fashion  --algo imp, bmor or coreset1
+//! The coreset1 runs also a final kmedoids
 //!
 //! The data can be downloaded in the same format as the FASHION database from:  
 //!
@@ -29,16 +30,16 @@ use utils::{mnistcheck::*, mnistio::*};
 
 fn marrupaxton<Dist: Distance<f32> + Sync + Send + Clone>(
     _params: &MnistParams,
-    images: &Vec<Vec<f32>>,
-    labels: &Vec<u8>,
+    images: &[Vec<f32>],
+    labels: &[u8],
     distance: Dist,
 ) {
     //
-    let mpalgo = MettuPlaxton::<f32, Dist>::new(&images, distance);
+    let mpalgo = MettuPlaxton::<f32, Dist>::new(images, distance);
     let alfa = 0.75;
     let mut facilities = mpalgo.construct_centers(alfa);
     //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(&images, labels, None);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
@@ -51,15 +52,15 @@ fn marrupaxton<Dist: Distance<f32> + Sync + Send + Clone>(
         }
     }
     //
-    mpalgo.compute_distances(&mut facilities);
+    mpalgo.compute_distances(&facilities);
 }
 
 //========================================================
 
 fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
     _params: &MnistParams,
-    images: &Vec<Vec<f32>>,
-    labels: &Vec<u8>,
+    images: &[Vec<f32>],
+    labels: &[u8],
     distance: Dist,
 ) {
     //
@@ -69,7 +70,7 @@ fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
     let gamma = 2.;
     let mut bmor_algo: Bmor<usize, f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance);
     //
-    let ids = (0..images.len()).into_iter().collect::<Vec<usize>>();
+    let ids = (0..images.len()).collect::<Vec<usize>>();
     let res = bmor_algo.process_data(images, &ids);
     if res.is_err() {
         std::panic!("bmor failed");
@@ -79,7 +80,7 @@ fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
     let contraction = false;
     let mut facilities = bmor_algo.end_data(contraction);
     //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(&images, labels, None);
+    let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);
     //
     let nb_facility = facilities.len();
     for i in 0..nb_facility {
@@ -124,14 +125,14 @@ pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
         }
     }
     //
-    return Err(anyhow::anyhow!("bad command"));
+    Err(anyhow::anyhow!("bad command"))
 } // end of parse_cmd
 
 //========================================================
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
-const MNIST_FASHION_DIR: &'static str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
+const MNIST_FASHION_DIR: &str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
 
 pub fn main() {
     //
@@ -158,7 +159,7 @@ pub fn main() {
     let mut image_fname = String::from(MNIST_FASHION_DIR);
     image_fname.push_str("train-images-idx3-ubyte");
     let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(&image_path);
+    let image_file_res = OpenOptions::new().read(true).open(image_path);
     if image_file_res.is_err() {
         println!("could not open image file : {:?}", image_fname);
         return;
@@ -194,7 +195,7 @@ pub fn main() {
     let mut image_fname = String::from(MNIST_FASHION_DIR);
     image_fname.push_str("t10k-images-idx3-ubyte");
     let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(&image_path);
+    let image_file_res = OpenOptions::new().read(true).open(image_path);
     if image_file_res.is_err() {
         println!("could not open image file : {:?}", image_fname);
         return;
@@ -231,7 +232,7 @@ pub fn main() {
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     //
-    let distance = DistL1::default();
+    let distance = DistL1;
     match mnist_params.get_algo() {
         Algo::IMP => marrupaxton(&mnist_params, &images_as_v, &labels, distance),
         Algo::BMOR => {

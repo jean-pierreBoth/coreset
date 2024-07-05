@@ -71,11 +71,11 @@ struct HnswParams {
 }
 
 impl HnswParams {
-    pub fn new(hdir: &String, hname: &String, tname: &String) -> Self {
+    pub fn new(hdir: &str, hname: &str, tname: &str) -> Self {
         HnswParams {
-            dir: hdir.clone(),
-            hname: hname.clone(),
-            tname: tname.clone(),
+            dir: hdir.to_string(),
+            hname: hname.to_string(),
+            tname: tname.to_string(),
         }
     }
 }
@@ -145,16 +145,20 @@ struct HnswCore {
 
 fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Error> {
     log::debug!("in  parse_coreset_cmd");
-    let mut params = CoresetParams::default();
-    params.beta = *matches.get_one::<f32>("beta").unwrap();
-    params.gamma = *matches.get_one::<f32>("gamma").unwrap();
-    log::info!("gamma : {}", params.gamma);
-    params.freduc = *matches.get_one::<f32>("reduction").unwrap();
-    params.nbcluster = *matches.get_one::<usize>("cluster").unwrap();
+    //
+    let gamma = *matches.get_one::<f32>("gamma").unwrap();
+    let beta = *matches.get_one::<f32>("beta").unwrap();
+    log::info!("gamma : {}", gamma);
+    let params = CoresetParams::new(
+        beta,
+        gamma,
+        *matches.get_one::<f32>("reduction").unwrap(),
+        *matches.get_one::<usize>("cluster").unwrap(),
+    );
     //
     log::info!("got CoresetParams : {:?}", params);
     //
-    return Ok(params);
+    Ok(params)
 }
 
 //============================================================================================
@@ -165,14 +169,14 @@ fn parse_coreset_cmd(matches: &ArgMatches) -> Result<CoresetParams, anyhow::Erro
 /// The only constraints on T comes from hnsw and is T: 'static + Clone + Sized + Send + Sync + std::fmt::Debug
 pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyhow::Result<DataMap> {
     //
-    let datamap = match &typename {
-        &"u16" => get_typed_datamap::<u16>(directory, basename),
-        &"u32" => get_typed_datamap::<u32>(directory, basename),
-        &"u64" => get_typed_datamap::<u64>(directory, basename),
-        &"f32" => get_typed_datamap::<f32>(directory, basename),
-        &"f64" => get_typed_datamap::<f64>(directory, basename),
-        &"i32" => get_typed_datamap::<i32>(directory, basename),
-        &"i64" => get_typed_datamap::<i64>(directory, basename),
+    let datamap = match typename {
+        "u16" => get_typed_datamap::<u16>(directory, basename),
+        "u32" => get_typed_datamap::<u32>(directory, basename),
+        "u64" => get_typed_datamap::<u64>(directory, basename),
+        "f32" => get_typed_datamap::<f32>(directory, basename),
+        "f64" => get_typed_datamap::<f64>(directory, basename),
+        "i32" => get_typed_datamap::<i32>(directory, basename),
+        "i64" => get_typed_datamap::<i64>(directory, basename),
         _ => {
             log::error!(
                 "get_datamap : unimplemented type, type received : {}",
@@ -184,7 +188,7 @@ pub fn get_datamap(directory: String, basename: String, typename: &str) -> anyho
     //
     log::info!("returning DataMap for type : {}", typename);
     //
-    return datamap;
+    datamap
 }
 
 //=========================================================================================
@@ -292,7 +296,7 @@ where
         sys_now.elapsed().unwrap().as_millis(),
         cpu_time.as_millis()
     );
-    return 1;
+    1
 } // end of
 
 //===========================================================

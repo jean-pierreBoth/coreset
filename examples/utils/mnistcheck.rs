@@ -45,9 +45,9 @@ impl MnistParams {
 // computes sum of distance  of coreset points to nearest cluster centers
 pub fn dispatch_coreset<Dist>(
     coreset: &CoreSet<usize, f32, Dist>,
-    c_centers: &Vec<Vec<f32>>,
+    c_centers: &[Vec<f32>],
     distance: &Dist,
-    images: &Vec<Vec<f32>>,
+    images: &[Vec<f32>],
 ) -> f64
 where
     Dist: Distance<f32> + Send + Sync + Clone,
@@ -61,7 +61,6 @@ where
         }
         let data = &(images[*id]);
         let (best_c, best_d): (usize, f32) = (0..c_centers.len())
-            .into_iter()
             .map(|i| (i, distance.eval(data, &c_centers[i])))
             .min_by(|(_, d1), (_, d2)| {
                 if d1 < d2 {
@@ -88,7 +87,7 @@ where
         }
         assert!(best_d.is_finite());
         // TODO: exponent for dist!!!
-        error += (w_id * best_d as f64) as f64;
+        error += (w_id * best_d as f64);
     }
     //
     error
@@ -96,11 +95,7 @@ where
 
 // computes sum of distance  of all data points cluster centers
 // Estimate total error on whole data
-pub fn dispatch_images<Dist>(
-    c_centers: &Vec<Vec<f32>>,
-    distance: &Dist,
-    images: &Vec<Vec<f32>>,
-) -> f64
+pub fn dispatch_images<Dist>(c_centers: &[Vec<f32>], distance: &Dist, images: &[Vec<f32>]) -> f64
 where
     Dist: Distance<f32> + Send + Sync + Clone,
 {
@@ -109,7 +104,6 @@ where
     //
     let find_medoid = |data| -> (usize, f64) {
         let (best_c, best_d): (usize, f32) = (0..c_centers.len())
-            .into_iter()
             .map(|i| (i, distance.eval(data, &c_centers[i])))
             .min_by(|(_, d1), (_, d2)| {
                 if d1 < d2 {
@@ -137,12 +131,8 @@ where
 
 #[allow(unused)]
 // call kmedoids to compare
-fn kmedoids_reference<Dist>(
-    images: &Vec<Vec<f32>>,
-    _labels: &Vec<u8>,
-    nbcluster: usize,
-    distance: &Dist,
-) where
+fn kmedoids_reference<Dist>(images: &[Vec<f32>], _labels: &[u8], nbcluster: usize, distance: &Dist)
+where
     Dist: Distance<f32> + Send + Sync,
 {
     //
@@ -165,7 +155,7 @@ fn kmedoids_reference<Dist>(
                 row_i[j] = distance.eval(&images[i], &images[j]);
             }
         }
-        return row_i;
+        row_i
     };
     //
     let rows: Vec<(usize, Array1<f32>)> = (0..nbpoints)
@@ -193,8 +183,8 @@ fn kmedoids_reference<Dist>(
 
 pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
     _params: &MnistParams,
-    images: &Vec<Vec<f32>>,
-    _labels: &Vec<u8>,
+    images: &[Vec<f32>],
+    _labels: &[u8],
     distance: Dist,
 ) {
     //
@@ -243,7 +233,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
                 sys_now.elapsed().unwrap().as_millis(),
                 cpu_start.elapsed().as_millis()
             );
-            let dispatch_error = dispatch_images(&centers, &distance, &images);
+            let dispatch_error = dispatch_images(&centers, &distance, images);
             log::info!(" original data dispatching error : {:.3e}", dispatch_error);
             // we try to do a direct median clustering with kmedoid crate
             //            kmedoids_reference(images, _labels, nb_cluster, &distance);
@@ -276,7 +266,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             }
             log::info!("kmean error : {:.3e}", error / images.len() as f32);
             // now we must dispatch our coreset to centers and see what error we have...
-            let dispatch_error = dispatch_images(&centers, &distance, &images);
+            let dispatch_error = dispatch_images(&centers, &distance, images);
             log::info!(" coreset dispatching error : {:.3e}", dispatch_error);
             //
             // let dispatch_error = dispatch_coreset(&coreset, &centers, &distance, &images);

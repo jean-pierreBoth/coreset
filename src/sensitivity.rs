@@ -51,7 +51,7 @@ struct PointSampler<DataId> {
 impl<DataId: Clone> PointSampler<DataId> {
     fn new(weights: &Vec<f64>, w_index: HashMap<usize, DataId>) -> Self {
         PointSampler {
-            proba: DiscreteProba::new(&weights),
+            proba: DiscreteProba::new(weights),
             w_index,
         }
     }
@@ -68,11 +68,11 @@ impl<DataId: Clone> PointSampler<DataId> {
             std::panic!();
         }
         let id = opt_id.cloned().unwrap();
-        return Point {
-            id: id,
+        Point {
+            id,
             _rank: rank,
             proba,
-        };
+        }
     } // end of sample
 } // end of PointSampler
 
@@ -114,16 +114,9 @@ where
     }
 
     /// returns weight of a given point if present in coreset
-    pub fn get_weight(&self, data_id: DataId) -> Option<f64> {
-        let index_res = self.id_weight_map.get(&data_id);
-        match index_res {
-            Some(index) => {
-                return Some(*index);
-            }
-            _ => {
-                return None;
-            }
-        }
+    pub fn get_weight(&self, data_id: &DataId) -> Option<f64> {
+        let index_res = self.id_weight_map.get(data_id);
+        index_res.copied()
     } // end of get_weight
 
     /// returns an iterator on the id of data
@@ -167,7 +160,7 @@ where
             }
         };
         //
-        return res;
+        res
     } // end of get_point
 
     //
@@ -184,7 +177,7 @@ where
         let mut nb_record = 0usize;
         //
         for (id, weight) in &self.id_weight_map {
-            write!(bufw, "{:?},{:.3e}\n", id, weight)?;
+            writeln!(bufw, "{:?},{:.3e}\n", id, weight)?;
             nb_record += 1;
         }
         bufw.flush().unwrap();
@@ -218,7 +211,7 @@ where
                     row_i[j] = self.distance.eval(p_i, p_j);
                 }
             }
-            return row_i;
+            row_i
         };
         //
         //
@@ -240,7 +233,7 @@ where
             .map(|(id, _)| (*id).clone())
             .collect();
         //
-        return Some((ids, distances));
+        Some((ids, distances))
     } // end of compute_distances
 } // end of impl Coreset
 
@@ -250,7 +243,7 @@ where
 /// The data must be given consistent id across the 2 passes. (The data id can be its rank in the stream in which case the 2 pass
 /// must process data in the same order)
 pub struct Coreset1<DataId, T: Send + Sync + Clone, Dist: Distance<T> + Clone + Sync + Send> {
-    ///
+    //
     phase: usize,
     /// keep track of number of data processed
     nb_data: usize,
@@ -361,11 +354,11 @@ where
         DataId: Eq + Hash + std::fmt::Debug,
     {
         //
-        let mut iter = iter_generator.makeiter();
+        let iter = iter_generator.makeiter();
         //
         let nbpoints = id_weight_map.len();
         let mut datas_wid: Vec<(DataId, Vec<T>)> = Vec::with_capacity(nbpoints);
-        while let Some((id, data)) = iter.next() {
+        for (id, data) in iter {
             // do we need the data of this id
             if id_weight_map.contains_key(&id) {
                 datas_wid.push((id, data));
@@ -377,7 +370,7 @@ where
             for (id, _) in &datas_wid {
                 set.insert(id);
             }
-            for (id, _) in id_weight_map {
+            for id in id_weight_map.keys() {
                 // do we have id in set
                 if set.get(id).is_none() {
                     log::error!(" we do not have id : {:?} in set", id);
@@ -387,7 +380,7 @@ where
         //
         assert_eq!(datas_wid.len(), nbpoints);
         //
-        return datas_wid;
+        datas_wid
     } // end of retrieve_corepoints_by_id
 
     /// This function takes an iterator on all data and process (with buffering and parallelizing) them via calling *process_data()* , consuming the iterator
@@ -417,7 +410,7 @@ where
                     }
                 }
                 _ => {
-                    if datas.len() > 0 {
+                    if !datas.is_empty() {
                         let res = self.process_data(&datas, &ids);
                         assert!(res.is_ok());
                         // empty buffer
@@ -431,7 +424,7 @@ where
           // DO NOT FORGET calling end_pass
         self.end_pass();
         //
-        return Ok(());
+        Ok(())
     } // end of process_data_iterator
 
     /// treat unweighted data.
@@ -440,10 +433,10 @@ where
     fn process_data(&mut self, data: &[Vec<T>], data_id: &[DataId]) -> anyhow::Result<()> {
         //
         if self.phase == 0 {
-            let _ = self.bmor.process_data(&data, data_id).unwrap();
+            let _ = self.bmor.process_data(data, data_id).unwrap();
             self.bmor.log();
             self.nb_data += data.len();
-            return Ok(());
+            Ok(())
         } else {
             let facilities_ref = self.facilities.as_ref().unwrap();
             //
@@ -476,12 +469,10 @@ where
                 }
             };
             // now we insert into pointmap if necessary
-            (0..data.len())
-                .into_par_iter()
-                .for_each(|item| dispatch_i(item));
+            (0..data.len()).into_par_iter().for_each(dispatch_i);
             //
-            return Ok(());
-        };
+            Ok(())
+        }
     } // end of process_data
 
     /// declares end of streaming data first pass, and construct coreset by sampling
@@ -544,16 +535,15 @@ where
         let mut p_weights = Vec::<f64>::with_capacity(self.nb_data);
         let mut w_index = HashMap::<usize, DataId>::with_capacity(self.nb_data);
         // we iter on reviously built p_facility_map_ref
-        let mut pmap_iter = p_facility_map_ref.iter();
-        while let Some(iter_ref) = pmap_iter.next() {
+        let pmap_iter = p_facility_map_ref.iter();
+        for iter_ref in pmap_iter {
             let (dataid, pointmap) = iter_ref.pair();
             //
             let mut proba = pointmap.get_dist() as f64 * pointmap.get_weight() as f64 / global_cost;
             // get weight of facility of point corresponding to data_id
             let f_weight = facilities_ref.get_facility_weight(pointmap.get_facility());
-            proba =
-                proba + pointmap.get_weight() as f64 / (nb_facilities as f64 * f_weight.unwrap());
-            proba = proba * 0.5;
+            proba += pointmap.get_weight() as f64 / (nb_facilities as f64 * f_weight.unwrap());
+            proba *= 0.5;
             // now we can update
             assert!(proba > 0.);
             p_weights.push(proba);
@@ -564,9 +554,7 @@ where
         }
         log::debug!("cumul_proba : {:.5e}", cumul_proba);
         assert!((1. - cumul_proba).abs() < 1.0E-5);
-        let point_sampler = PointSampler::new(&p_weights, w_index);
-        //
-        return point_sampler;
+        PointSampler::new(&p_weights, w_index)
     } // end of build_sampling_distribution
 
     // build and init field coreset

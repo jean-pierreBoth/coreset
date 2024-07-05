@@ -56,7 +56,7 @@ impl<F: Float + std::fmt::Debug + rand_distr::uniform::SampleUniform> DiscretePr
         //
         assert!(slot >= 1);
         //
-        return (slot, self.get_proba(slot));
+        (slot, self.get_proba(slot))
     } // end of sample
 
     /// get probability of a slot

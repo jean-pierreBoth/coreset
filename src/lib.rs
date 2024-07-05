@@ -15,17 +15,14 @@ pub mod clustercore;
 pub mod wkmedian;
 
 lazy_static! {
-    static ref LOG: u64 = {
-        let res = init_log();
-        res
-    };
+    static ref LOG: u64 = init_log();
 }
 
 // install a logger facility
 fn init_log() -> u64 {
     let _res = env_logger::try_init();
     println!("\n ************** initializing logger *****************\n");
-    return 1;
+    1
 }
 
 #[cfg(test)]

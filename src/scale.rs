@@ -13,13 +13,13 @@ use anndists::dist::*;
 
 ///  returns quantiles on distances between points.
 #[allow(unused)]
-pub(crate) fn scale_estimation<T, Dist: Distance<T>>(
+pub(crate) fn scale_estimation<T, Dist>(
     nbsample_arg: usize,
-    data: &Vec<Vec<T>>,
+    data: &[Vec<T>],
     distance: &Dist,
 ) -> CKMS<f32>
 where
-    Dist: Sync,
+    Dist: Distance<T> + Sync,
     T: Send + Sync,
 {
     //
@@ -29,7 +29,6 @@ where
     //
     let nbsample = nbsample_arg.min(nbdata * nbdata); // useful for tests
     let couples: Vec<(usize, usize)> = (0..nbsample)
-        .into_iter()
         .map(|_| (unif.sample(&mut rng), unif.sample(&mut rng)))
         .filter(|c| c.0 != c.1)
         .collect();
@@ -46,17 +45,17 @@ where
         q_dist.query(0.0001).unwrap().1, q_dist.query(0.001).unwrap().1,  q_dist.query(0.01).unwrap().1,  
                     q_dist.query(0.5).unwrap().1, q_dist.query(0.99).unwrap().1, q_dist.query(0.999).unwrap().1);
 
-    return q_dist;
+    q_dist
 }
 
 /// sample neighborhood radii.
-pub(crate) fn get_neighborhood_size<T, Dist: Distance<T>>(
+pub(crate) fn get_neighborhood_size<T, Dist>(
     _nbsample_arg: usize,
-    data: &Vec<Vec<T>>,
+    data: &[Vec<T>],
     distance: &Dist,
 ) -> CKMS<f32>
 where
-    Dist: Sync,
+    Dist: Distance<T> + Sync,
     T: Send + Sync,
 {
     //
@@ -68,23 +67,21 @@ where
     let explore = |i: usize| -> (f32, f32) {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(14547 + i as u64).clone();
         let mut dvec: Vec<f32> = (0..nb_sample)
-            .into_iter()
             .map(|_| {
-                let dist = loop {
+                loop {
                     let j = unif.sample(&mut rng);
                     if j != i {
                         let dist = distance.eval(&data[i], &data[j]);
                         break dist;
                     }
-                };
-                dist
+                }
             })
             .collect();
         dvec.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         (dvec[0], dvec[1])
     }; // end explore
        //
-    let dist_2: Vec<(f32, f32)> = (0..nb_sample).into_par_iter().map(|i| explore(i)).collect();
+    let dist_2: Vec<(f32, f32)> = (0..nb_sample).into_par_iter().map(explore).collect();
     //
     let mut q1_dist: CKMS<f32> = CKMS::<f32>::new(0.01);
     let mut q2_dist: CKMS<f32> = CKMS::<f32>::new(0.01);
@@ -101,5 +98,5 @@ where
     q2_dist.query(0.001).unwrap().1,  q2_dist.query(0.01).unwrap().1,  
                 q2_dist.query(0.5).unwrap().1, q2_dist.query(0.99).unwrap().1, q2_dist.query(0.999).unwrap().1);
     //
-    return q2_dist;
+    q2_dist
 } // end of get_neighborhood_size

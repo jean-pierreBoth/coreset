@@ -2,6 +2,8 @@
 
 use log;
 
+use std::path::Path;
+
 use anyhow;
 
 use hnsw_rs::datamap::*;
@@ -12,7 +14,8 @@ pub fn get_typed_datamap<T: 'static + std::fmt::Debug>(
     basename: String,
 ) -> anyhow::Result<DataMap> {
     //
-    let res = DataMap::from_hnswdump::<T>(&directory, &basename);
+    let path = Path::new(&directory);
+    let res = DataMap::from_hnswdump::<T>(path, &basename);
     if res.is_err() {
         log::error!(
             "get_datamap, could not get datamap from hnsw, directory {}, basename : {}",
@@ -32,5 +35,5 @@ pub fn get_typed_datamap<T: 'static + std::fmt::Debug>(
         )
     }
     //
-    return Ok(datamap);
+    Ok(datamap)
 }
