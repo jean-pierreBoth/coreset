@@ -311,6 +311,7 @@ fn main() {
 
     //
     let coresetcmd = Command::new("coreset")
+        .about("CoreSet Construction")
         .arg(
             Arg::new("beta")
                 .required(false)
@@ -357,6 +358,7 @@ fn main() {
     //
     let matches = Command::new("hnswcore")
         .arg_required_else_help(true)
+        .about("Approximate Clustering via Streaming CoreSet Construction")
         .arg(
             Arg::new("dir")
                 .long("dir")
@@ -364,7 +366,7 @@ fn main() {
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(String))
                 .required(true)
-                .help("expecting a directory name"),
+                .help("directory contains HNSW database files"),
         )
         .arg(
             Arg::new("fname")
@@ -373,7 +375,7 @@ fn main() {
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(String))
                 .required(true)
-                .help("expecting a file  basename"),
+                .help("HNSW database file basename"),
         )
         .arg(
             Arg::new("typename")
@@ -381,7 +383,7 @@ fn main() {
                 .long("type")
                 .value_parser(clap::value_parser!(String))
                 .required(true)
-                .help("expecting a directory name"),
+                .help("type for HNSW distance, e.f., f32, u32"),
         )
         .subcommand(coresetcmd)
         .get_matches();
