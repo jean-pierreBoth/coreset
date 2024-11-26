@@ -9,7 +9,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::PathBuf;
 
-/// A struct to load/store [MNIST data](http://yann.lecun.com/exdb/mnist/)  
+/// A struct to load/store [MNIST data](https://www.kaggle.com/datasets/hojjatk/mnist-dataset)  
 /// stores labels (i.e : digits between 0 and 9) coming from file train-labels-idx1-ubyte      
 /// and hand written characters as 28*28 images with values between 0 and 255 coming from train-images-idx3-ubyte
 pub struct MnistData {
