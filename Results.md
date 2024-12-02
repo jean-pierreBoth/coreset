@@ -16,7 +16,7 @@ The computation times, in seconds, given are system time elapsed and total cpu t
 
 The size of the coreset was set 0.11 * the number of data points. We asked 10 clusters.
 
-We give the  cost of clustering the coreset and the cost (of dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
+We give the  cost of clustering the coreset and the cost after dispatching a posteriori the whole original data to the medoids position obtained via coreset clustering.  
 
 As the results are random we give  they are given in the form (mean +-standard deviation) obtained on a sample of 20 computations.  
 

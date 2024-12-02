@@ -3,7 +3,7 @@
 //!
 //! const MNIST_DIGITS_DIR : &'static str = "/home/jpboth/Data/MNIST/";
 //!
-//! to whatever directory you downloaded the [MNIST digits data](http://yann.lecun.com/exdb/mnist/)
+//! to whatever directory you downloaded the [MNIST digits data](https://www.kaggle.com/datasets/hojjatk/mnist-dataset)
 
 use ndarray::s;
 use std::fs::OpenOptions;
