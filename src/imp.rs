@@ -23,7 +23,7 @@ use rayon::prelude::*;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
-use rand::distributions::{Distribution, Uniform}; // we could use also greenwald_khanna
+use rand::distr::{Distribution, Uniform}; // we could use also greenwald_khanna
 
 use anndists::dist::*;
 
@@ -84,7 +84,7 @@ impl<'b, T: Send + Sync + Clone, Dist: Distance<T>> MettuPlaxton<'b, T, Dist> {
         let mut rng = self.rng.clone();
         let mut iter_num = 0;
         rng.jump();
-        let unif = Uniform::<usize>::new(0, self.nb_data);
+        let unif = Uniform::<usize>::new(0, self.nb_data).unwrap();
         let r: f32 = loop {
             let r_test = scale / 2_u32.pow(j_tmp) as f32;
             let nb_sample_f: f32 = c * (self.nb_data as f32 * r_test / scale) / self.j as f32;
@@ -444,10 +444,10 @@ mod tests {
         let n_mean1 = 2.;
         let n_sigma1 = 1.;
         let normal1 = Normal::new(n_mean1, n_sigma1).unwrap();
-        let unif1 = Uniform::<f32>::new(0.5, 3.);
+        let unif1 = Uniform::<f32>::new(0.5, 3.).unwrap();
         //
         let normal2 = Normal::new(n_mean1, n_sigma1).unwrap();
-        let unif2 = Uniform::<f32>::new(0.5, 3.);
+        let unif2 = Uniform::<f32>::new(0.5, 3.).unwrap();
         //
         // sample
         //

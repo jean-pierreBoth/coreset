@@ -7,7 +7,7 @@ use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
 use quantiles::ckms::CKMS;
-use rand::distributions::{Distribution, Uniform}; // we could use also greenwald_khanna
+use rand::distr::{Distribution, Uniform}; // we could use also greenwald_khanna
 
 use anndists::dist::*;
 
@@ -25,7 +25,7 @@ where
     //
     let mut rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
     let nbdata = data.len();
-    let unif = Uniform::<usize>::new(0, nbdata);
+    let unif = Uniform::<usize>::new(0, nbdata).unwrap();
     //
     let nbsample = nbsample_arg.min(nbdata * nbdata); // useful for tests
     let couples: Vec<(usize, usize)> = (0..nbsample)
@@ -60,7 +60,7 @@ where
 {
     //
     let nbdata = data.len();
-    let unif = Uniform::<usize>::new(0, nbdata);
+    let unif = Uniform::<usize>::new(0, nbdata).unwrap();
     // we loop (with sampling) in nb data  and get an idea on neighbours distance for an overall nbdata complexity
     // We use log(nbpoint) as default neighborhood size
     let nb_sample: usize = 1.max(nbdata.ilog2() as usize);

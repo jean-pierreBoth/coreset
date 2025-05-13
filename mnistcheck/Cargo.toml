@@ -1,0 +1,43 @@
+[package]
+name = "mnistcheck"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# cargo rustc --lib -- --crate-type dylib [or staticlib] or rlib (default)
+# if we want to avoid specifying in advance crate-type 
+path = "src/lib.rs"
+
+[[bin]]
+name = "mnist_digits"
+path = "src/bin/mnist_digits.rs"
+
+[[bin]]
+name = "mnist_fashion"
+path = "src/bin/mnist_fashion.rs"
+
+
+[dependencies]
+
+indexmap = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+cpu-time = { workspace = true }
+env_logger = { workspace = true }
+clap = { workspace = true }
+quantiles = { workspace = true }
+ndarray = {workspace = true}
+anndists = {workspace = true}
+
+rayon = {workspace = true}
+# rand utils
+rand = { version = "0.8" }
+rand_distr = { version = "0.4" }
+rand_xoshiro = {version = "0.6"}
+
+# adhoc needs to check result
+#clustering = {version = "0.1"}
+clustering = { git = "https://github.com/jean-pierreBoth/clustering", branch = "jpb" }
+kmedoids = { version = "0.5" }
+
+coreset = { path = "../" }

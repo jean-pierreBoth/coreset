@@ -2,7 +2,7 @@
 //!
 
 use num_traits::float::Float;
-use rand::distributions::Uniform;
+use rand::distr::Uniform;
 use rand::Rng;
 
 use std::cmp::Ordering;
@@ -34,7 +34,7 @@ impl<F: Float + std::fmt::Debug + rand_distr::uniform::SampleUniform> DiscretePr
         //
         DiscreteProba {
             repartition,
-            unif: Uniform::<F>::new(F::zero(), F::one()),
+            unif: Uniform::<F>::new(F::zero(), F::one()).unwrap(),
         }
     }
 

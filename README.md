@@ -2,14 +2,20 @@
 
 ## Introduction 
 This crate is devoted to clustering approximation, in metric spaces, of large number data of points.  
-Especially we are interested in case where the data cannot be loaded entirely in memory and need a streaming approach.
+Especially we are interested in cases where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
-A k-coreset is a sampled summary of a much smaller number of points called facilities. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  So searchin a k-clustering the point facilites will be a good approximation 
+A k-coreset is a sampled summary of a much smaller number of points called facilities. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  So searching a k-medoid clustering of the point facilites will be a good approximation 
 to the clustering of the whole data.
 But the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
 The crate comes in the form of a library and a specific binary in the subcrate [fromhnsw](#fromhnsw)
+
+## Clustering quality
+
+The workspace sub-crate *merit* provides clustering quality based on
+information theory. It is based on the paper:  
+    - Vinh.N.X Information Theoretic Measures for clustering comparison. [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)
 
 ## References to implemented algorithms
 
@@ -59,8 +65,8 @@ pub trait MakeIter {
 ```
 
 The algorithm needs more than one pass on the data, so the algorithm takes as argument a structure  providing
-an iterator on the data when needed. (Typically the structure could provide file Io to iterates on data, or if there is no memory constraint just constain a reference to a Vec of data and provide an iterator on data reference).  
-**An example is found for mnist data** (Cf *module utils::mnistiter*).  
+an iterator on the data when needed. (Typically the structure could provide file Io to iterates on data, or if there is no memory constraint just contain a reference to a Vec of data and provide an iterator on data reference).  
+**An example is found for mnist data** (Cf *module iter in crate member mnistcheck*).  
 
 The implementation does the buffering and parallelization internally.
 The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed separately with

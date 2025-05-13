@@ -14,7 +14,7 @@
 use ndarray::Array2;
 
 use rand::{
-    distributions::{Distribution, Uniform},
+    distr::{Distribution, Uniform},
     Rng,
 };
 use rand_xoshiro::rand_core::SeedableRng;
@@ -408,7 +408,7 @@ where
         // we must iterate until we have k different medoids.
         let mut already = vec![false; self.get_nb_points()];
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(117);
-        let between = Uniform::new::<usize, usize>(0, self.get_nb_points());
+        let between = Uniform::new::<usize, usize>(0, self.get_nb_points()).unwrap();
         let mut centers = Vec::<u32>::with_capacity(self.nb_cluster);
         // get k different centers
         while centers.len() < self.nb_cluster {
@@ -503,7 +503,7 @@ where
         // We use a weight rescaling to avoid weight being much larger than distances
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(117);
-        let between = Uniform::new::<u32, u32>(0, self.get_nb_points() as u32);
+        let between = Uniform::new::<u32, u32>(0, self.get_nb_points() as u32).unwrap();
         let first = between.sample(&mut rng);
         // choose point of maximal weight
         let mut max_item = (0, self.weights[0]);
@@ -766,7 +766,7 @@ where
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(2833);
         let nbrow = self.distance.nrows();
-        let between = Uniform::new::<usize, usize>(0, nbrow);
+        let between = Uniform::new::<usize, usize>(0, nbrow).unwrap();
         let to_sample = 10000.min(nbrow * (nbrow - 1) / 2);
         let mut nb_sampled = 0;
         let mut quantiles = CKMS::<f32>::new(0.01);
@@ -800,8 +800,8 @@ where
         //
         log::debug!("in center_perturbation m1 = {}  m2 = {}", m1, m2);
         //
-        let mut rng = rand::thread_rng();
-        let unif = rand::distributions::Uniform::new(0., 1.);
+        let mut rng = rand::rng();
+        let unif = rand::distr::Uniform::new(0., 1.).unwrap();
         //
         //
         let changed = if rng.sample(unif) < 0.5 {

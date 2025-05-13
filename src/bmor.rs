@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 
-use rand::distributions::{Distribution, Uniform};
+use rand::distr::{Distribution, Uniform};
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
@@ -77,7 +77,7 @@ impl<
         distance: Dist,
     ) -> Self {
         let centers = Facilities::<DataId, T, Dist>::new(alloc_size, distance);
-        let unif = Uniform::<f64>::new(0., 1.);
+        let unif = Uniform::<f64>::new(0., 1.).unwrap();
         let rng = Xoshiro256PlusPlus::seed_from_u64(1454691);
         let oneplogn = (1 + nbdata.ilog2()) as usize * k;
         let li = 1.0f64;
