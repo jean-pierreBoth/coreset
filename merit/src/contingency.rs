@@ -75,7 +75,7 @@ where
     pub fn new(clusters1: Clusterization, clusters2: Clusterization) -> Self {
         assert_eq!(clusters1.get_nb_points(), clusters2.get_nb_points());
         //
-        log::info!("entering Contingency::new");
+        log::debug!("entering Contingency::new");
         //
         // converts labels to contiguous interval of usize. label_rank = IndexSet::get_index_of(label).unwrap()
         //
@@ -110,7 +110,7 @@ where
             // and summing on rows item in cluster2 appears exactly once (as long as the same set of DataId is in both clusterization)
             table[[rank_l1, rank_l2]] += 1;
         }
-        log::info!("contingency table computed ({},{})", nb_labels1, nb_labels2);
+        log::debug!("contingency table computed ({},{})", nb_labels1, nb_labels2);
         // compute entropies H and I
         let nb_total_usize = c1_size.iter().fold(0, |acc, x| acc + *x);
         assert_eq!(nb_total_usize, clusters1.get_nb_points());
@@ -143,7 +143,7 @@ where
         entropy_1cond2 /= nb_total;
         information_12 /= nb_total;
         //
-        log::info!("Contingency allocation");
+        log::debug!("Contingency allocation");
         //
         Contingency {
             clusters1,

@@ -41,14 +41,18 @@ information theory. It is based on the paper:
 ### Results
 
 Detailed results are given [here](./Results.md).
-We run a simple weighted kmean after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running on the whole data.
+We run a simple weighted k-median after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running on the whole data.
+
+Comparison of the 2 algorithms classification is done using Normalised Information metrics
+implemented in the sub-crate **merit**.
 
 #### Conclusion
-Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid. 
+Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid.  
+Cpu times are about 10 times lower, without having to store a whole distance matrix.
 
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 
-**The speed is one or two orders of magnitude faster**.
+**The speed is one order magnitude faster**.
 
 
 ## Usage 
@@ -80,7 +84,7 @@ The workspace sub-crate *fromhnsw* provides an implementation of the trait *Make
 ## Building
 
 To compile the whole crate (and subcrate *fromhnsw*) enabling coreset computations on hnsw data run :  
-**cargo build --release --all  --bin hcore**  
+**cargo build --release --workspace**  
 
 To get the whole doc:  
 **cargo doc --no-deps --all**

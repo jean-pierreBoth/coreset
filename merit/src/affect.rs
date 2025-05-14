@@ -21,6 +21,7 @@ pub trait Affectation<DataId, DataLabel> {
 //==============================================================================
 
 /// Clusters defined by a HashMap
+#[derive(Clone)]
 pub struct HashAffectation<DataId, DataLabel> {
     affectation: HashMap<DataId, DataLabel>,
 }
@@ -80,6 +81,7 @@ where
 //==============================================================================
 
 /// Clusters defined by a DashMap
+#[derive(Clone)]
 pub struct DashAffectation<'a, DataId, DataLabel> {
     affectation: &'a DashMap<DataId, DataLabel>,
 }
@@ -154,6 +156,7 @@ where
 // Affectation defined by a Vec<DataLabel>
 
 /// Clusters defined by a Vec, DataId is an usize Vec\[i\] gives the label of the i-th data
+#[derive(Clone)]
 pub struct VecAffectation<DataLabel> {
     affectation: Vec<DataLabel>,
 }

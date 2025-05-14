@@ -145,7 +145,12 @@ where
 
 #[allow(unused)]
 // call kmedoids to compare
-fn kmedoids_reference<Dist>(images: &[Vec<f32>], labels: &[u8], nbcluster: usize, distance: &Dist)
+fn kmedoids_reference<Dist>(
+    images: &[Vec<f32>],
+    labels: &[u8],
+    nbcluster: usize,
+    distance: &Dist,
+) -> (f64, VecAffectation<usize>)
 where
     Dist: Distance<f32> + Send + Sync,
 {
@@ -199,7 +204,7 @@ where
     let affectation = VecAffectation::<usize>::new(assignment);
     let reference = VecAffectation::<usize>::new(labels.iter().map(|l| (*l) as usize).collect());
     let contingency =
-        Contingency::<VecAffectation<usize>, usize, usize>::new(affectation, reference);
+        Contingency::<VecAffectation<usize>, usize, usize>::new(affectation.clone(), reference);
     let merit = contingency.get_nmi_sqrt();
     //
     println!("faster pam Loss is: {:.3e}", loss);
@@ -207,6 +212,8 @@ where
         "faster pam , information merit get_nmi_sqrt version: {:.3e}",
         merit
     );
+    println!("=======================================================");
+    (loss, affectation)
 } // end of kmedoids_reference
 
 //
@@ -264,18 +271,31 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
                 cpu_start.elapsed().as_millis()
             );
             let (cost, assignment) = dispatch_images(&centers, &distance, images);
-            let affectation = VecAffectation::<usize>::new(assignment);
+            let coreset_affectation = VecAffectation::<usize>::new(assignment);
             let reference =
                 VecAffectation::<usize>::new(labels.iter().map(|l| (*l) as usize).collect());
-            let contingency =
-                Contingency::<VecAffectation<usize>, usize, usize>::new(affectation, reference);
+            let contingency = Contingency::<VecAffectation<usize>, usize, usize>::new(
+                coreset_affectation.clone(),
+                reference,
+            );
             let merit = contingency.get_nmi_sqrt();
             log::info!("coreset+kmedoid  data dispatching cost : {:.3e}", cost);
             println!(
                 "coreset+kmedoid , information merit get_nmi_sqrt version: {:.3e}",
                 merit
             ); // we try to do a direct median clustering with kmedoid crate
-            kmedoids_reference(images, labels, nb_cluster, &distance);
+            println!("=================================================");
+            let (_, kmedoid_affectation) =
+                kmedoids_reference(images, labels, nb_cluster, &distance);
+            //
+            // now we can try to compare the 2 clustering
+            //
+            let cross_contingency = Contingency::<VecAffectation<usize>, usize, usize>::new(
+                coreset_affectation.clone(),
+                kmedoid_affectation,
+            );
+            let merit = cross_contingency.get_nmi_sqrt();
+            log::info!("coreset+kmedoid/ faster_pam nmi_sqrt : {:.3e}", merit);
         }
 
         "DistL2" => {
