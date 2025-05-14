@@ -163,7 +163,7 @@ where
     DataLabel: Hash + Eq + Copy + Clone + Send + Sync + std::fmt::Debug,
 {
     /// builds a vector affectation
-    pub fn new(affectation: Vec<DataLabel>, nb_cluster: usize) -> Self {
+    pub fn new(affectation: Vec<DataLabel>) -> Self {
         VecAffectation { affectation }
     }
 }

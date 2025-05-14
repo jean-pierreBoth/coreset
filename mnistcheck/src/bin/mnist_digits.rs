@@ -134,9 +134,9 @@ pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
     //
-    log::info!("running mnist_fashion");
+    log::info!("running mnist_digits");
     //
-    let matches = Command::new("mnist_fashion")
+    let matches = Command::new("mnist_digits")
         //        .subcommand_required(true)
         .arg_required_else_help(true)
         .arg(

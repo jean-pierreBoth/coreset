@@ -10,6 +10,8 @@ use cpu_time::ProcessTime;
 use std::time::SystemTime;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use std::cmp::Ordering;
+use std::iter::Iterator;
 
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
@@ -18,11 +20,10 @@ use ndarray::{Array1, Array2};
 
 use anndists::prelude::*;
 use coreset::prelude::*;
-use std::iter::Iterator;
 
 use super::iter::*;
 
-use std::cmp::Ordering;
+use merit::*;
 
 #[allow(unused)]
 pub struct MnistParams {
@@ -94,14 +95,18 @@ where
 }
 
 // computes sum of distance  of all data points cluster centers
-// Estimate total error on whole data
-pub fn dispatch_images<Dist>(c_centers: &[Vec<f32>], distance: &Dist, images: &[Vec<f32>]) -> f64
+// Estimate total error on whole data and assignment for each image
+pub fn dispatch_images<Dist>(
+    c_centers: &[Vec<f32>],
+    distance: &Dist,
+    images: &[Vec<f32>],
+) -> (f64, Vec<usize>)
 where
     Dist: Distance<f32> + Send + Sync + Clone,
 {
     //
     log::info!("computing aposteriori cost");
-    //
+    // return (center rank, distance to center)
     let find_medoid = |data| -> (usize, f64) {
         let (best_c, best_d): (usize, f32) = (0..c_centers.len())
             .map(|i| (i, distance.eval(data, &c_centers[i])))
@@ -117,23 +122,30 @@ where
     };
     //
     //
-    let cost = (0..images.len())
+    let res_vec = (0..images.len())
         .into_par_iter()
-        .map(|i| find_medoid(&images[i]).1)
-        .sum::<f64>();
+        .map(|i| find_medoid(&images[i]))
+        .collect::<Vec<(usize, f64)>>();
+    //
+    let mut cost: f64 = 0.;
+    let mut assignment = Vec::<usize>::with_capacity(images.len());
+    for (iclust, dist) in res_vec {
+        assignment.push(iclust);
+        cost += dist;
+    }
     //
     println!(" \n ==========================================================");
     println!(" total error distpaching data to centers : {:.3e}", cost);
     println!(" ==========================================================");
     //
-    cost
+    (cost, assignment)
 }
 
 //
 
 #[allow(unused)]
 // call kmedoids to compare
-fn kmedoids_reference<Dist>(images: &[Vec<f32>], _labels: &[u8], nbcluster: usize, distance: &Dist)
+fn kmedoids_reference<Dist>(images: &[Vec<f32>], labels: &[u8], nbcluster: usize, distance: &Dist)
 where
     Dist: Distance<f32> + Send + Sync,
 {
@@ -145,6 +157,7 @@ where
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
+    //
     // compute matrix distance (possibly subsampled)
     let nbpoints = images.len();
     // allocates to zero rows. We will computes rows in //
@@ -177,10 +190,23 @@ where
     // choose initialization
     let mut meds = kmedoids::random_initialization(nbpoints, nbcluster, &mut rand::thread_rng());
     //
-    let (loss, _assi, _n_iter, _n_swap): (f64, _, _, _) =
+    let (loss, assignment, _n_iter, _n_swap): (f64, _, _, _) =
         kmedoids::par_fasterpam(&distances_mat, &mut meds, 100, &mut rng);
-    println!("faster pam Loss is: {:.3e}", loss);
     println!("\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}\n\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+    //
+    // compute information merit
+    //
+    let affectation = VecAffectation::<usize>::new(assignment);
+    let reference = VecAffectation::<usize>::new(labels.iter().map(|l| (*l) as usize).collect());
+    let contingency =
+        Contingency::<VecAffectation<usize>, usize, usize>::new(affectation, reference);
+    let merit = contingency.get_nmi_sqrt();
+    //
+    println!("faster pam Loss is: {:.3e}", loss);
+    println!(
+        "faster pam , information merit get_nmi_sqrt version: {:.3e}",
+        merit
+    );
 } // end of kmedoids_reference
 
 //
@@ -188,7 +214,7 @@ where
 pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
     _params: &MnistParams,
     images: &[Vec<f32>],
-    _labels: &[u8],
+    labels: &[u8],
     distance: Dist,
 ) {
     //
@@ -228,7 +254,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             let mut centers = Vec::<Vec<f32>>::with_capacity(nb_cluster);
             for c in clusters {
                 let id = c.get_center_id();
-                let _label = _labels[id];
+                let _label = labels[id];
                 let center = images[id].clone();
                 centers.push(center);
             }
@@ -237,10 +263,19 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
                 sys_now.elapsed().unwrap().as_millis(),
                 cpu_start.elapsed().as_millis()
             );
-            let dispatch_error = dispatch_images(&centers, &distance, images);
-            log::info!(" original data dispatching error : {:.3e}", dispatch_error);
-            // we try to do a direct median clustering with kmedoid crate
-            // kmedoids_reference(images, _labels, nb_cluster, &distance);
+            let (cost, assignment) = dispatch_images(&centers, &distance, images);
+            let affectation = VecAffectation::<usize>::new(assignment);
+            let reference =
+                VecAffectation::<usize>::new(labels.iter().map(|l| (*l) as usize).collect());
+            let contingency =
+                Contingency::<VecAffectation<usize>, usize, usize>::new(affectation, reference);
+            let merit = contingency.get_nmi_sqrt();
+            log::info!("coreset+kmedoid  data dispatching cost : {:.3e}", cost);
+            println!(
+                "coreset+kmedoid , information merit get_nmi_sqrt version: {:.3e}",
+                merit
+            ); // we try to do a direct median clustering with kmedoid crate
+            kmedoids_reference(images, labels, nb_cluster, &distance);
         }
 
         "DistL2" => {
@@ -270,7 +305,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             }
             log::info!("kmean error : {:.3e}", error / images.len() as f32);
             // now we must dispatch our coreset to centers and see what error we have...
-            let dispatch_error = dispatch_images(&centers, &distance, images);
+            let (dispatch_error, _assignment) = dispatch_images(&centers, &distance, images);
             log::info!(" coreset dispatching error : {:.3e}", dispatch_error);
             //
             // let dispatch_error = dispatch_coreset(&coreset, &centers, &distance, &images);

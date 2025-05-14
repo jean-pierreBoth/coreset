@@ -41,3 +41,4 @@ clustering = { git = "https://github.com/jean-pierreBoth/clustering", branch = "
 kmedoids = { version = "0.5" }
 
 coreset = { path = "../" }
+merit = {path = "../merit"}

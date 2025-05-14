@@ -406,9 +406,21 @@ impl<
 
     /// If we have labelled data we can store labels counts affected to each facility.  
     /// This function dispatch **data and labels** into facilities and returns total cost and a vector of counts for each label occuring in a Facility.  
-    /// It computes for each facililty label distribution, entropy of distribution and can be used to check clustering.
-    /// **This methods can be called after processing all the data**.     
-    /// Returns Vector of label distribution entropy by facility and distribution as a HashMap
+    /// It computes for each facililty:
+    ///     - label distribution,
+    ///     - entropy of distribution/  
+    /// This can be used to check clustering.
+    /// **These methods can be called after processing all the data**.  
+    ///   
+    /// The function takes as input:
+    ///     - Vectors of data
+    ///     - Vectors of labels associated to data
+    ///     - weights of data.  
+    ///    
+    /// the function returns:  
+    ///     - Vector of entropy of label distribution by facility.  
+    ///     - A vector of label distribution entropy and distribution in a HashMap  
+    ///     
     pub fn dispatch_labels<L: PartialEq + Eq + Copy + std::hash::Hash + Sync + Send>(
         &mut self,
         data: &[Vec<T>],
