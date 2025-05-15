@@ -21,7 +21,7 @@ use mnistcheck::{check::*, io::*};
 pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
     log::debug!("in parse_cmd");
     if matches.contains_id("algo") {
-        println!("decoding argument algo");
+        log::debug!("decoding argument algo");
         let algoname = matches.get_one::<String>("algo").expect("");
         log::debug!(" got algo : {:?}", algoname);
         match algoname.as_str() {
@@ -134,7 +134,7 @@ pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
     //
-    log::info!("running mnist_digits");
+    log::info!("\n\n running mnist_digits");
     //
     let matches = Command::new("mnist_digits")
         //        .subcommand_required(true)

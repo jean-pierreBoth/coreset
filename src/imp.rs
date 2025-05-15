@@ -1,13 +1,14 @@
 //!
 //! The module implements variants of the Mettu-Plaxton algorithm:
 //!  1. Facility Location in sublinear time.   
-//!       Badoiu, Czumaj, Indyk, Sohler ICALP 2005
-//!       see [Badoiu](https://people.csail.mit.edu/indyk/fl.pdf).  
-//!    This algorithm is restricted to unweighted data and builds upon the following paper:     
-//!        
+//!     Badoiu, Czumaj, Indyk, Sohler ICALP 2005
+//!     see [Badoiu](https://people.csail.mit.edu/indyk/fl.pdf).  
 //!
-//!  2. The online median problem,  
-//!         Mettu-Plaxton Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).   
+//!     This algorithm is restricted to unweighted data and builds upon the following paper:     
+//!        
+//!  2. The online median problem.     
+//!     Mettu-Plaxton Siam 2003 [online-median](https://epubs.siam.org/doi/10.1137/S0097539701383443).
+//!    
 //!    This algorithm accepts weighted data.
 //!
 //!  The data are of type Vec\<T\> where T can be anything as long as the hnsw crate provides on these vectors.  

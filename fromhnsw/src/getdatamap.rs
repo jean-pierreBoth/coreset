@@ -31,7 +31,7 @@ pub fn get_typed_datamap<T: 'static + std::fmt::Debug>(
         log::error!(
             "bad type name. registered type name : {}, you asked for {}",
             t_name,
-            std::any::type_name::<T>().to_string()
+            std::any::type_name::<T>()
         )
     }
     //

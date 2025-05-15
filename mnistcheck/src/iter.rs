@@ -22,7 +22,7 @@ impl<'a> DataIterator<'a> {
 // We could have chosen Item to be (&Vec<f32>, usize) as we have all data in memory.
 // But the coreset algorithms will not in general be able to have all data in memory so we
 // must pass real data when algos require data from the iterator.
-impl<'a> Iterator for DataIterator<'a> {
+impl Iterator for DataIterator<'_> {
     type Item = (usize, Vec<f32>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -48,7 +48,7 @@ impl<'a> DataForIterator<'a> {
     }
 } // end of impl DataForIterator
 
-impl<'a> MakeIter for DataForIterator<'a> {
+impl MakeIter for DataForIterator<'_> {
     type Item = (usize, Vec<f32>);
     //
     fn makeiter(&self) -> impl Iterator<Item = <Self as coreset::prelude::MakeIter>::Item> {

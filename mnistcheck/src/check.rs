@@ -23,7 +23,7 @@ use coreset::prelude::*;
 
 use super::iter::*;
 
-use merit::*;
+use nmi::*;
 
 #[allow(unused)]
 pub struct MnistParams {
@@ -136,7 +136,6 @@ where
     //
     println!(" \n ==========================================================");
     println!(" total error distpaching data to centers : {:.3e}", cost);
-    println!(" ==========================================================");
     //
     (cost, assignment)
 }
@@ -256,7 +255,9 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             log::info!("===================================");
             let nb_cluster = 10;
             let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
-            kmedoids.compute_medians(25);
+            let nbiter = 25;
+            log::info!("nb iter = {}", nbiter);
+            kmedoids.compute_medians(15);
             let clusters = kmedoids.get_clusters();
             let mut centers = Vec::<Vec<f32>>::with_capacity(nb_cluster);
             for c in clusters {

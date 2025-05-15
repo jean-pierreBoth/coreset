@@ -137,7 +137,7 @@ pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
     //
-    log::info!("running mnist_fashion");
+    log::info!("\n\n running mnist_fashion \n ==========================");
     //
     let matches = Command::new("mnist_fashion")
         //        .subcommand_required(true)

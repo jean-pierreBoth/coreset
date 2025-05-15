@@ -1,37 +1,37 @@
 //! This binary is dedicated to coreset computations on data stored in Hnsw created by crate [hnsw_rs](https://crates.io/crates/hnsw_rs)
 //!
+//!
 //! 1. The simple default command just computes a coreset
-//! The command is:
-//! **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**.
+//!
+//!   The command is:  **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**.
 //!
 //!  The following arguments are mandatory:
 //! - dirname : directory where hnsw files reside
 //! - hnswname : name used for naming the 2 hnsw related files: name.hnsw.data and name.hnsw.graph
 //! - typename : can be u16, u32, u64, f32, f64, i16, i32, i64 depending on the Distance type.
 //!
-//! At the end of coreset computations all data are re-scanned and dispatched to  nearest facility center.  
-//!  A csv file named *corest.csv* is dumped in current directory.  
-//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding facility.
+//!   At the end of coreset computations all data are re-scanned and dispatched to  nearest facility center.  
+//!   A csv file named *corest.csv* is dumped in current directory.  
+//!   Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding facility.
 //!
 //! 2. The clustercore subcommand parses the following parameters optional parameters:
 //!
 //! - cluster :
-//!     number of cluster asked in the Kmedoid pass. This argument is optional and defaults to 0. If non zero, it asks for a Kmedoid end pass on the facilities created by
-//!     the coreset algorithm, generating the *nbcluster* asked for.
-//!     At the end of coreset/cluster computations all data are re-scanned and dispatched to nearest cluster center.  
+//!   number of cluster asked in the Kmedoid pass. This argument is optional and defaults to 0. If non zero, it asks for a Kmedoid end pass on the facilities created by
+//!   the coreset algorithm, generating the *nbcluster* asked for.
+//!   At the end of coreset/cluster computations all data are re-scanned and dispatched to nearest cluster center.  
 //!   
-//!     A csv file named *clustercorest.csv* is dumped in current directory.  
-//!     Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
+//!   A csv file named *clustercorest.csv* is dumped in current directory.  
+//!   Each line consists in 2 DataId, the first one identifies a data point and the second the DataId of the center of its corresponding cluster.  
 //!
 //! - fraction :
-//!      The size of the coreset generated will be around fraction * size of data.
-//!      A point can be sampled many times, in this case the sampled points are merged and their weight added.
-//!      So the fraction should be set to a value slightly superior to the one desired.  
-//!      For large data, it can/must be set to a lower value.  
+//!   The size of the coreset generated will be around fraction * size of data.
+//!   A point can be sampled many times, in this case the sampled points are merged and their weight added.
+//!   So the fraction should be set to a value slightly superior to the one desired.  
+//!   For large data, it can/must be set to a lower value.  
 //!
 //! The following optional arguments are related to the first Bmor pass of the algorithm. They are explained in detail in Bmor documentation):  
-//!  - beta:  defaults to 2. The accepted cost evolves as beta^iter during iterations. Increasing beta makes the accepted cost greater, and sp
-//!     reduces the number of facilities generated.  
+//!  - beta:  defaults to 2. The accepted cost evolves as beta^iter during iterations. Increasing beta makes the accepted cost greater, and so reduces the number of facilities generated.  
 //!  - gamma: defaults to 2. Increasing gamma allocates a greater number of facilites.
 //!
 //! command is :  

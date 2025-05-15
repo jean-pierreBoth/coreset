@@ -171,7 +171,7 @@ where
     /// returns best result as couple (iteration, cost)
     pub fn compute_medians(&mut self, nb_iter : usize) -> (usize, f32) {
         //
-        log::info!("\n\nentering Kmedoid::Kmedoid");
+        log::info!("\n\n entering Kmedoid::Kmedoid");
         self.d_quantiles = self.quantile_estimator();
         let cpu_start = ProcessTime::now();
         let sys_now = SystemTime::now();
@@ -264,7 +264,7 @@ where
                 log::debug!("medoid iteration {}, global cost : {:.3e}", iteration, last_cost);
                 // we must store our best state
                 if iter_cost < best_iter.1 {
-                    log::info!("medoid iteration best : {}, global cost : {:.3e}", iteration, last_cost);
+                    log::debug!("medoid iteration best : {}, global cost : {:.3e}", iteration, last_cost);
                     best_iter = (iteration, iter_cost);
                     self.store_state(&centers_and_costs, &membership_and_dist);
                 }
@@ -273,7 +273,7 @@ where
                 assert_eq!(membership_and_dist.0.len(), self.membership.len());
                 iteration += 1;
                 if iteration >= nb_iter {
-                    log::info!("exiting after nb iteration : {}", iteration);
+                    log::info!("medoid exiting iteration best : {}, global cost : {:.3e}", iteration, last_cost);
                     break;
                 }
             }
@@ -359,7 +359,7 @@ where
                     Some(&centers[rank])
                 } else {
                     log::error!(
-                        "Kmedois::get_cluster_center rank asked exceeds len, nb cluster is : {}",
+                        "Kmedoids::get_cluster_center rank asked exceeds len, nb cluster is : {}",
                         centers.len()
                     );
                     std::panic!();

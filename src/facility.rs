@@ -95,15 +95,6 @@ impl<DataId: std::fmt::Debug + Clone, T: Send + Sync + Clone> Facility<DataId, T
 
 //===================================================================================
 
-#[cfg_attr(doc, katexit::katexit)]
-/// Describes the list of facility (or centers created).
-///  
-/// The structure maintains the list of open facilities (or cluster) and their centers.
-/// It computes and store (see [compute_weight_cost](compute_weight_cost)) total weight dispatched into facilities and maintain
-/// global facility cost assignment  as :
-///   $ \sum_{p \in P}  \medspace  w(p) * dist(p, cf_{p})$.
-/// where $ cf_{p}$ is the center of facility assigned to $p$
-///
 // As we want parallel access, running concurrently on all data we need Arc RwLock stuff
 
 pub type FacilityId = usize;
@@ -145,7 +136,15 @@ impl PointMap {
     }
 } // end of PointMap
 
-/// This structuree represents the list of facilities created
+#[cfg_attr(doc, katexit::katexit)]
+/// Describes the list of facility (or centers created).
+///  
+/// The structure maintains the list of open facilities (or cluster) and their centers.
+/// It computes and store (see [compute_weight_cost](compute_weight_cost)) total weight dispatched into facilities and maintain
+/// global facility cost assignment  as :
+///   $ \sum_{p \in P}  \medspace  w(p) * dist(p, cf_{p})$.
+/// where $ cf_{p}$ is the center of facility assigned to $p$
+///
 #[derive(Clone)]
 pub struct Facilities<DataId, T: Send + Sync + Clone, Dist: Distance<T>> {
     centers: Vec<Arc<RwLock<Facility<DataId, T>>>>,
@@ -185,7 +184,7 @@ impl<
 
     /// total weight already inserted
     pub fn get_weight(&self) -> f64 {
-        return self.centers.iter().map(|f| f.read().get_weight()).sum();
+        self.centers.iter().map(|f| f.read().get_weight()).sum()
     }
 
     pub fn get_distance(&self) -> &Dist {
@@ -194,7 +193,7 @@ impl<
 
     /// returns sum of costs dispatched into facilities.
     pub fn get_cost(&self) -> f64 {
-        return self.centers.iter().map(|f| f.read().get_cost()).sum();
+        self.centers.iter().map(|f| f.read().get_cost()).sum()
     }
 
     // deletes all facilities. useful in algorithm bmor when we need to reinitialize.

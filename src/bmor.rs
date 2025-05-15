@@ -166,7 +166,7 @@ impl<
         // get nearest facilty
         let (rank, dist) = self.centers.get_nearest_facility(point, false).unwrap();
         //
-        return Some((self.centers.get_facility(rank).unwrap(), rank, dist));
+        Some((self.centers.get_facility(rank).unwrap(), rank, dist))
     } // end of get_nearest_center
 
     /// insert into an already existing facility
@@ -290,11 +290,14 @@ where
     Dist: Distance<T> + Clone + Sync + Send,
     DataId: std::fmt::Debug + Clone + Send + Sync,
 {
+    #[allow(clippy::doc_lazy_continuation)]
+    /// Args are:  
     /// - k: number of centers.  
-    /// - nbdata : nb data expected. As this algorithm can be used in streaming (successive calls to methods [process_data](Self::process_data()) or
-    ///     [process_weighted_data](Self::process_weighted_data())) the number of expected data can be larger than the length or arguments passed to these methods.
-    /// - beta : upper cost multiplicative factor
-    /// - gamma : slackness factor for number facilities upper bound.
+    /// - nbdata : nb data expected.     
+    ///  As this algorithm can be used in streaming (successive calls to methods [process_data](Self::process_data()) or [process_weighted_data](Self::process_weighted_data()) the exact number of data can be larger than the length or arguments passed to these methods.
+    ///
+    /// - beta : upper cost multiplicative factor.  
+    /// - gamma : slackness factor for number facilities upper bound.  
     /// - end_step : if true a second step is done to further reduce the number of facilities.
     ///         
     pub fn new(
@@ -369,7 +372,7 @@ where
             state.get_facilities().log(1);
         }
         //
-        return Ok(state.get_facilities().len());
+        Ok(state.get_facilities().len())
     } // end of process_data
 
     //
@@ -420,7 +423,7 @@ where
             state.get_facilities().log(1);
         }
         //
-        return Ok(state.get_facilities().len());
+        Ok(state.get_facilities().len())
     } // end of process_weighted_data
 
     // We recur (once) to reduce number of facilities. To go from $1 + k * logn$ to $1 + k * log(log(n))$

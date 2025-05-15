@@ -1,8 +1,7 @@
 //! Implementation coreset sensitivity sampling.
 //!
-//!   - New Fraweworks for Offline and Streaming Coreset Constructions.  
-//!        Braverman, Feldman, Lang, Statsman 2022
-//!        [arxiv-v3](https://arxiv.org/abs/1612.00889)
+//! - New Fraweworks for Offline and Streaming Coreset Constructions.  
+//!   Braverman, Feldman, Lang, Statsman 2022 [arxiv-v3](https://arxiv.org/abs/1612.00889)
 
 // We need 2 passes on data as Bmor algorithm can merge data when rescaling cost and facility number so data id are not conserved.
 
@@ -121,7 +120,7 @@ where
 
     /// returns an iterator on the id of data
     pub fn get_data_ids(&self) -> hash_map::Keys<DataId, f64> {
-        return self.id_weight_map.keys();
+        self.id_weight_map.keys()
     }
 
     /// get an iterator on couples (id, weight)
@@ -282,11 +281,11 @@ where
     /// The main interface to the algorithm.  
     ///
     /// - iter_generator: An object satisfying the MakeIter trait
-    /// - fraction :
-    ///     The size of the coreset generated will be around fraction * size of data.  
-    ///     A point can be sampled many times, in this case the sampled points are merged and their weight added.
-    ///     So the fraction should be set to a value slightly superior to the one desired.  
-    ///     A value of 0.11 is a good initial guess to get a fraction of 0.1
+    /// - fraction : the size of the coreset generated will be around fraction * size of data.  
+    ///
+    ///  A point can be sampled many times, in this case the sampled points are merged and their weight added.
+    ///  So the fraction should be set to a value slightly superior to the one desired.  
+    ///  A value of 0.11 is a good initial guess to get a fraction of 0.1
     pub fn make_coreset<IterGenerator>(
         &mut self,
         iter_generator: &IterGenerator,
@@ -503,7 +502,7 @@ where
 
     /// returns a reference to (optional) facility_map
     pub fn get_facility_map(&self) -> Option<&Arc<DashMap<DataId, PointMap>>> {
-        return self.point_facility_map.as_ref();
+        self.point_facility_map.as_ref()
     }
 
     /// returns the number of data (know after end of first pass)

@@ -19,7 +19,7 @@ path = "src/lib.rs"
 
 
 [workspace]
-members = ["fromhnsw", "merit", "mnistcheck"]
+members = ["fromhnsw", "nmi", "mnistcheck"]
 
 # common depencies versions
 [workspace.dependencies]
