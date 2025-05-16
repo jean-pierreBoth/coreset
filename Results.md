@@ -39,8 +39,8 @@ The timings take into account the computing of the distance matrix (fully multit
 
 |  mnist  |    cost (coreset)     |   cost (whole data)   | nmi +- sigma  | time(sys) s | time(cpu) s |
 | :-----: | :-------------------: | :-------------------: | :-----------: | :---------: | :---------: |
-| digits  | (1.864 +- 0.025) 10^6 | (1.873 +- 0.022) 10^6 | 0.336+-0.022  |     5.6     |     40      |
-| fashion | (2.250 +- 0.041) 10^6 | (2.255 +- 0.043) 10^6 | 0.486+- 0.026 |     5.4     |     39      |
+| digits  | (1.864 +- 0.025) 10^6 | (1.873 +- 0.022) 10^6 | 0.336+-0.022  |     1.1     |     10      |
+| fashion | (2.250 +- 0.041) 10^6 | (2.255 +- 0.043) 10^6 | 0.486+- 0.026 |     1.      |     10      |
 
 * The costs , are on the average within 5% above the reference cost obtained by par_fastermap, and consistently within 8% at 2 std deviations. The normalized mutual information 
 
@@ -54,17 +54,18 @@ The Normalized Mutual Information between the coreset classification and the Fas
 
 |  mnist  |    cost (coreset)     |   cost (whole data)   |  nmi +- sigma  | time(sys) s | time(cpu) s |
 | :-----: | :-------------------: | :-------------------: | :------------: | :---------: | :---------: |
-| digits  | (1.868 +- 0.021) 10^6 | (1.876 +- 0.021) 10^6 | 0.348 +- 0.027 |     5.6     |     41      |
-| fashion | (2.230 +- 0.026) 10^6 | (2.239 +- 0.022) 10^6 | 0.491 +- 0.027 |     5.5     |     40      |
+| digits  | (1.868 +- 0.021) 10^6 | (1.876 +- 0.021) 10^6 | 0.348 +- 0.027 |      1      |     10      |
+| fashion | (2.230 +- 0.026) 10^6 | (2.239 +- 0.022) 10^6 | 0.491 +- 0.014 |      1      |     10      |
 
 The results are slightly better in the fashion case with 2.6% of overestimation of the cost compared with par_fastermap. 
 The results are, on the average less than 5% above the reference cost obtained by par_fastermap, and within 8% at 3 std deviations.
 
 The Normalized Mutual Information between the coreset classification and the Faster_pam algorithm is:
  - For the Digits case : 0.49 +- 0.035
- - For the Fashion case : 0.73 +- 0.05
+ - For the Fashion case : 0.72 +- 0.05
 
-We see that the 2 algorithms are related in their classification. They seem to have correlated deviations from ground truth
-as their mutual information is greater than their respective mutual information with ground truth.
+We see that the 2 algorithms are related in their classification as their mutual information is greater than their respective mutual information with ground truth.
+
+The use of Simd as a great impact on distance
 
 ##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)

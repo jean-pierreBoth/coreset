@@ -257,7 +257,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             let mut kmedoids = Kmedoid::new(&coreset, nb_cluster);
             let nbiter = 25;
             log::info!("nb iter = {}", nbiter);
-            kmedoids.compute_medians(15);
+            kmedoids.compute_medians(25);
             let clusters = kmedoids.get_clusters();
             let mut centers = Vec::<Vec<f32>>::with_capacity(nb_cluster);
             for c in clusters {

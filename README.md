@@ -31,20 +31,26 @@ information theory. It is based on the paper:
                 Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011 
                 [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 
-3. After obtaining the coreset we need an algorithm to provide a k-medoid on weighted data points and check quality of the approximating coreset. We implemented the very simple algorithm (cited in Friedman Hastie Tibshirani **The elements of statistical learning 2001**, Kmedoids paragraph 14.3.10) with the following adaptations:
+3. After obtaining the coreset we need an algorithm to provide a k-medoid on weighted data points and check quality of the approximating coreset.
+   1. In module wkmedian we implemented the very simple algorithm (cited in Friedman Hastie Tibshirani **The elements of statistical learning 2001**, Kmedoids paragraph 14.3.10) with the following adaptations:
 
-    - using a greedy initialization like PAM-BUILD
-    - takes into accound points weights,
-    - random parturbation of cluster pairs with centroids too near of each other.
+       - using a greedy initialization like PAM-BUILD
+       - takes into accound points weights,
+       - random parturbation of cluster pairs with centroids too near of each other.
 
+    2. We check clustering quality with standard cost and also implemented Normalized Mutual Information in the sub-crate **nmi** as described in:
+        Vinh.N.X Information Theoretic Measures for clustering comparison: [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)
 
 ### Results
 
-Detailed results are given [here](./Results.md).
+Results and examples are given in the *mnistcheck* sub-crate.
+
 We run a simple weighted k-median after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running on the whole data.
 
 Comparison of the 2 algorithms classification is done using Normalised Information metrics
-implemented in the sub-crate **merit**.
+implemented in the sub-crate **nmi**.
+
+Detailed results are given [here](./Results.md).
 
 #### Conclusion
 Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid.  
@@ -52,7 +58,7 @@ Cpu times are about 10 times lower, without having to store a whole distance mat
 
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 
-**The speed is one order magnitude faster**.
+**The speed is one or two  order magnitude faster**.
 
 
 ## Usage 
@@ -84,7 +90,7 @@ The workspace sub-crate *fromhnsw* provides an implementation of the trait *Make
 ## Building
 
 To compile the whole crate (and subcrate *fromhnsw*) enabling coreset computations on hnsw data run :  
-**cargo build --release --workspace**  
+**cargo build --release --workspace**  possibly adding a simd feature (see below)
 
 To get the whole doc:  
 **cargo doc --no-deps --all**
