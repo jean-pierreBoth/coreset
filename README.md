@@ -9,13 +9,11 @@ A k-coreset is a sampled summary of a much smaller number of points called facil
 to the clustering of the whole data.
 But the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
-The crate comes in the form of a library and a specific binary in the subcrate [fromhnsw](#fromhnsw)
+This package comes in the form of a crate library and some sub crates:  
+- a sub crate providing quality assesment via Normalized Mutual Information  
+- a sub crate providing benchmarks and examples on Mnist data.
+- a sub crate [fromhnsw](#fromhnsw)  providing an iterator over data stored in a Hnsw structure and a binary implementing clustering from a Hnsw structure (see [hnsw_rs](https://crates.io/crates/hnsw_rs))
 
-## Clustering quality
-
-The workspace sub-crate *merit* provides clustering quality based on
-information theory. It is based on the paper:  
-    - Vinh.N.X Information Theoretic Measures for clustering comparison. [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)
 
 ## References to implemented algorithms
 
@@ -31,34 +29,32 @@ information theory. It is based on the paper:
                 Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011 
                 [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 
-3. After obtaining the coreset we need an algorithm to provide a k-medoid on weighted data points and check quality of the approximating coreset.
+3. Normalized Mutual information is based on the paper:  
+    - Vinh.N.X Information Theoretic Measures for clustering comparison. [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)
+
+4. After obtaining the coreset we need an algorithm to provide a k-medoid on weighted data points and check quality of the approximating coreset.
    1. In module wkmedian we implemented the very simple algorithm (cited in Friedman Hastie Tibshirani **The elements of statistical learning 2001**, Kmedoids paragraph 14.3.10) with the following adaptations:
 
        - using a greedy initialization like PAM-BUILD
        - takes into accound points weights,
        - random parturbation of cluster pairs with centroids too near of each other.
 
-    2. We check clustering quality with standard cost and also implemented Normalized Mutual Information in the sub-crate **nmi** as described in:
-        Vinh.N.X Information Theoretic Measures for clustering comparison: [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)
 
 ### Results
 
 Results and examples are given in the *mnistcheck* sub-crate.
 
 We run a simple weighted k-median after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running on the whole data.
-
 Comparison of the 2 algorithms classification is done using Normalised Information metrics
-implemented in the sub-crate **nmi**.
-
+implemented in the sub-crate **nmi**.  
 Detailed results are given [here](./Results.md).
 
 #### Conclusion
-Even with our simplistic weighted kmedoid implementation, the results are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid.  
-Cpu times are about 10 times lower, without having to store a whole distance matrix.
-
+Even with our simplistic weighted kmedoid implementation, the costs are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid.  
+Normalized information shows that the coreset+kmedoid and **par_fastermap** behave consistently across the mnist data benchmarks.  
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 
-**The speed is one or two  order magnitude faster**.
+**The speed is one or two  order magnitude faster** without having to store a whole distance matrix.
 
 
 ## Usage 
@@ -93,7 +89,7 @@ To compile the whole crate (and subcrate *fromhnsw*) enabling coreset computatio
 **cargo build --release --workspace**  possibly adding a simd feature (see below)
 
 To get the whole doc:  
-**cargo doc --no-deps --all**
+**cargo doc --workspace --no-deps**
 
 ### Simd 
 

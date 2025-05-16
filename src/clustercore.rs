@@ -26,6 +26,8 @@ use crate::sensitivity::*;
 use crate::makeiter::*;
 use crate::wkmedian::*;
 
+/// Bmor parameters driving the coreset construction
+/// See [Bmor](super::bmor::Bmor)
 #[derive(Copy, Clone)]
 pub struct BmorArg {
     nb_data_expected: usize,
@@ -36,6 +38,7 @@ pub struct BmorArg {
 }
 
 impl BmorArg {
+    /// nb_data_expected : number of data expected
     pub fn new(nb_data_expected: usize, beta: f64, gamma: f64) -> Self {
         BmorArg {
             nb_data_expected,
@@ -77,6 +80,9 @@ where
     DataId: Default + Eq + Hash + Send + Sync + Clone + std::fmt::Debug,
     T: Clone + Send + Sync + std::fmt::Debug,
 {
+    /// - nb_cluster
+    /// - fraction : fraction of data to keep in coreset
+    /// - bmor_arg : defines parameter to Bmor pass
     pub fn new(nb_cluster: usize, fraction: f64, bmor_arg: BmorArg) -> Self {
         ClusterCoreset {
             nb_cluster,

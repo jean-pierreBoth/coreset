@@ -357,11 +357,10 @@ impl<
     /// **Bmor algorithm dispatch points on the fly so it computes an upper bound of the cost**  
     /// **The function can nevertheless be called a posteriori to get a tighter bound on cost**  
     ///
-    #[allow(unused)]
     pub fn dispatch_data(
         &mut self,
         data: &[&Vec<T>],
-        ids: &[usize],
+        _ids: &[usize],
         weights: Option<&Vec<f32>>,
     ) -> f64 {
         //
