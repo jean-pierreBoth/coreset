@@ -357,6 +357,7 @@ fn main() {
     //
     let matches = Command::new("hnswcore")
         .arg_required_else_help(true)
+        .about("Approximate Clustering via Streaming CoreSet Construction")
         .arg(
             Arg::new("dir")
                 .long("dir")
@@ -373,7 +374,7 @@ fn main() {
                 .action(ArgAction::Set)
                 .value_parser(clap::value_parser!(String))
                 .required(true)
-                .help("expecting a file  basename"),
+                .help("expecting a HNSW database file  basename"),
         )
         .arg(
             Arg::new("typename")

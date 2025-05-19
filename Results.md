@@ -2,7 +2,7 @@
 ## Results
 
 Examples provided are the standard Mnist-digits and Mnist-fashion.
-Results are are obtained with sub-crate mnistcheck.
+Results are obtained with sub-crate mnistcheck running on an AMD Ryzen 9 7950X 16-Core Processor (32 threads).
 
 ###  Coreset Construction
 
@@ -60,7 +60,7 @@ The Normalized Mutual Information between the coreset classification and the Fas
 The results are slightly better in the fashion case with 2.6% of overestimation of the cost compared with par_fastermap. 
 The results are, on the average less than 5% above the reference cost obtained by par_fastermap, and within 8% at 3 std deviations.
 
-The Normalized Mutual Information between the coreset classification and the Faster_pam algorithm is:
+The Normalized Mutual Information (*sqrt version*) between the coreset classification and the Faster_pam algorithm is:
  - For the Digits case : 0.49 +- 0.035
  - For the Fashion case : 0.72 +- 0.05
 

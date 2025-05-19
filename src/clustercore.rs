@@ -81,7 +81,10 @@ where
     T: Clone + Send + Sync + std::fmt::Debug,
 {
     /// - nb_cluster
-    /// - fraction : fraction of data to keep in coreset
+    /// - fraction : fraction of data to keep in coreset.  
+    ///   The fraction is chosen so that
+    ///   the subsequent k-medoids phase is computationally tractable and yet sufficient to
+    ///   represent the whole data. (Typically for Mnist data ~0.1 is a valid choice)
     /// - bmor_arg : defines parameter to Bmor pass
     pub fn new(nb_cluster: usize, fraction: f64, bmor_arg: BmorArg) -> Self {
         ClusterCoreset {
