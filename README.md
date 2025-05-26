@@ -10,8 +10,8 @@ to the clustering of the whole data.
 But the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
 This package comes in the form of a crate library and some sub crates:  
-- a sub crate providing quality assesment via Normalized Mutual Information  
-- a sub crate providing benchmarks and examples on Mnist data.
+- a sub crate *nmi* providing quality assesment via Normalized Mutual Information  
+- a sub crate *mnist* providing io, benchmarks and examples on Mnist data.
 - a sub crate [fromhnsw](#fromhnsw)  providing an iterator over data stored in a Hnsw structure and a binary implementing clustering from a Hnsw structure (see [hnsw_rs](https://crates.io/crates/hnsw_rs))
 
 
@@ -79,6 +79,7 @@ The most synthetic interface is provided in the module *clustercore*, but corese
 corresponding modules.  
 The distances are provided by the crate [anndists](https://crates.io/crates/anndists).
 
+<a id="Fromhnsw"></a>
 ## Fromhnsw
 
 The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset or coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md).
