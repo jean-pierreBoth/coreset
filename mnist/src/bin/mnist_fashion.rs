@@ -11,11 +11,6 @@
 //! <https://github.com/zalandoresearch/fashion-mnist/tree/master/data/fashion>
 //!
 
-use ndarray::s;
-
-use std::fs::OpenOptions;
-use std::path::PathBuf;
-
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
 
@@ -131,7 +126,8 @@ pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
-const MNIST_FASHION_DIR: &str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
+const MNIST_FASHION_DIR_NOT_CSV: &str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
+const MNIST_FASHION_DIR_CSV: &str = "/home/jpboth/Data/MnistFashionCsv";
 
 pub fn main() {
     //
@@ -155,76 +151,22 @@ pub fn main() {
     //
     let mnist_params = parse_cmd(&matches).unwrap();
     //
-    let mut image_fname = String::from(MNIST_FASHION_DIR);
-    image_fname.push_str("train-images-idx3-ubyte");
-    let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(image_path);
-    if image_file_res.is_err() {
-        println!("could not open image file : {:?}", image_fname);
-        return;
-    }
-    let mut label_fname = String::from(MNIST_FASHION_DIR);
-    label_fname.push_str("train-labels-idx1-ubyte");
-    let label_path = PathBuf::from(label_fname.clone());
-    let label_file_res = OpenOptions::new().read(true).open(&label_path);
-    if label_file_res.is_err() {
-        println!("could not open label file : {:?}", label_fname);
-        return;
-    }
-    let mut images_as_v: Vec<Vec<f32>>;
-    let mut labels: Vec<u8>;
-    {
-        let mnist_train_data = MnistData::new(image_fname, label_fname).unwrap();
-        let images = mnist_train_data.get_images();
-        labels = mnist_train_data.get_labels().to_vec();
-        let (_, _, nbimages) = images.dim();
-        //
-        images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
-        for k in 0..nbimages {
-            // we convert to float normalized
-            let v: Vec<f32> = images
-                .slice(s![.., .., k])
-                .iter()
-                .map(|v| *v as f32 / (28. * 28.))
-                .collect();
-            images_as_v.push(v);
-        }
-    } // drop mnist_train_data
-      // now read test data
-    let mut image_fname = String::from(MNIST_FASHION_DIR);
-    image_fname.push_str("t10k-images-idx3-ubyte");
-    let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(image_path);
-    if image_file_res.is_err() {
-        println!("could not open image file : {:?}", image_fname);
-        return;
-    }
-    let mut label_fname = String::from(MNIST_FASHION_DIR);
-    label_fname.push_str("t10k-labels-idx1-ubyte");
-    let label_file_res = OpenOptions::new().read(true).open(&label_path);
-    if label_file_res.is_err() {
-        println!("could not open label file : {:?}", label_fname);
-        return;
-    }
-    {
-        let mnist_test_data = MnistData::new(image_fname, label_fname).unwrap();
-        let test_images = mnist_test_data.get_images();
-        let mut test_labels = mnist_test_data.get_labels().to_vec();
-        let (_, _, nbimages) = test_images.dim();
-        let mut test_images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
-        //
-        for k in 0..nbimages {
-            let v: Vec<f32> = test_images
-                .slice(s![.., .., k])
-                .iter()
-                .map(|v| *v as f32 / (28. * 28.))
-                .collect();
-            test_images_as_v.push(v);
-        }
-        labels.append(&mut test_labels);
-        images_as_v.append(&mut test_images_as_v);
-    } // drop mnist_test_data
-
+    //
+    let csv_format = false;
+    //
+    let (labels, images_as_v) = if csv_format {
+        log::info!(
+            "in mnist_digits, reading mnist data original idx bianry ...from {}",
+            MNIST_FASHION_DIR_CSV
+        );
+        io_from_csv(MNIST_FASHION_DIR_CSV).unwrap()
+    } else {
+        log::info!(
+            "in mnist_digits, reading mnist data in CSV format ...from {}",
+            MNIST_FASHION_DIR_NOT_CSV
+        );
+        io_from_non_csv(MNIST_FASHION_DIR_NOT_CSV).unwrap()
+    };
     //
     // test mettu-plaxton or bmor algo
     //
@@ -257,12 +199,13 @@ pub fn main() {
 mod tests {
 
     use super::*;
-
+    use std::fs::OpenOptions;
+    use std::path::PathBuf;
     // test and compare some values obtained with Julia loading
 
     #[test]
     fn test_load_mnist_fashion() {
-        let mut image_fname = String::from(MNIST_FASHION_DIR);
+        let mut image_fname = String::from(MNIST_FASHION_DIR_NOT_CSV);
         image_fname.push_str("train-images-idx3-ubyte");
         let image_path = PathBuf::from(image_fname.clone());
         let image_file_res = OpenOptions::new().read(true).open(&image_path);
@@ -271,7 +214,7 @@ mod tests {
             return;
         }
 
-        let mut label_fname = String::from(MNIST_FASHION_DIR);
+        let mut label_fname = String::from(MNIST_FASHION_DIR_NOT_CSV);
         label_fname.push_str("train-labels-idx1-ubyte");
         let label_path = PathBuf::from(label_fname.clone());
         let label_file_res = OpenOptions::new().read(true).open(&label_path);
@@ -280,7 +223,7 @@ mod tests {
             return;
         }
 
-        let _mnist_data = MnistData::new(image_fname, label_fname).unwrap();
+        let _mnist_data = MnistData::new(image_path, label_path).unwrap();
         // check some value of the tenth images
     } // end test_load
 } // end module tests

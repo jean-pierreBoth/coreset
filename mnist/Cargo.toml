@@ -27,6 +27,7 @@ env_logger = { workspace = true }
 clap = { workspace = true }
 quantiles = { workspace = true }
 ndarray = {workspace = true}
+csv = {workspace = true}
 anndists = {workspace = true}
 
 rayon = {workspace = true}

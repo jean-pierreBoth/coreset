@@ -66,6 +66,6 @@ The Normalized Mutual Information (*sqrt version*) between the coreset classific
 
 We see that the 2 algorithms are related in their classification as their mutual information is greater than their respective mutual information with ground truth.
 
-The use of Simd as a great impact on distance
+The use of Simd as a great impact on distance computations in these tests. 
 
 ##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)

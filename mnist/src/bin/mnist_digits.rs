@@ -1,13 +1,9 @@
 //! Structure and functions to read MNIST digits database
-//! To run the examples change the line :  
+//! To run the examples change in main the line :  
 //!
-//! const MNIST_DIGITS_DIR : &'static str = "/home/jpboth/Data/MNIST/";
+//! const MNIST_DIGITS_DIR_CSV : &'static str = "/home/jpboth/Data/MNIST/";
 //!
 //! to whatever directory you downloaded the [MNIST digits data](https://www.kaggle.com/datasets/hojjatk/mnist-dataset)
-
-use ndarray::s;
-use std::fs::OpenOptions;
-use std::path::PathBuf;
 
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
@@ -128,7 +124,11 @@ use clap::{Arg, ArgAction, ArgMatches, Command};
 
 use coreset::prelude::*;
 
-const MNIST_DIGITS_DIR: &str = "/home/jpboth/Data/ANN/MNIST/";
+// for data in old non csv format
+const MNIST_DIGITS_DIR_NOT_CSV: &str = "/home/jpboth/Data/ANN/MNIST";
+
+// for data in csv format
+const MNIST_DIGITS_DIR_CSV: &str = "/home/jpboth/Data/MnistDigitsCsv";
 
 pub fn main() {
     //
@@ -152,75 +152,22 @@ pub fn main() {
     //
     let mnist_params = parse_cmd(&matches).unwrap();
     //
-    let mut image_fname = String::from(MNIST_DIGITS_DIR);
-    image_fname.push_str("train-images-idx3-ubyte");
-    let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(image_path);
-    if image_file_res.is_err() {
-        println!("could not open image file : {:?}", image_fname);
-        return;
-    }
-    let mut label_fname = String::from(MNIST_DIGITS_DIR);
-    label_fname.push_str("train-labels-idx1-ubyte");
-    let label_path = PathBuf::from(label_fname.clone());
-    let label_file_res = OpenOptions::new().read(true).open(&label_path);
-    if label_file_res.is_err() {
-        println!("could not open label file : {:?}", label_fname);
-        return;
-    }
-    let mut images_as_v: Vec<Vec<f32>>;
-    let mut labels: Vec<u8>;
-    {
-        let mnist_train_data = MnistData::new(image_fname, label_fname).unwrap();
-        let images = mnist_train_data.get_images();
-        labels = mnist_train_data.get_labels().to_vec();
-        let (_, _, nbimages) = images.dim();
-        //
-        images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
-        for k in 0..nbimages {
-            let v: Vec<f32> = images
-                .slice(s![.., .., k])
-                .iter()
-                .map(|v| *v as f32 / (28. * 28.))
-                .collect();
-            images_as_v.push(v);
-        }
-    } // drop mnist_train_data
-      // now read test data
-    let mut image_fname = String::from(MNIST_DIGITS_DIR);
-    image_fname.push_str("t10k-images-idx3-ubyte");
-    let image_path = PathBuf::from(image_fname.clone());
-    let image_file_res = OpenOptions::new().read(true).open(image_path);
-    if image_file_res.is_err() {
-        println!("could not open image file : {:?}", image_fname);
-        return;
-    }
-    let mut label_fname = String::from(MNIST_DIGITS_DIR);
-    label_fname.push_str("t10k-labels-idx1-ubyte");
-    let label_file_res = OpenOptions::new().read(true).open(&label_path);
-    if label_file_res.is_err() {
-        println!("could not open label file : {:?}", label_fname);
-        return;
-    }
-    {
-        let mnist_test_data = MnistData::new(image_fname, label_fname).unwrap();
-        let test_images = mnist_test_data.get_images();
-        let mut test_labels = mnist_test_data.get_labels().to_vec();
-        let (_, _, nbimages) = test_images.dim();
-        let mut test_images_as_v = Vec::<Vec<f32>>::with_capacity(nbimages);
-        //
-        for k in 0..nbimages {
-            let v: Vec<f32> = test_images
-                .slice(s![.., .., k])
-                .iter()
-                .map(|v| *v as f32 / (28. * 28.))
-                .collect();
-            test_images_as_v.push(v);
-        }
-        labels.append(&mut test_labels);
-        images_as_v.append(&mut test_images_as_v);
-    } // drop mnist_test_data
-      //
+    let csv_format = false;
+    //
+    let (labels, images_as_v) = if csv_format {
+        log::info!(
+            "in mnist_digits, reading mnist data original idx bianry ...from {}",
+            MNIST_DIGITS_DIR_CSV
+        );
+        io_from_csv(MNIST_DIGITS_DIR_CSV).unwrap()
+    } else {
+        log::info!(
+            "in mnist_digits, reading mnist data in CSV format ...from {}",
+            MNIST_DIGITS_DIR_NOT_CSV
+        );
+        io_from_non_csv(MNIST_DIGITS_DIR_NOT_CSV).unwrap()
+    };
+    //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
     //
@@ -244,47 +191,3 @@ pub fn main() {
 } // end of main digits
 
 //============================================================================================
-
-#[cfg(test)]
-
-mod tests {
-
-    use super::*;
-
-    // test and compare some values obtained with Julia loading
-
-    #[test]
-
-    fn test_load_mnist() {
-        let mut image_fname = String::from(MNIST_DIGITS_DIR);
-        image_fname.push_str("train-images-idx3-ubyte");
-        let image_path = PathBuf::from(image_fname.clone());
-        let image_file_res = OpenOptions::new().read(true).open(&image_path);
-        if image_file_res.is_err() {
-            println!("could not open image file : {:?}", image_fname);
-            return;
-        }
-
-        let mut label_fname = String::from(MNIST_DIGITS_DIR);
-        label_fname.push_str("train-labels-idx1-ubyte");
-        let label_path = PathBuf::from(label_fname.clone());
-        let label_file_res = OpenOptions::new().read(true).open(&label_path);
-        if label_file_res.is_err() {
-            println!("could not open label file : {:?}", label_fname);
-            return;
-        }
-
-        let mnist_data = MnistData::new(image_fname, label_fname).unwrap();
-        let labels = mnist_data.get_labels();
-        let images = mnist_data.get_images();
-        let nblabels = labels.len();
-        assert_eq!(0x3c, *images.get([9, 14, 9]).unwrap());
-        assert_eq!(0xfd, images[(14, 9, 9)]);
-        // check some value of the tenth images
-
-        // check first and last labels
-        assert_eq!(5, labels[0]);
-        assert_eq!(8, labels[nblabels - 1]);
-        assert_eq!(1, 1);
-    } // end test_load
-} // end module tests
