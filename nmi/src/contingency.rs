@@ -7,7 +7,8 @@ use std::hash::Hash;
 use num_traits::int::PrimInt;
 use std::marker::PhantomData;
 
-use super::affect::*;
+use super::affect::Affectation;
+
 //================================================================================
 
 #[cfg_attr(doc, katexit::katexit)]
