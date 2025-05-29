@@ -10,10 +10,10 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::PathBuf;
 
-/// A struct to load/store [MNIST data](https://www.kaggle.com/datasets/hojjatk/mnist-dataset)  
+/// This structure can load MNIST data either in CSV format or in compressed format [MNIST idx](https://www.kaggle.com/datasets/hojjatk/mnist-dataset)  
 /// stores labels (i.e : digits between 0 and 9) coming from file train-labels-idx1-ubyte      
 /// and hand written characters as 28*28 images with values between 0 and 255 coming from train-images-idx3-ubyte
-/// images[i,j,k] stores pixel (i,j) of data item k
+/// images\[i,j,k\] stores pixel (i,j) of data item k
 pub struct MnistData {
     _image_filename: PathBuf,
     _label_filename: PathBuf,
@@ -54,7 +54,7 @@ impl MnistData {
         })
     } // end of new_from_csv for MnistData
 
-    /// returns labels of images. lables[k] is the label of the k th image.
+    /// returns labels of images. lables\[k\] is the label of the k th image.
     pub fn get_labels(&self) -> &Array1<u8> {
         &self.labels
     }
@@ -134,8 +134,8 @@ pub fn read_image_file(io_in: &mut dyn Read) -> Array3<u8> {
     images
 } // end of readImageFile
 
-/// read images in Csv form and returns Array1 of labels and images in Array3<u8>.
-/// pixel i,j of the k'th images is stored in index [i,j,k]
+/// read images in Csv form and returns Array1 of labels and images in Array3\<u8\>.
+/// pixel i,j of the k'th images is stored in index \[i,j,k\]
 pub fn read_image_csv(bufreader: &mut dyn Read) -> anyhow::Result<(Array1<u8>, Array3<u8>)> {
     //
     let mut num_record: usize = 0;

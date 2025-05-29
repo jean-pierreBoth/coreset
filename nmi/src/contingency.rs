@@ -1,7 +1,7 @@
 //! This module implements various mutual information from contingency table computation
 
 use indexmap::IndexSet;
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, ArrayView1, ArrayView2};
 use std::hash::Hash;
 
 use num_traits::int::PrimInt;
@@ -11,7 +11,8 @@ use super::affect::*;
 //================================================================================
 
 #[cfg_attr(doc, katexit::katexit)]
-/// Contingency table associated to the 2 clusterization (affectations) to compare. We can compare either a true (reference) labels of data or 2 clusters algorithms  
+/// Contingency table associated to the 2 clusterization (affectations) to compare.  
+/// We can compare either an algorithm to reference) labels of data or 2 clusters algorithms.  
 /// The various merit functions relies on comparisons entropy of cluster distribution.  
 ///
 ///
@@ -27,7 +28,7 @@ use super::affect::*;
 /// - $ H(C_{1}| C_{2}) = - \sum_{i \le NC_{1}, j \le NC_{2}}  \frac{n_{ij}}{N} \log \frac{n_{ij}/N} {|C_2[j]|/N} $
 /// - $ I(C_{1}| C_{2}) = \sum_{i \le NC_{1}, j \le NC_{2}}  \frac{n_{ij}}{N} \log \frac{n_{ij}/N} { |C_1[i]| *|C_2[j]|/N^{2}} $.  
 ///
-/// Various indicators can then be computed (some are even metrics), we choose normalized versions i.e there values are in the range [0,1].  
+/// Various indicators can then be computed (some are even metrics), we choose normalized versions i.e their values are in the range [0,1].  
 /// See the different functions
 pub struct Contingency<Clusterization, DataId, DataLabel>
 where
@@ -35,7 +36,6 @@ where
     DataId: Hash + Eq + Copy + Clone + Send + Sync + std::fmt::Debug,
     DataLabel: PrimInt,
 {
-    #[allow(unused)]
     // clusters (or reference)
     clusters1: Clusterization,
     // clusters (or reference)
@@ -72,6 +72,7 @@ where
     DataId: Hash + Eq + Copy + Clone + Send + Sync + std::fmt::Debug,
     DataLabel: PrimInt + Hash,
 {
+    /// **The first (resp. second) argument will be used as rows (resp. columns) of the contingency matrix**
     pub fn new(clusters1: Clusterization, clusters2: Clusterization) -> Self {
         assert_eq!(clusters1.get_nb_points(), clusters2.get_nb_points());
         //
@@ -186,6 +187,7 @@ where
         self.information_12
     }
 
+    /// logs the various entropies computed
     pub fn dump_entropies(&self) {
         log::info!(" entropy1 : {:.3e}", self.entropy_1);
         log::info!(" entropy2 : {:.3e}", self.entropy_2);
@@ -261,6 +263,48 @@ where
         log::info!("an upper bound is {:.3e}", bound);
         log::info!("not yet implemented");
         bound
+    }
+
+    // methods to get entropies by row
+
+    /// return entropy of distribution of items in clust of first (row) clusterization along the second (columns) clusterization
+    /// The purpose is to find which clusters of the first Clusterization are distributed with less incertitude
+    pub fn get_row_entropy(&self, i: usize) -> f64 {
+        let mut entropy_cond1: f64 = 0.;
+        //
+        let nb_total = self.c1_size[i];
+        let (_, nb_column) = self.table.dim();
+        for j in 0..nb_column {
+            let frac_ij = self.table[[i, j]] as f64 / nb_total as f64;
+            //
+            entropy_cond1 -= self.table[[i, j]] as f64 * log_with0(frac_ij);
+        }
+        //
+        entropy_cond1 / nb_total as f64
+    } // end of get_row_entropy
+
+    /// collect row entropies for all rows (fist clusterization)
+    pub fn get_row_entropies(&self) -> Vec<f64> {
+        let (_, nb_column) = self.table.dim();
+        (0..nb_column)
+            .map(|i| self.get_row_entropy(i))
+            .collect::<Vec<f64>>()
+    }
+
+    pub fn get_row(&self, row: usize) -> ArrayView1<usize> {
+        self.table.row(row)
+    }
+
+    pub fn get_col(&self, col: usize) -> ArrayView1<usize> {
+        self.table.column(col)
+    }
+
+    pub fn get_dim(&self) -> (usize, usize) {
+        self.table.dim()
+    }
+
+    pub fn get_table(&self) -> ArrayView2<usize> {
+        self.table.view()
     }
 } // end of Contingency
 

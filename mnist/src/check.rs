@@ -284,7 +284,19 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             println!(
                 "coreset+kmedoid , information merit get_nmi_sqrt version: {:.3e}",
                 merit
-            ); // we try to do a direct median clustering with kmedoid crate
+            );
+            let row_entropies = contingency.get_row_entropies();
+            for (i, c) in row_entropies.iter().enumerate() {
+                log::info!("cluster : {}, entropy : {:.3e}", i, c);
+            }
+            log::info!("\n");
+            let (nb_row, _) = contingency.get_dim();
+            for i in 0..nb_row {
+                log::info!("row : {} {}", i, contingency.get_row(i));
+            }
+            log::info!(" contingency table \n {}", contingency.get_table());
+            //
+            // we try to do a direct median clustering with kmedoid crate
             println!("=================================================");
             let (_, kmedoid_affectation) =
                 kmedoids_reference(images, labels, nb_cluster, &distance);
@@ -297,6 +309,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             );
             let merit = cross_contingency.get_nmi_sqrt();
             log::info!("coreset+kmedoid/ faster_pam nmi_sqrt : {:.3e}", merit);
+            //
         }
 
         "DistL2" => {

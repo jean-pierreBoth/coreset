@@ -8,7 +8,7 @@ readme = "README.md"
 keywords = ["algorithms", "coreset", "clustering", "metric_spaces"]
 repository = "https://github.com/jean-pierreBoth/coreset"
 documentation = "https://docs.rs/coreset"
-edition = "2021"
+edition = "2024"
 
 
 [lib]

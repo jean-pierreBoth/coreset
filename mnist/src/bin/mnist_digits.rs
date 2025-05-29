@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 
 use anndists::dist::*;
 
-use mnistcheck::{check::*, io::*};
+use mnist::{check::*, io::*};
 
 //============================================================================================
 

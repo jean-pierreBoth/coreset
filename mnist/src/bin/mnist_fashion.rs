@@ -18,7 +18,7 @@ use anndists::dist::*;
 use coreset::prelude::*;
 use std::iter::Iterator;
 
-use mnistcheck::{check::*, io::*};
+use mnist::{check::*, io::*};
 
 //============================================================================================
 
