@@ -269,25 +269,49 @@ where
 
     /// return entropy of distribution of items in clust of first (row) clusterization along the second (columns) clusterization
     /// The purpose is to find which clusters of the first Clusterization are distributed with less incertitude
-    pub fn get_row_entropy(&self, i: usize) -> f64 {
+    pub fn get_row_entropy(&self, row: usize) -> f64 {
         let mut entropy_cond1: f64 = 0.;
         //
-        let nb_total = self.c1_size[i];
+        let nb_total = self.c1_size[row];
         let (_, nb_column) = self.table.dim();
         for j in 0..nb_column {
-            let frac_ij = self.table[[i, j]] as f64 / nb_total as f64;
+            let frac_ij = self.table[[row, j]] as f64 / nb_total as f64;
             //
-            entropy_cond1 -= self.table[[i, j]] as f64 * log_with0(frac_ij);
+            entropy_cond1 -= self.table[[row, j]] as f64 * log_with0(frac_ij);
         }
         //
         entropy_cond1 / nb_total as f64
     } // end of get_row_entropy
 
+    /// return entropy of distribution of items in clust of second (col) clusterization along the first (rows) clusterization
+    /// The purpose is to find which clusters of the first Clusterization are distributed with less incertitude
+    pub fn get_column_entropy(&self, col: usize) -> f64 {
+        let mut entropy_cond2: f64 = 0.;
+        //
+        let nb_total = self.c2_size[col];
+        let (nb_row, _) = self.table.dim();
+        for i in 0..nb_row {
+            let frac_ij = self.table[[i, col]] as f64 / nb_total as f64;
+            //
+            entropy_cond2 -= self.table[[i, col]] as f64 * log_with0(frac_ij);
+        }
+        //
+        entropy_cond2 / nb_total as f64
+    }
+
     /// collect row entropies for all rows (fist clusterization)
     pub fn get_row_entropies(&self) -> Vec<f64> {
-        let (_, nb_column) = self.table.dim();
-        (0..nb_column)
+        let (nb_row, _) = self.table.dim();
+        (0..nb_row)
             .map(|i| self.get_row_entropy(i))
+            .collect::<Vec<f64>>()
+    }
+
+    /// collect column entropies for all columns (second clusterization)
+    pub fn get_col_entropies(&self) -> Vec<f64> {
+        let (_, nb_col) = self.table.dim();
+        (0..nb_col)
+            .map(|j| self.get_column_entropy(j))
             .collect::<Vec<f64>>()
     }
 
@@ -306,6 +330,31 @@ where
     pub fn get_table(&self) -> ArrayView2<usize> {
         self.table.view()
     }
+
+    /// return a vector correspondance between rank of matrix and Labels.
+    /// I.e the k entry of the vector gives the label of the row (column) k.  
+    /// - 0 is row dimension (ndarray conventions)
+    /// - 1 is column
+    ///
+    pub fn get_labels_rank(&self, dim: usize) -> Vec<DataLabel> {
+        let labels_iter = match dim {
+            0 => self.clusters1.iter(),
+            1 => self.clusters2.iter(),
+            _ => {
+                panic!("dim must 0 or 1 for row or column dimension");
+            }
+        }; //end match
+        let mut labels_set = IndexSet::<DataLabel>::with_capacity(50);
+        for (_data_id, label) in labels_iter {
+            labels_set.insert(label);
+        }
+        // convert to a vector giving label in function of row or column
+        let mut to_labels = Vec::<DataLabel>::with_capacity(labels_set.len());
+        for (_rank, l) in labels_set.iter().enumerate() {
+            to_labels.push(*l);
+        }
+        to_labels
+    } // end of get_labels_rank
 } // end of Contingency
 
 // for entropy calculations log(0) = 0...

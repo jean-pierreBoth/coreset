@@ -216,7 +216,7 @@ where
 } // end of kmedoids_reference
 
 //
-
+/// do coreset clustering on mnist data and detailed nmi results
 pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
     _params: &MnistParams,
     images: &[Vec<f32>],
@@ -285,19 +285,42 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
                 "coreset+kmedoid , information merit get_nmi_sqrt version: {:.3e}",
                 merit
             );
+            // give detailed info on contingency table
+            // display entropies by row
+            log::info!("nmi analysis between coreset result and reference data \n\n ");
+            //
+            let (nb_row, nb_col) = contingency.get_dim();
+            log::info!("\n \n display rows entropies");
             let row_entropies = contingency.get_row_entropies();
             for (i, c) in row_entropies.iter().enumerate() {
                 log::info!("cluster : {}, entropy : {:.3e}", i, c);
             }
             log::info!("\n");
-            let (nb_row, _) = contingency.get_dim();
             for i in 0..nb_row {
                 log::info!("row : {} {}", i, contingency.get_row(i));
             }
-            log::info!(" contingency table \n {}", contingency.get_table());
+            // display entropies by column
+            // reference is second argument in Contingency allocation, so it in columns
+            let digits = contingency.get_labels_rank(1);
+            log::info!(
+                "labels are in the following order of columns in reference : {:?}",
+                digits
+            );
+            log::info!("\n \n display colmuns entropies");
+            let col_entropies = contingency.get_col_entropies();
+            for (i, c) in col_entropies.iter().enumerate() {
+                log::info!("cluster : {}, entropy : {:.3e}", i, c);
+            }
+            log::info!("\n");
+            for i in 0..nb_col {
+                log::info!("column : {} {}", i, contingency.get_col(i));
+            }
+            // log::info!(" contingency table \n {}", contingency.get_table());
             //
-            // we try to do a direct median clustering with kmedoid crate
+            // we do a direct median clustering with kmedoid crate
+            //
             println!("=================================================");
+            log::info!("kmedoid reference and nmi analysis between coreset result and kmedoid results \n\n ");
             let (_, kmedoid_affectation) =
                 kmedoids_reference(images, labels, nb_cluster, &distance);
             //
