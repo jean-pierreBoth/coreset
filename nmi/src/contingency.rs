@@ -45,16 +45,17 @@ where
     // transform labels set to usize range for array indexation
     #[allow(unused)]
     labels1: IndexSet<DataLabel>,
+    // for conversion from rank to labels1
+    to_labels1: Vec<DataLabel>,
     #[allow(unused)]
     labels2: IndexSet<DataLabel>,
+    // for conversion from rank to labels2
+    to_labels2: Vec<DataLabel>,
     // The contingency table. dimension (cluster1.nb_cluster, cluster2.nb_cluster)
-    #[allow(unused)]
     table: Array2<usize>,
     // number of elements in each clusters of cluster1
-    #[allow(unused)]
     c1_size: Array1<usize>,
     // number of elements in each clusters of cluster2
-    #[allow(unused)]
     c2_size: Array1<usize>,
     // entropies and information
     entropy_1: f64,
@@ -86,11 +87,23 @@ where
         for (_, label) in affect1_iter {
             labels1.insert(label);
         }
+        // convert to a vector giving label in function of row or column
+        let mut to_labels1 = Vec::<DataLabel>::with_capacity(labels1.len());
+        for (_rank, l) in labels1.iter().enumerate() {
+            to_labels1.push(*l);
+        }
+        //
         let mut labels2 = IndexSet::<DataLabel>::with_capacity(50);
         let affect2_iter = clusters2.iter();
         for (_, label) in affect2_iter {
             labels2.insert(label);
         }
+        // convert to a vector giving label in function of row or column
+        let mut to_labels2 = Vec::<DataLabel>::with_capacity(labels2.len());
+        for (_rank, l) in labels2.iter().enumerate() {
+            to_labels2.push(*l);
+        }
+
         let nb_labels1 = labels1.len();
         let nb_labels2 = labels2.len();
         let mut table = Array2::<usize>::zeros((nb_labels1, nb_labels2));
@@ -151,7 +164,9 @@ where
             clusters1,
             clusters2,
             labels1,
+            to_labels1,
             labels2,
+            to_labels2,
             table,
             c1_size,
             c2_size,
@@ -337,24 +352,14 @@ where
     /// - 0 is row dimension (ndarray conventions)
     /// - 1 is column
     ///
-    pub fn get_labels_rank(&self, dim: usize) -> Vec<DataLabel> {
-        let labels_iter = match dim {
-            0 => self.clusters1.iter(),
-            1 => self.clusters2.iter(),
+    pub fn get_labels_by_rank(&self, dim: usize) -> &Vec<DataLabel> {
+        match dim {
+            0 => &self.to_labels1,
+            1 => &self.to_labels2,
             _ => {
                 panic!("dim must 0 or 1 for row or column dimension");
             }
-        }; //end match
-        let mut labels_set = IndexSet::<DataLabel>::with_capacity(50);
-        for (_data_id, label) in labels_iter {
-            labels_set.insert(label);
-        }
-        // convert to a vector giving label in function of row or column
-        let mut to_labels = Vec::<DataLabel>::with_capacity(labels_set.len());
-        for (_rank, l) in labels_set.iter().enumerate() {
-            to_labels.push(*l);
-        }
-        to_labels
+        } //end match
     } // end of get_labels_rank
 } // end of Contingency
 

@@ -293,7 +293,7 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             log::info!("\n \n display rows entropies");
             let row_entropies = contingency.get_row_entropies();
             for (i, c) in row_entropies.iter().enumerate() {
-                log::info!("cluster : {}, entropy : {:.3e}", i, c);
+                log::info!("row : {}, entropy : {:.3e}", i, c);
             }
             log::info!("\n");
             for i in 0..nb_row {
@@ -301,7 +301,8 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             }
             // display entropies by column
             // reference is second argument in Contingency allocation, so it in columns
-            let digits = contingency.get_labels_rank(1);
+            //
+            let digits = contingency.get_labels_by_rank(1);
             log::info!(
                 "labels are in the following order of columns in reference : {:?}",
                 digits
@@ -309,11 +310,16 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             log::info!("\n \n display colmuns entropies");
             let col_entropies = contingency.get_col_entropies();
             for (i, c) in col_entropies.iter().enumerate() {
-                log::info!("cluster : {}, entropy : {:.3e}", i, c);
+                log::info!(
+                    "cluster(digits) : {}, col : {}, entropy : {:.3e}",
+                    digits[i],
+                    i,
+                    c
+                );
             }
             log::info!("\n");
             for i in 0..nb_col {
-                log::info!("column : {} {}", i, contingency.get_col(i));
+                log::info!("cluster : {} {}", digits[i], contingency.get_col(i));
             }
             // log::info!(" contingency table \n {}", contingency.get_table());
             //
