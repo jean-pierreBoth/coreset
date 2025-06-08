@@ -38,7 +38,7 @@ rand_xoshiro = {version = "0.6"}
 
 # adhoc needs to check result
 #clustering = {version = "0.1"}
-clustering = { git = "https://github.com/jean-pierreBoth/clustering", branch = "jpb" }
+clustering = { version = "0.2", features=["parallel"] }
 kmedoids = { version = "0.5" }
 
 coreset = { path = "../" }
