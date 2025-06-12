@@ -2,10 +2,10 @@
 name = "coreset"
 version = "0.1.0"
 authors = ["jeanpierre.both@gmail.com"]
-description = "Coreset and clustering"
+description = "Coreset and (streaming) clustering"
 license = "MIT/Apache-2.0"
 readme = "README.md"
-keywords = ["algorithms", "coreset", "clustering", "metric_spaces"]
+keywords = ["clustering", "coreset", "streaming", "information", "metric_spaces"]
 repository = "https://github.com/jean-pierreBoth/coreset"
 documentation = "https://docs.rs/coreset"
 edition = "2024"
@@ -51,7 +51,7 @@ csv = { version = "1.3" }
 
 ndarray = { version = "0.16" }
 
-anndists = { version = "0.1.2" }
+anndists = { version = "0.1" }
 #anndists = { path = "../anndists" }
 #anndists = { git = "https://github.com/jean-pierreBoth/anndists" }
 

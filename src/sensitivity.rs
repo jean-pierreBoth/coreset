@@ -11,16 +11,16 @@ use rayon::prelude::*;
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use std::collections::hash_map; // for key() method
 use std::collections::HashMap;
+use std::collections::hash_map; // for key() method
 use std::hash::Hash;
 
 use ndarray::{Array1, Array2};
 use std::io::Write;
 
 use rand::Rng;
-use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+use rand_xoshiro::rand_core::SeedableRng;
 
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
@@ -137,7 +137,7 @@ where
     }
 
     //
-
+    #[allow(clippy::let_and_return)]
     /// for a coreset point of rank r returns id and data vector.
     pub(crate) fn get_point_by_rank(&self, r: usize) -> Option<(DataId, &Vec<T>)> {
         let res = match self.datas_wid.as_ref() {
@@ -420,7 +420,7 @@ where
                 }
             } // end match
         } // end loop
-          // DO NOT FORGET calling end_pass
+        // DO NOT FORGET calling end_pass
         self.end_pass();
         //
         Ok(())
@@ -583,7 +583,7 @@ where
                 }
             }
         } // end of for
-          //
+        //
         log::info!(
             "sensitivity::sample_coreset coreset nb points :  {}",
             coreset.len()

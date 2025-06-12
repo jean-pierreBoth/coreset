@@ -26,8 +26,8 @@ use std::sync::Arc;
 use anyhow::anyhow;
 
 use rand::distr::{Distribution, Uniform};
-use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+use rand_xoshiro::rand_core::SeedableRng;
 
 use anndists::dist::*;
 
@@ -62,10 +62,10 @@ pub struct BmorState<DataId, T: Send + Sync + Clone, Dist: Distance<T>> {
 } // end of
 
 impl<
-        DataId: std::fmt::Debug + Clone + Send + Sync,
-        T: Send + Sync + Clone,
-        Dist: Distance<T> + Clone + Sync + Send,
-    > BmorState<DataId, T, Dist>
+    DataId: std::fmt::Debug + Clone + Send + Sync,
+    T: Send + Sync + Clone,
+    Dist: Distance<T> + Clone + Sync + Send,
+> BmorState<DataId, T, Dist>
 {
     pub(crate) fn new(
         k: usize,
@@ -376,6 +376,7 @@ where
     } // end of process_data
 
     //
+    #[allow(clippy::let_and_return)]
     /// declare end of streaming data.
     /// This method returns the facilities created.
     /// if contraction flag is set to true, a final pass of the bmor algorithm will be used to try to reduce the
