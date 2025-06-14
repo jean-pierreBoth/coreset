@@ -1,8 +1,10 @@
 [package]
 name = "nmi"
+author = ["jeanpierre.both@gmail.com"]
 keywords = ["clustering", "quality", "mutual_information"]
 description = "normalized mutual information"
-repository = "https://github.com/jean-pierreBoth/coreset"
+repository = "https://github.com/jean-pierreBoth/coreset/nmi"
+documentation = "https://docs.rs/nmi"
 version = "0.1.0"
 edition = "2024"
 
