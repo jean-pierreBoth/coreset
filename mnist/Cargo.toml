@@ -1,6 +1,6 @@
 [package]
 name = "mnist"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [lib]
@@ -31,15 +31,15 @@ csv = {workspace = true}
 anndists = {workspace = true}
 
 rayon = {workspace = true}
-# rand utils
+# rand utils, version 0.8 needed by clustering
 rand = { version = "0.8" }
 rand_distr = { version = "0.4" }
 rand_xoshiro = {version = "0.6"}
 
 # adhoc needs to check result
-#clustering = {version = "0.1"}
 clustering = { version = "0.2", features=["parallel"] }
 kmedoids = { version = "0.5" }
 
-coreset = { path = "../" }
-nmi = {path = "../nmi"}
+coreset = { path = "../", version = "0.1" }
+
+nmi = {path = "../nmi", version = "0.1"}

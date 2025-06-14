@@ -1,6 +1,6 @@
 [package]
 name = "coreset"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["jeanpierre.both@gmail.com"]
 description = "Coreset and (streaming) clustering"
 license = "MIT/Apache-2.0"

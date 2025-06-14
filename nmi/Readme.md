@@ -12,6 +12,8 @@ The various measures are described in the [contingency](./src/contingency.rs) fi
 
 We preferentially use *get_nmi_sqrt()*
 
+The trait [affectation](./src/affect.rs) is used to make the contingency table aware of of data versus label association.
+
 ## License
 
 Licensed under either of
