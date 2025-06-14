@@ -1,13 +1,18 @@
 [package]
 name = "fromhnsw"
-version = "0.1.0"
+authors = ["jeanpierre.both@gmail.com"]
+description = "Coreset and (streaming) clustering"
+keywords = ["clustering", "coreset", "streaming", "hnsw", "metric_spaces"]
+repository = "https://github.com/jean-pierreBoth/coreset"
+documentation = "https://docs.rs/fromhnsw"
+license = "MIT/Apache-2.0"
+readme = "README.md"
 edition = "2024"
+version = "0.1.0"
 
 [[bin]]
 name = "hnswcore"
 path = "src/bin/hnswcore.rs"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 

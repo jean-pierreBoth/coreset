@@ -3,8 +3,10 @@ name = "nmi"
 author = ["jeanpierre.both@gmail.com"]
 keywords = ["clustering", "quality", "mutual_information"]
 description = "normalized mutual information"
-repository = "https://github.com/jean-pierreBoth/coreset/nmi"
+repository = "https://github.com/jean-pierreBoth/coreset"
 documentation = "https://docs.rs/nmi"
+readme        = "Readme.md"
+license       = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2024"
 
