@@ -18,6 +18,7 @@ lazy_static! {
     static ref LOG: u64 = init_log();
 }
 
+#[allow(unused)]
 // install a logger facility
 fn init_log() -> u64 {
     let _res = env_logger::try_init();

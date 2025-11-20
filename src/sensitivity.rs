@@ -119,12 +119,12 @@ where
     } // end of get_weight
 
     /// returns an iterator on the id of data
-    pub fn get_data_ids(&self) -> hash_map::Keys<DataId, f64> {
+    pub fn get_data_ids(&self) -> hash_map::Keys<'_, DataId, f64> {
         self.id_weight_map.keys()
     }
 
     /// get an iterator on couples (id, weight)
-    pub fn get_items(&self) -> hash_map::Iter<DataId, f64> {
+    pub fn get_items(&self) -> hash_map::Iter<'_, DataId, f64> {
         self.id_weight_map.iter()
     }
 

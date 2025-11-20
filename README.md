@@ -1,32 +1,31 @@
 # coreset
 
-## Introduction 
+## Introduction
+
 This crate is devoted to clustering approximation, in metric spaces, of large number data of points.  
 Especially we are interested in cases where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
-A k-coreset is a sampled fraction summary of the whole data points called facilities. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  So searching a k-medoid clustering of the point facilites will be a good approximation 
+A k-coreset is a sampled fraction summary of the whole data points called facilities. The points are selected to approximate the cost of dispatching the original dataset to **every** subset of k points.  So searching a k-medoid clustering of the point facilites will be a good approximation
 to the clustering of the whole data.
 But the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
 This package comes in the form of a crate library and some sub crates:  
-- a sub crate *nmi* providing quality assesment via Normalized Mutual Information  
+
+- a sub crate *nmi* providing quality assesment via Normalized Mutual Information
 - a sub crate *mnist* providing io, benchmarks and examples on Mnist data.
 - a sub crate [fromhnsw](#fromhnsw)  providing an iterator over data stored in a Hnsw structure and a binary implementing clustering from a Hnsw structure (see [hnsw_rs](https://crates.io/crates/hnsw_rs))
-
 
 ## References to implemented algorithms
 
 1. We consider coreset construction as described in the paper:  
-    -  New Fraweworks for Offline and Streaming Coreset Constructions.   
+    - New Fraweworks for Offline and Streaming Coreset Constructions
            Braverman, Feldman, Lang, Statsman 2022
            [arxiv-v3](https://arxiv.org/abs/1612.00889)
 
-
-
 2. The coreset construction relies on  [$\alpha$,$\beta$] approximation in **metric spaces**.  For this step we use the paper :
     - Streaming k-means on well clustered data.  
-                Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011 
+                Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011
                 [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
 
 3. Normalized Mutual information is based on the paper:  
@@ -39,7 +38,6 @@ This package comes in the form of a crate library and some sub crates:
        - takes into accound points weights,
        - random parturbation of cluster pairs with centroids too near of each other.
 
-
 ### Results
 
 Results and examples are given in the *mnistcheck* sub-crate.
@@ -50,18 +48,18 @@ implemented in the sub-crate **nmi**.
 Detailed results are given [here](./Results.md).
 
 #### Conclusion
+
 Even with our simplistic weighted kmedoid implementation, the costs are, on the average less than 5% above the reference cost obtained by **par_fastermap**, and  within 8% at 2 or 3 std deviations depending on the number of iterations in the kmedoid.  
 Normalized information shows that the coreset+kmedoid and **par_fastermap** behave consistently across the mnist data benchmarks.  
 The number of iterations for the Kmedoid have a small impact on speed and 25 iterations (with 10 clusters asked) are a good compromise.  
 
 **The speed is one or two  order magnitude faster** without having to store a whole distance matrix.
 
-
-## Usage 
+## Usage
 
 The data must be associated to a structure implementing the trait **MakeIter**:  
 
-```
+```rust
 pub trait MakeIter {
     /// The identificator of a data
     type Item;
@@ -80,6 +78,7 @@ corresponding modules.
 The distances are provided by the crate [anndists](https://crates.io/crates/anndists).
 
 <a id="Fromhnsw"></a>
+
 ## Fromhnsw
 
 The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset or coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md).
@@ -92,7 +91,7 @@ To compile the whole crate (and subcrate *fromhnsw*) enabling coreset computatio
 To get the whole doc:  
 **cargo doc --workspace --no-deps**
 
-### Simd 
+### Simd
 
 The crate anndists provides simd via 2 features *simdeez_f* on Intel, or stdsimd (portable but requires rust nightly). You can choose the feature you want in Cargo.toml of this crate or use the --features in the cargo command.
 
@@ -100,7 +99,7 @@ The crate anndists provides simd via 2 features *simdeez_f* on Intel, or stdsimd
 
 Licensed under either of
 
-* Apache License, Version 2.0, [LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>
-* MIT license [LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>
+- Apache License, Version 2.0, [LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>
+- MIT license [LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>
 
 at your option.

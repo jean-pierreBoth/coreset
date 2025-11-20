@@ -331,11 +331,11 @@ where
             .collect::<Vec<f64>>()
     }
 
-    pub fn get_row(&self, row: usize) -> ArrayView1<usize> {
+    pub fn get_row(&self, row: usize) -> ArrayView1<'_, usize> {
         self.table.row(row)
     }
 
-    pub fn get_col(&self, col: usize) -> ArrayView1<usize> {
+    pub fn get_col(&self, col: usize) -> ArrayView1<'_, usize> {
         self.table.column(col)
     }
 
@@ -343,7 +343,7 @@ where
         self.table.dim()
     }
 
-    pub fn get_table(&self) -> ArrayView2<usize> {
+    pub fn get_table(&self) -> ArrayView2<'_, usize> {
         self.table.view()
     }
 
