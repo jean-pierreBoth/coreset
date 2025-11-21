@@ -13,10 +13,10 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::cmp::Ordering;
 use std::iter::Iterator;
 
-use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
+use rand_xoshiro::rand_core::SeedableRng;
 
-use ndarray::{Array1, Array2};
+use ndarray::Array1;
 
 use anndists::prelude::*;
 use coreset::prelude::*;
@@ -165,26 +165,33 @@ where
     // compute matrix distance (possibly subsampled)
     let nbpoints = images.len();
     // allocates to zero rows. We will computes rows in //
-    let mut distances_mat = Array2::<f32>::zeros((0, nbpoints));
+    let nbdist = nbpoints * (nbpoints - 1) / 2;
+    let mut distances_mat = kmedoids::arrayadapter::LowerTriangle {
+        n: nbdist,
+        data: vec![0.; nbdist],
+    };
+    //    let mut distances_mat = Array2::<f32>::zeros((0, nbpoints));
     //
     let compute_row = |i| -> Array1<f32> {
         let mut row_i = Array1::zeros(nbpoints);
         for j in 0..nbpoints {
-            if j != i {
+            if j < i {
                 row_i[j] = distance.eval(&images[i], &images[j]);
             }
         }
         row_i
     };
     //
-    let rows: Vec<(usize, Array1<f32>)> = (0..nbpoints)
+    let rows: Vec<(usize, Array1<f32>)> = (1..nbpoints)
         .into_par_iter()
         .map(|i| (i, compute_row(i)))
         .collect();
     // now we have rows we must transfer into distances
     for (r, v) in &rows {
-        assert_eq!(*r, distances_mat.shape()[0]);
-        distances_mat.push_row(v.into()).unwrap();
+        //       assert_eq!(*r, distances_mat.shape()[0]);
+        distances_mat
+            .data
+            .append(&mut v.as_slice().unwrap().to_vec());
     }
     println!(
         "distance computations  sys time(ms) {:?} cpu time(ms) {:?}",
@@ -192,11 +199,15 @@ where
         cpu_start.elapsed().as_millis()
     );
     // choose initialization
-    let mut meds = kmedoids::random_initialization(nbpoints, nbcluster, &mut rand::thread_rng());
+    let mut meds = kmedoids::random_initialization(nbpoints, nbcluster, &mut rand::rng());
     //
     let (loss, assignment, _n_iter, _n_swap): (f64, _, _, _) =
         kmedoids::par_fasterpam(&distances_mat, &mut meds, 100, &mut rng);
-    println!("\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}\n\n ", sys_now.elapsed().unwrap().as_millis(), cpu_start.elapsed().as_millis());
+    println!(
+        "\n\n kmedoids reference distance computations + faster pam  sys time(ms) {:?} cpu time(ms) {:?}\n\n ",
+        sys_now.elapsed().unwrap().as_millis(),
+        cpu_start.elapsed().as_millis()
+    );
     //
     // compute information merit
     //
@@ -326,7 +337,9 @@ pub fn coreset1<Dist: Distance<f32> + Sync + Send + Clone>(
             // we do a direct median clustering with kmedoid crate
             //
             println!("=================================================");
-            log::info!("kmedoid reference and nmi analysis between coreset result and kmedoid results \n\n ");
+            log::info!(
+                "kmedoid reference and nmi analysis between coreset result and kmedoid results \n\n "
+            );
             let (_, kmedoid_affectation) =
                 kmedoids_reference(images, labels, nb_cluster, &distance);
             //
