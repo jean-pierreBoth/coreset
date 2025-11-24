@@ -8,23 +8,17 @@ As a library provides module to reload datamap from hnsw and an iterator for cor
 
 The documentation of the binary **hcore** explains the parameters of the command and ouptut
 which has two forms:
-  - **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**
+
+- **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename**
   or in its complete form:  
-  - **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename  clustercore --cluster nbcluster [--beta b] [--gamma g] --**
-  - 
-
-
+- **hnscore  --dir (-d) dirname  --fname (-f) hnswname  --typename (-t) typename  clustercore --cluster nbcluster [--beta b] [--gamma g] --**
 
 ## Building
 
 To compile the whole crate run:  
 **cargo build --release --workspace --all**
-
+and for the doc:
 **cargo doc --no-deps --all**
-
 
 To compile the subcrate *fromhnsw* enabling coreset computations on hnsw data run :  
 **cargo build --release --all  --bin hcore**
-
-
-

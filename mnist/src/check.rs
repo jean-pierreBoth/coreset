@@ -42,7 +42,6 @@ impl MnistParams {
 
 //================================================================================================
 
-#[allow(unused)]
 // computes sum of distance  of coreset points to nearest cluster centers
 pub fn dispatch_coreset<Dist>(
     coreset: &CoreSet<usize, f32, Dist>,
@@ -88,7 +87,7 @@ where
         }
         assert!(best_d.is_finite());
         // TODO: exponent for dist!!!
-        error += (w_id * best_d as f64);
+        error += w_id * best_d as f64;
     }
     //
     error
@@ -142,7 +141,6 @@ where
 
 //
 
-#[allow(unused)]
 // call kmedoids to compare
 fn kmedoids_reference<Dist>(
     images: &[Vec<f32>],
@@ -187,7 +185,7 @@ where
         .map(|i| (i, compute_row(i)))
         .collect();
     // now we have rows we must transfer into distances
-    for (r, v) in &rows {
+    for (_r, v) in &rows {
         //       assert_eq!(*r, distances_mat.shape()[0]);
         distances_mat
             .data
