@@ -16,15 +16,22 @@ edition = "2024"
 # if we want to avoid specifying in advance crate-type 
 path = "src/lib.rs"
 
+[[example]]
+name = "mnist_digits"
+path = "examples/mnist_digits.rs"
 
+
+[[example]]
+name = "mnist_fashion"
+path = "examples/mnist_fashion.rs"
 
 [workspace]
-members = ["fromhnsw", "nmi", "mnist"]
+members = ["fromhnsw", "nmi"]
 
 # common depencies versions
 [workspace.dependencies]
 
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 bincode = { version = "1.3" }
 
@@ -47,9 +54,9 @@ lazy_static = { version = "1.5" }
 
 anyhow = { version = "1.0" }
 katexit = { version = "0.1" }
-csv = { version = "1.3" }
 
 ndarray = { version = ">=0.16.0, <0.18" }
+nmi = {version = "0.1"}
 
 anndists = { version = "0.1" }
 #anndists = { path = "../anndists" }
@@ -107,8 +114,16 @@ katexit = { workspace = true }
 
 anndists = { workspace = true }
 
+[dependencies.nmi]
+version = "0.1"
+path = "./nmi"
+
 
 [dev-dependencies]
+# adhoc needs to check result
+clustering = { version = "0.2.2", features=["parallel"] }
+kmedoids = { version = "0.5.4" }
+csv = { version = "1.3" }
 
 
 

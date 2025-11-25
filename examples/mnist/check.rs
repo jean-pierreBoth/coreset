@@ -7,6 +7,7 @@
 use clustering::*;
 
 use cpu_time::ProcessTime;
+use kmedoids::ArrayAdapter;
 use std::time::SystemTime;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -19,11 +20,12 @@ use rand_xoshiro::rand_core::SeedableRng;
 use ndarray::Array1;
 
 use anndists::prelude::*;
-use coreset::prelude::*;
 
 use super::iter::*;
 
 use nmi::*;
+
+use coreset::prelude::*;
 
 #[allow(unused)]
 pub struct MnistParams {
@@ -163,16 +165,15 @@ where
     // compute matrix distance (possibly subsampled)
     let nbpoints = images.len();
     // allocates to zero rows. We will computes rows in //
-    let nbdist = nbpoints * (nbpoints - 1) / 2;
     let mut distances_mat = kmedoids::arrayadapter::LowerTriangle {
-        n: nbdist,
-        data: vec![0.; nbdist],
+        n: nbpoints,
+        data: Vec::<f32>::new(),
     };
     //    let mut distances_mat = Array2::<f32>::zeros((0, nbpoints));
     //
     let compute_row = |i| -> Array1<f32> {
-        let mut row_i = Array1::zeros(nbpoints);
-        for j in 0..nbpoints {
+        let mut row_i = Array1::zeros(i);
+        for j in 0..i {
             if j < i {
                 row_i[j] = distance.eval(&images[i], &images[j]);
             }
@@ -185,12 +186,14 @@ where
         .map(|i| (i, compute_row(i)))
         .collect();
     // now we have rows we must transfer into distances
-    for (_r, v) in &rows {
+    for (_i, v) in &rows {
         //       assert_eq!(*r, distances_mat.shape()[0]);
         distances_mat
             .data
             .append(&mut v.as_slice().unwrap().to_vec());
     }
+    log::info!("distances_mat len {}", distances_mat.data.len());
+    assert!(distances_mat.is_square());
     println!(
         "distance computations  sys time(ms) {:?} cpu time(ms) {:?}",
         sys_now.elapsed().unwrap().as_millis(),

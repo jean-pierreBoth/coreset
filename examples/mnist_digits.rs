@@ -1,101 +1,25 @@
-//! Structure and functions to read MNIST fashion database
-//! To run the examples change the line :  
+//! Structure and functions to read MNIST digits database
+//! To run the examples change in main the line :  
 //!
-//! const MNIST_FASHION_DIR : &'static str = "/home.1/jpboth/Data/Fashion-MNIST/";
+//! const MNIST_DIGITS_DIR_CSV : &'static str = "/home/jpboth/Data/MNIST/";
 //!
-//! command : mnist_fashion  --algo imp, bmor or coreset1
-//! The coreset1 runs also a final kmedoids
-//!
-//! The data can be downloaded in the same format as the FASHION database from:  
-//!
-//! <https://github.com/zalandoresearch/fashion-mnist/tree/master/data/fashion>
-//!
+//! to whatever directory you downloaded the [MNIST digits data](https://www.kaggle.com/datasets/hojjatk/mnist-dataset)
+
+mod mnist;
 
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
 
 use anndists::dist::*;
-use coreset::prelude::*;
-use std::iter::Iterator;
 
 use mnist::{check::*, io::*};
 
 //============================================================================================
 
-fn marrupaxton<Dist: Distance<f32> + Sync + Send + Clone>(
-    _params: &MnistParams,
-    images: &[Vec<f32>],
-    labels: &[u8],
-    distance: Dist,
-) {
-    //
-    let mpalgo = MettuPlaxton::<f32, Dist>::new(images, distance);
-    let alfa = 0.75;
-    let mut facilities = mpalgo.construct_centers(alfa);
-    //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);
-    //
-    let nb_facility = facilities.len();
-    for i in 0..nb_facility {
-        let facility = facilities.get_facility(i).unwrap();
-        log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
-        facility.read().log();
-        let map = &labels_distribution[i];
-        for (key, val) in map.iter() {
-            println!("key: {key} val: {val}");
-        }
-    }
-    //
-    mpalgo.compute_distances(&facilities);
-}
-
-//========================================================
-
-fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
-    _params: &MnistParams,
-    images: &[Vec<f32>],
-    labels: &[u8],
-    distance: Dist,
-) {
-    //
-    // if gamma increases, number of facilities increases.
-    // if beta increases , upper bound on cost increases faster so the number of phases decreases
-    let beta = 2.;
-    let gamma = 2.;
-    let mut bmor_algo: Bmor<usize, f32, Dist> = Bmor::new(10, 70000, beta, gamma, distance);
-    //
-    let ids = (0..images.len()).collect::<Vec<usize>>();
-    let res = bmor_algo.process_data(images, &ids);
-    if res.is_err() {
-        std::panic!("bmor failed");
-    }
-    //
-    // do we ask for a supplementary contraction pass
-    let contraction = false;
-    let mut facilities = bmor_algo.end_data(contraction);
-    //
-    let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);
-    //
-    let nb_facility = facilities.len();
-    for i in 0..nb_facility {
-        let facility = facilities.get_facility(i).unwrap();
-        log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
-        facility.read().log();
-        let map = &labels_distribution[i];
-        for (key, val) in map.iter() {
-            println!("key: {key} val: {val}");
-        }
-    }
-    //
-    facilities.cross_distances();
-}
-
-//=====================================================================
-
 pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
     log::debug!("in parse_cmd");
     if matches.contains_id("algo") {
-        println!("decoding argument algo");
+        log::debug!("decoding argument algo");
         let algoname = matches.get_one::<String>("algo").expect("");
         log::debug!(" got algo : {:?}", algoname);
         match algoname.as_str() {
@@ -113,7 +37,7 @@ pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
             }
             //
             _ => {
-                log::error!(" algo must be imp or bmor or coreset1 ");
+                log::error!(" algo must be imp or bmor");
                 std::process::exit(1);
             }
         }
@@ -122,20 +46,99 @@ pub fn parse_cmd(matches: &ArgMatches) -> Result<MnistParams, anyhow::Error> {
     Err(anyhow::anyhow!("bad command"))
 } // end of parse_cmd
 
-//========================================================
+//=============================================================================================
+
+fn marrupaxton<Dist: Distance<f32> + Sync + Send + Clone>(
+    _params: &MnistParams,
+    images: &[Vec<f32>],
+    labels: &[u8],
+    distance: Dist,
+) {
+    //
+    log::info!("in marrupaxton");
+    //
+    let mpalgo = MettuPlaxton::<f32, Dist>::new(images, distance);
+    let alfa = 1.;
+    let mut facilities = mpalgo.construct_centers(alfa);
+    //
+    let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);
+    //
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_facility(i).unwrap();
+        log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
+        facility.read().log();
+        let map = &labels_distribution[i];
+        for (key, val) in map.iter() {
+            println!("key: {key} val: {val}");
+        }
+    }
+    //
+    mpalgo.compute_distances(&facilities);
+} // end of marrupaxton
+
+//=================================================================================================
+
+fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
+    _params: &MnistParams,
+    images: &[Vec<f32>],
+    labels: &[u8],
+    distance: Dist,
+) {
+    //
+    log::info!("in bmor");
+    // we increase a little coefficients to get more facilities
+    let beta = 2.2;
+    let gamma = 2.2;
+    let mut bmor_algo = Bmor::new(10, 70000, beta, gamma, distance);
+    //
+    let ids = (0..images.len()).collect::<Vec<usize>>();
+    let res = bmor_algo.process_data(images, &ids);
+    if res.is_err() {
+        std::panic!("bmor failed");
+    }
+    let nb_facility = res.unwrap();
+    log::info!("got nb facilities : {:?}", nb_facility);
+    // do we ask for a supplementary contraction pass
+    let contraction = false;
+    //============================
+    let mut facilities = bmor_algo.end_data(contraction);
+    //
+    let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);
+    //
+    let nb_facility = facilities.len();
+    for i in 0..nb_facility {
+        let facility = facilities.get_facility(i).unwrap();
+        log::info!("\n\n facility : {:?}, entropy : {:.3e}", i, entropies[i]);
+        facility.read().log();
+        let map = &labels_distribution[i];
+        for (key, val) in map.iter() {
+            println!("key: {key} val: {val}");
+        }
+    }
+    //
+    facilities.cross_distances();
+} // end of bmor
+
+//=====================================================================
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
-const MNIST_FASHION_DIR_NOT_CSV: &str = "/home/jpboth/Data/ANN/Fashion-MNIST/";
-const MNIST_FASHION_DIR_CSV: &str = "/home/jpboth/Data/MnistFashionCsv";
+use coreset::prelude::*;
+
+// for data in old non csv format
+const MNIST_DIGITS_DIR_NOT_CSV: &str = "/home/jpboth/Data/ANN/MNIST";
+
+// for data in csv format
+const MNIST_DIGITS_DIR_CSV: &str = "/home/jpboth/Data/MnistDigitsCsv";
 
 pub fn main() {
     //
     let _ = env_logger::builder().is_test(true).try_init();
     //
-    log::info!("\n\n running mnist_fashion \n ==========================");
+    log::info!("\n\n running mnist_digits");
     //
-    let matches = Command::new("mnist_fashion")
+    let matches = Command::new("mnist_digits")
         //        .subcommand_required(true)
         .arg_required_else_help(true)
         .arg(
@@ -151,24 +154,21 @@ pub fn main() {
     //
     let mnist_params = parse_cmd(&matches).unwrap();
     //
-    //
     let csv_format = false;
     //
     let (labels, images_as_v) = if csv_format {
         log::info!(
             "in mnist_digits, reading mnist data original idx bianry ...from {}",
-            MNIST_FASHION_DIR_CSV
+            MNIST_DIGITS_DIR_CSV
         );
-        io_from_csv(MNIST_FASHION_DIR_CSV).unwrap()
+        io_from_csv(MNIST_DIGITS_DIR_CSV).unwrap()
     } else {
         log::info!(
             "in mnist_digits, reading mnist data in CSV format ...from {}",
-            MNIST_FASHION_DIR_NOT_CSV
+            MNIST_DIGITS_DIR_NOT_CSV
         );
-        io_from_non_csv(MNIST_FASHION_DIR_NOT_CSV).unwrap()
+        io_from_non_csv(MNIST_DIGITS_DIR_NOT_CSV).unwrap()
     };
-    //
-    // test mettu-plaxton or bmor algo
     //
     let cpu_start = ProcessTime::now();
     let sys_now = SystemTime::now();
@@ -190,40 +190,6 @@ pub fn main() {
         sys_now.elapsed().unwrap().as_millis(),
         cpu_time.as_millis()
     );
-} // end of main
+} // end of main digits
 
 //============================================================================================
-
-#[cfg(test)]
-
-mod tests {
-
-    use super::*;
-    use std::fs::OpenOptions;
-    use std::path::PathBuf;
-    // test and compare some values obtained with Julia loading
-
-    #[test]
-    fn test_load_mnist_fashion() {
-        let mut image_fname = String::from(MNIST_FASHION_DIR_NOT_CSV);
-        image_fname.push_str("train-images-idx3-ubyte");
-        let image_path = PathBuf::from(image_fname.clone());
-        let image_file_res = OpenOptions::new().read(true).open(&image_path);
-        if image_file_res.is_err() {
-            println!("could not open image file : {:?}", image_fname);
-            return;
-        }
-
-        let mut label_fname = String::from(MNIST_FASHION_DIR_NOT_CSV);
-        label_fname.push_str("train-labels-idx1-ubyte");
-        let label_path = PathBuf::from(label_fname.clone());
-        let label_file_res = OpenOptions::new().read(true).open(&label_path);
-        if label_file_res.is_err() {
-            println!("could not open label file : {:?}", label_fname);
-            return;
-        }
-
-        let _mnist_data = MnistData::new(image_path, label_path).unwrap();
-        // check some value of the tenth images
-    } // end test_load
-} // end module tests
