@@ -1,15 +1,15 @@
 # Results for the Bmor algorithm
 
-### Streaming k-means on well clustered data
+## Streaming k-means on well clustered data
 
-#### running in one pass. (~ 130 facilities)
+### running in one pass. (~ 130 facilities)
 
 |  mnist  | mean entropy | cost  | nb facility |
 | :-----: | :----------: | :---: | :---------: |
-| digits  |     0.74     | 20.5  |     170     |
-| fashion |     0.77     | 25.7  |     170     |
+| digits  |     0.74     | 20.5  |     150     |
+| fashion |     0.77     | 25.7  |     109     |
 
-This algorithm runs on both Mnist data in less than 1s on a i9 laptop.
+This algorithm runs on both Mnist data in less than 1s (sys time) on a i9 laptop.
 
 #### running with post contraction of number of facilities. (~ 70 facilities)
 
@@ -19,7 +19,7 @@ The cost is the mean of L2 distance of each of the  0 images to its nearest faci
 
 |  mnist  | mean entropy | cost  | nb facility |
 | :-----: | :----------: | :---: | :---------: |
-| digits  |     0.84     | 21.3  |     75      |
-| fashion |    0.837     | 17.8  |     75      |
-    
-Note : the  *Badoiu, Czumaj, Indyk, Sohler ICALP 2005* algorithm (at least for our implementation) requires 10s system time and high threading to get similar entropy and costs. 
+| digits  |     0.84     | 21.6  |     75      |
+| fashion |    0.837     | 26.4  |     70      |
+
+Note : the  *Badoiu, Czumaj, Indyk, Sohler ICALP 2005* algorithm (at least for our implementation) requires 10s system time and high threading to get similar entropy and costs.

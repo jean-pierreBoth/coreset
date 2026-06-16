@@ -12,6 +12,8 @@ pub mod discrete;
 pub mod makeiter;
 
 pub mod clustercore;
+pub mod fromhnsw;
+pub mod nmi;
 pub mod wkmedian;
 
 lazy_static! {

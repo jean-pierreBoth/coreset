@@ -7,7 +7,7 @@ use indexmap::map::Keys;
 
 use hnsw_rs::datamap::DataMap;
 
-use coreset::makeiter::MakeIter;
+use crate::makeiter::MakeIter;
 
 /// The structure implementing MakeIter trait for Hnsw data
 pub struct HnswMakeIter<'a, T> {
@@ -65,7 +65,6 @@ where
 
     fn makeiter(&self) -> impl Iterator<Item = <Self as MakeIter>::Item> {
         let _keys = self.datamap.get_dataid_iter();
-        let hnswiter = HnswIter::<'a, T>::new(self.datamap);
-        hnswiter
+        HnswIter::<'a, T>::new(self.datamap)
     }
 }

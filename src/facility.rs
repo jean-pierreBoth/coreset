@@ -157,10 +157,10 @@ pub struct Facilities<DataId, T: Send + Sync + Clone, Dist: Distance<T>> {
 } // end of struct Facilities
 
 impl<
-        DataId: std::fmt::Debug + Clone + Send + Sync,
-        T: Send + Sync + Clone,
-        Dist: Distance<T> + Send + Sync,
-    > Facilities<DataId, T, Dist>
+    DataId: std::fmt::Debug + Clone + Send + Sync,
+    T: Send + Sync + Clone,
+    Dist: Distance<T> + Send + Sync,
+> Facilities<DataId, T, Dist>
 {
     /// to be allocated , size should be log(nb_data)
     pub fn new(size: usize, distance: Dist) -> Self {
@@ -366,8 +366,8 @@ impl<
         //
         log::info!("in facilities::dispatch_data");
         //
-        if weights.is_some() {
-            assert_eq!(data.len(), weights.unwrap().len());
+        if let Some(w) = weights {
+            assert_eq!(data.len(), w.len());
         }
         // keep facilities but empty facilities keep them at their position
         self.empty();
@@ -575,8 +575,14 @@ impl<
         }
         //
         println!("\n inter facility distances quantiles : ");
-        println!("\n distance quantiles at  0.01 : {:.2e}, 0.05 :  {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} ", 
-        q_dist.query(0.01).unwrap().1, q_dist.query(0.05).unwrap().1, q_dist.query(0.1).unwrap().1, q_dist.query(0.5).unwrap().1,  q_dist.query(0.75).unwrap().1);
+        println!(
+            "\n distance quantiles at  0.01 : {:.2e}, 0.05 :  {:.2e},   0.1 : {:.2e} , 0.5 : {:.2e}, 0.75 :  {:.2e} ",
+            q_dist.query(0.01).unwrap().1,
+            q_dist.query(0.05).unwrap().1,
+            q_dist.query(0.1).unwrap().1,
+            q_dist.query(0.5).unwrap().1,
+            q_dist.query(0.75).unwrap().1
+        );
         //
         log::debug!("\n cross distances : {:.3e}", distances);
     } // end of cross_distances

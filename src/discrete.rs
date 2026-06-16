@@ -2,8 +2,8 @@
 //!
 
 use num_traits::float::Float;
-use rand::distr::Uniform;
 use rand::Rng;
+use rand::distr::{Distribution, Uniform};
 
 use std::cmp::Ordering;
 
@@ -41,7 +41,7 @@ impl<F: Float + std::fmt::Debug + rand_distr::uniform::SampleUniform> DiscretePr
     /// returns slot sampled and associated proba
     pub fn sample<R: Rng>(&self, rng: &mut R) -> (usize, F) {
         //
-        let xsi: F = rng.sample(&self.unif);
+        let xsi: F = self.unif.sample(rng);
         log::trace!("sampled xsi : {:?}", xsi);
         let slot = self
             .repartition
@@ -76,8 +76,8 @@ impl<F: Float + std::fmt::Debug + rand_distr::uniform::SampleUniform> DiscretePr
 mod tests {
 
     use super::*;
-    use rand_xoshiro::rand_core::SeedableRng;
     use rand_xoshiro::Xoshiro256PlusPlus;
+    use rand_xoshiro::rand_core::SeedableRng;
 
     fn log_init_test() {
         let _ = env_logger::builder().is_test(true).try_init();

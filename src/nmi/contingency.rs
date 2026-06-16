@@ -89,7 +89,7 @@ where
         }
         // convert to a vector giving label in function of row or column
         let mut to_labels1 = Vec::<DataLabel>::with_capacity(labels1.len());
-        for (_rank, l) in labels1.iter().enumerate() {
+        for l in labels1.iter() {
             to_labels1.push(*l);
         }
         //
@@ -100,7 +100,7 @@ where
         }
         // convert to a vector giving label in function of row or column
         let mut to_labels2 = Vec::<DataLabel>::with_capacity(labels2.len());
-        for (_rank, l) in labels2.iter().enumerate() {
+        for l in &labels2 {
             to_labels2.push(*l);
         }
 

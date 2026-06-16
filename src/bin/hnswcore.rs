@@ -45,19 +45,18 @@
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
 
-use coreset::prelude::*;
-
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use std::default::Default;
 
-use fromhnsw::getdatamap::get_typed_datamap;
 use hnsw_rs::datamap::*;
 use hnsw_rs::prelude::*;
 
-use fromhnsw::hnswiter::HnswMakeIter;
-
 use quantiles::ckms::CKMS;
-use rand::Rng;
+use rand::prelude::*;
+
+use coreset::fromhnsw::getdatamap::get_typed_datamap;
+use coreset::fromhnsw::hnswiter::HnswMakeIter;
+use coreset::prelude::*;
 
 //========================================
 // Parameters
@@ -235,9 +234,16 @@ where
     }
     //
     println!("statistics on sampled distances : ");
-    println!("\n distance quantiles at  0.005 : {:.2e} , 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-    q_dist.query(0.005).unwrap().1, q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1, q_dist.query(0.25).unwrap().1,
-    q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.99).unwrap().1);
+    println!(
+        "\n distance quantiles at  0.005 : {:.2e} , 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n",
+        q_dist.query(0.005).unwrap().1,
+        q_dist.query(0.01).unwrap().1,
+        q_dist.query(0.025).unwrap().1,
+        q_dist.query(0.25).unwrap().1,
+        q_dist.query(0.5).unwrap().1,
+        q_dist.query(0.75).unwrap().1,
+        q_dist.query(0.99).unwrap().1
+    );
 }
 
 //===========================================================

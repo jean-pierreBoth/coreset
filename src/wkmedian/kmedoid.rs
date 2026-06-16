@@ -13,13 +13,9 @@
 
 use ndarray::Array2;
 
-use rand::{
-    distr::{Distribution, Uniform},
-    Rng,
-};
-use rand_xoshiro::rand_core::SeedableRng;
+use rand::distr::{Distribution, Uniform};
 use rand_xoshiro::Xoshiro256PlusPlus;
-
+use rand_xoshiro::rand_core::SeedableRng;
 
 use cpu_time::ProcessTime;
 use std::time::{Duration, SystemTime};
@@ -133,11 +129,14 @@ where
         log::info!("Kmedoid received coreset of size : {}", nbpoints);
         // must check for that!
         let nb_cluster = if nbpoints <= nb_cluster_arg {
-            log::info!("asked number of cluster : {} is greater than number of points : {}", nb_cluster_arg, nbpoints);
-            log::info!("setting number of cluster to :{}", nbpoints/10);
-            nbpoints/10
-        }
-        else {
+            log::info!(
+                "asked number of cluster : {} is greater than number of points : {}",
+                nb_cluster_arg,
+                nbpoints
+            );
+            log::info!("setting number of cluster to :{}", nbpoints / 10);
+            nbpoints / 10
+        } else {
             nb_cluster_arg
         };
         // weight[i] corresponds to row[i] in distance matrix. From now on all computation use center as raks and no ids.
@@ -150,9 +149,7 @@ where
         assert_eq!(weights.len(), nbpoints);
         //
         let membership = (0..nbpoints).map(|_| u32::MAX).collect();
-        let medoids = (0..nb_cluster)
-            .map(|_| Medoid::default())
-            .collect();
+        let medoids = (0..nb_cluster).map(|_| Medoid::default()).collect();
         //
         //
         Kmedoid {
@@ -169,7 +166,7 @@ where
 
     /// nb_iter is maximal number of iterations  
     /// returns best result as couple (iteration, cost)
-    pub fn compute_medians(&mut self, nb_iter : usize) -> (usize, f32) {
+    pub fn compute_medians(&mut self, nb_iter: usize) -> (usize, f32) {
         //
         log::info!("\n\n entering Kmedoid::Kmedoid");
         self.d_quantiles = self.quantile_estimator();
@@ -211,7 +208,11 @@ where
         monitoring.push((0, last_cost));
         let mut best_iter = (0, last_cost);
         //
-        log::info!("medoids initialized , nb medoids : {}, global cost : {:.3e}", costs.len(), last_cost);
+        log::info!(
+            "medoids initialized , nb medoids : {}, global cost : {:.3e}",
+            costs.len(),
+            last_cost
+        );
         log::info!(
             "kmedoid initialization  sys time(ms) {:?} cpu time(ms) {:?}\n ",
             sys_now.elapsed().unwrap().as_millis(),
@@ -226,7 +227,7 @@ where
             // recompute centers from membership and update clusters costs:  Cpu cost is here
             let centers_and_costs = self.membership_to_centers(&membership_and_dist);
             assert_eq!(self.nb_cluster, centers_and_costs.0.len());
-            for (i,cc) in centers_and_costs.0.iter().enumerate() {
+            for (i, cc) in centers_and_costs.0.iter().enumerate() {
                 centers[i] = cc.0 as u32
             }
             // compute global cost
@@ -235,12 +236,10 @@ where
             if iter_cost >= last_cost && !perturbation {
                 log::debug!("iteration got a local minimum : {}", iteration);
                 let res = self.quality_summary(&perturbation_set, false);
-                if res.is_some() {
-                    let couple = res.unwrap();
+                if let Some(couple) = res {
                     if couple.0 < couple.1 {
                         perturbation_set.push(couple);
-                    }
-                    else {
+                    } else {
                         perturbation_set.push((couple.1, couple.0));
                     }
                     let size = medoids.len();
@@ -261,10 +260,18 @@ where
             } else {
                 perturbation = false;
                 last_cost = iter_cost;
-                log::debug!("medoid iteration {}, global cost : {:.3e}", iteration, last_cost);
+                log::debug!(
+                    "medoid iteration {}, global cost : {:.3e}",
+                    iteration,
+                    last_cost
+                );
                 // we must store our best state
                 if iter_cost < best_iter.1 {
-                    log::debug!("medoid iteration best : {}, global cost : {:.3e}", iteration, last_cost);
+                    log::debug!(
+                        "medoid iteration best : {}, global cost : {:.3e}",
+                        iteration,
+                        last_cost
+                    );
                     best_iter = (iteration, iter_cost);
                     self.store_state(&centers_and_costs, &membership_and_dist);
                 }
@@ -273,7 +280,11 @@ where
                 assert_eq!(membership_and_dist.0.len(), self.membership.len());
                 iteration += 1;
                 if iteration >= nb_iter {
-                    log::info!("medoid exiting iteration best : {}, global cost : {:.3e}", iteration, last_cost);
+                    log::info!(
+                        "medoid exiting iteration best : {}, global cost : {:.3e}",
+                        iteration,
+                        last_cost
+                    );
                     break;
                 }
             }
@@ -297,7 +308,7 @@ where
     /// stores data vectors for each cluster
     pub(crate) fn retrieve_cluster_centers<IterProducer>(&mut self, iter_producer: &IterProducer)
     where
-        IterProducer: MakeIter<Item = (DataId,Vec<T>)>,
+        IterProducer: MakeIter<Item = (DataId, Vec<T>)>,
     {
         //
         // get a list of ids to find, then scan data
@@ -316,7 +327,12 @@ where
                 if centers_ids[i] == data_id {
                     centers_data[i] = data;
                     nb_found += 1;
-                    log::trace!(" center rank {},  centers_ids[i] : {:?}, coordinates : {:?}", i, data_id,centers_data[i].first());
+                    log::trace!(
+                        " center rank {},  centers_ids[i] : {:?}, coordinates : {:?}",
+                        i,
+                        data_id,
+                        centers_data[i].first()
+                    );
                     break;
                 }
             }
@@ -324,7 +340,7 @@ where
                 break;
             }
         } // end on data
-          //
+        //
         assert!(nb_found == centers_ids.len());
         //
         self.centers = Some(centers_data);
@@ -393,11 +409,10 @@ where
     }
 
     /// return the data id of cluster of rank
-    pub fn get_center_id(&self, k : usize) -> Result<DataId, u8> {
+    pub fn get_center_id(&self, k: usize) -> Result<DataId, u8> {
         if k < self.medoids.len() {
             Ok(self.medoids[k].get_center_id())
-        }
-        else {
+        } else {
             Err(1)
         }
     }
@@ -445,7 +460,7 @@ where
         );
         // we maintain costs to current state of centers through iterations.
         let mut costs_to_centers = vec![0.0f32; self.weights.len()];
-        for (i,w) in self.weights.iter().enumerate() {
+        for (i, w) in self.weights.iter().enumerate() {
             if i == max_item.0 {
                 costs_to_centers[i] = 0.;
             } else {
@@ -456,7 +471,7 @@ where
         loop {
             // search max in costs_to_centers
             max_item = (usize::MAX, 0.0);
-            for (i,cost) in costs_to_centers.iter().enumerate() {
+            for (i, cost) in costs_to_centers.iter().enumerate() {
                 let cost_i = *cost as f64;
                 if cost_i > max_item.1 {
                     max_item = (i, cost_i);
@@ -484,7 +499,8 @@ where
                 if already[i] {
                     costs_to_centers[i] = 0.;
                 } else {
-                    costs_to_centers[i] = costs_to_centers[i].max(self.distance[[max_item.0, i]] * (self.weights[i] as f32));
+                    costs_to_centers[i] = costs_to_centers[i]
+                        .max(self.distance[[max_item.0, i]] * (self.weights[i] as f32));
                 };
             }
         }
@@ -522,12 +538,12 @@ where
         );
         // now search a center for each other cluster
         assert_eq!(already.len(), self.distance.ncols());
-        // 
+        //
         for c in 1..self.nb_cluster {
             let dmax: f32 = 0.;
             // search element furthest away from already chosen centers
             let mut cost_item: (usize, f32, f32) = (usize::MAX, -1., -1.);
-            for (i,before) in already.iter().enumerate().take(self.distance.ncols()) {
+            for (i, before) in already.iter().enumerate().take(self.distance.ncols()) {
                 if *before {
                     continue;
                 }
@@ -566,14 +582,13 @@ where
         MemberDist(membership_dist)
     } // end of dispatch_to_medoids
 
-
     // find medoid for point i, returns rank of (cluster) center nearest to i and distance to center
     fn find_medoid_for_i(&self, i: usize, centers: &[u32]) -> (u32, f32) {
         //
         let rowi = self.distance.row(i);
         let mut best_m = 0u32;
         let mut best_dist = rowi[centers[0] as usize];
-        for (m,c) in centers.iter().enumerate() {
+        for (m, c) in centers.iter().enumerate() {
             let test_m = *c;
             if rowi[test_m as usize] < best_dist {
                 // affect to best medoid index
@@ -607,11 +622,16 @@ where
             q_size.insert(cluster_size[i]);
             q_cost_size.insert(costs[i] as f64 / weights[i]);
         }
-        let ratio = vec![0.01, 0.1, 0.2, 0.3, 0.4 , 0.5 , 0.6, 0.7, 0.8, 0.9, 0.99];
+        let ratio = vec![0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.99];
         println!(" statistics on cluster size and cost by element");
         println!(" proba        size     cost/size ");
         for r in ratio {
-            println!(" {:.2e}       {:^6}      {:^6.2e}", r, q_size.query(r).unwrap().1, q_cost_size.query(r).unwrap().1);
+            println!(
+                " {:.2e}       {:^6}      {:^6.2e}",
+                r,
+                q_size.query(r).unwrap().1,
+                q_cost_size.query(r).unwrap().1
+            );
         }
         //
         if detailed {
@@ -654,8 +674,10 @@ where
         };
         // TODO: iterate and collect!
         assert_eq!(self.get_nb_points(), self.distance.nrows());
-        let cost : Vec<f32> = if self.get_nb_points() <= 1000 {
-            (0..self.distance.nrows()).map(| i | cost_i(i) as f32).collect()
+        let cost: Vec<f32> = if self.get_nb_points() <= 1000 {
+            (0..self.distance.nrows())
+                .map(|i| cost_i(i) as f32)
+                .collect()
         } else {
             (0..self.distance.nrows())
                 .into_par_iter()
@@ -666,7 +688,7 @@ where
         let mut centers: Vec<(usize, f32)> = (0..self.nb_cluster)
             .map(|_| (usize::MAX, f32::MAX))
             .collect();
-        for (i,member) in membership.0.iter().enumerate() {
+        for (i, member) in membership.0.iter().enumerate() {
             let c = member.0;
             assert!((c as usize) < centers.len());
             if cost[i] < centers[c as usize].1 {
@@ -678,12 +700,14 @@ where
         CenterCost(centers)
     } // end of from_membership_to_centers
 
-
-
     // computes statistics (quantiles) of distances to their centers
     // At this final time we can access internal fields membership and medoids state
     // Returns possibly a candidate 2-uple of medoid center to be perturbated.
-    fn quality_summary(&self, perturbation_set : &[(usize, usize)], end : bool) -> Option<(usize, usize)> {
+    fn quality_summary(
+        &self,
+        perturbation_set: &[(usize, usize)],
+        end: bool,
+    ) -> Option<(usize, usize)> {
         log::debug!("\n in quality_summary");
         //
         // We compute distance of items to center of their centroid.
@@ -695,9 +719,15 @@ where
                 let c = self.medoids[m as usize].center as usize;
                 q_dist.insert(self.distance[[i, c]]);
             }
-            println!("\n distance to centroid quantiles at 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-                q_dist.query(0.01).unwrap().1,  q_dist.query(0.025).unwrap().1,  q_dist.query(0.25).unwrap().1,
-                q_dist.query(0.5).unwrap().1, q_dist.query(0.75).unwrap().1, q_dist.query(0.99).unwrap().1);
+            println!(
+                "\n distance to centroid quantiles at 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.25 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n",
+                q_dist.query(0.01).unwrap().1,
+                q_dist.query(0.025).unwrap().1,
+                q_dist.query(0.25).unwrap().1,
+                q_dist.query(0.5).unwrap().1,
+                q_dist.query(0.75).unwrap().1,
+                q_dist.query(0.99).unwrap().1
+            );
         }
         //
         let mut medoids_size = vec![0u32; self.nb_cluster];
@@ -706,7 +736,7 @@ where
             let m = self.membership[i] as usize;
             medoids_size[m] += 1;
             medoids_dist_mean[m] += self.distance[[i, self.medoids[m].center as usize]];
-        } 
+        }
         for m in 0..self.medoids.len() {
             medoids_dist_mean[m] /= medoids_size[m] as f32;
             log::debug!(
@@ -731,12 +761,13 @@ where
         for i in 0..self.nb_cluster {
             let i_center = self.medoids[i].get_center() as usize;
             for j in 0..i {
-                if perturbation_set.last().is_some() &&  *perturbation_set.last().unwrap() == (j,i) {
+                if perturbation_set.last().is_some() && *perturbation_set.last().unwrap() == (j, i)
+                {
                     continue;
                 }
                 let d = self.distance[[i_center, self.medoids[j].get_center() as usize]];
                 let crit = 2. * d / (medoids_dist_mean[i] + medoids_dist_mean[j]);
-                if crit < dmin  {
+                if crit < dmin {
                     log::debug!(
                         " mixed medoid centers (i,j) : ({}, {}) , crit = {:.2e}",
                         i,
@@ -752,7 +783,6 @@ where
         couple_opt
     } // end of quality_summary
 
-
     /// estimate quantiles of distances between data items. We sample if too many couples.
     pub fn quantile_estimator(&self) -> CKMS<f32> {
         let mut quantiles = CKMS::<f64>::new(0.01);
@@ -760,9 +790,15 @@ where
             quantiles.insert(*w);
         }
         println!("statistics on items weights to cluster");
-        println!("\n weights quantiles at  0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-                quantiles.query(0.01).unwrap().1,  quantiles.query(0.025).unwrap().1,  quantiles.query(0.05).unwrap().1,
-                quantiles.query(0.5).unwrap().1, quantiles.query(0.75).unwrap().1, quantiles.query(0.99).unwrap().1);
+        println!(
+            "\n weights quantiles at  0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e}, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n",
+            quantiles.query(0.01).unwrap().1,
+            quantiles.query(0.025).unwrap().1,
+            quantiles.query(0.05).unwrap().1,
+            quantiles.query(0.5).unwrap().1,
+            quantiles.query(0.75).unwrap().1,
+            quantiles.query(0.99).unwrap().1
+        );
         //
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(2833);
         let nbrow = self.distance.nrows();
@@ -782,13 +818,20 @@ where
             }
         }
         println!("statistics on distances between points to cluster");
-        println!("\n distance quantiles at 0.0001 : {:.2e} , 0.001 : {:.2e}, 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e},, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n", 
-            quantiles.query(0.0001).unwrap().1, quantiles.query(0.001).unwrap().1,  quantiles.query(0.01).unwrap().1,  quantiles.query(0.025).unwrap().1, 
-            quantiles.query(0.05).unwrap().1, quantiles.query(0.5).unwrap().1, quantiles.query(0.75).unwrap().1, quantiles.query(0.99).unwrap().1);
+        println!(
+            "\n distance quantiles at 0.0001 : {:.2e} , 0.001 : {:.2e}, 0.01 :  {:.2e} , 0.025 : {:.2e}, 0.05 : {:.2e},, 0.5 : {:.2e}, 0.75 : {:.2e}   0.99 : {:.2e}\n",
+            quantiles.query(0.0001).unwrap().1,
+            quantiles.query(0.001).unwrap().1,
+            quantiles.query(0.01).unwrap().1,
+            quantiles.query(0.025).unwrap().1,
+            quantiles.query(0.05).unwrap().1,
+            quantiles.query(0.5).unwrap().1,
+            quantiles.query(0.75).unwrap().1,
+            quantiles.query(0.99).unwrap().1
+        );
         //
         quantiles
     }
-
 
     // perturbation of centers of medoids i and j , call dispatch_to_medoids and return new assignment
     // centers i and j are chosen are abnormally close
@@ -804,11 +847,7 @@ where
         let unif = rand::distr::Uniform::new(0., 1.).unwrap();
         //
         //
-        let changed = if rng.sample(unif) < 0.5 {
-            m1
-        } else {
-            m2
-        };
+        let changed = if unif.sample(&mut rng) < 0.5 { m1 } else { m2 };
         // we try to find in changed the point farthest from center of unchanged!
         let mut max_d = 0.0f32;
         let mut max_i = usize::MAX;

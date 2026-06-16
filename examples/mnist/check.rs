@@ -45,6 +45,7 @@ impl MnistParams {
 //================================================================================================
 
 // computes sum of distance  of coreset points to nearest cluster centers
+#[allow(unused)]
 pub fn dispatch_coreset<Dist>(
     coreset: &CoreSet<usize, f32, Dist>,
     c_centers: &[Vec<f32>],

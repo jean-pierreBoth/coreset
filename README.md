@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This crate is devoted to clustering approximation, in metric spaces, of large number data of points.  
+This crate is devoted to clustering approximation, in **metric spaces**, of large number data of points.  
 Especially we are interested in cases where the data cannot be loaded entirely in memory and need a streaming approach.
 
 The method relies on obtaining a coreset for the metric used in the problem.  
@@ -12,9 +12,9 @@ But the selected points have now **weights** attached to the selected points, so
 
 This package comes in the form of a crate library and some sub crates:  
 
-- a sub crate *nmi* providing quality assesment via Normalized Mutual Information
-- a sub crate *mnist* providing io, benchmarks and examples on Mnist data.
-- a sub crate [fromhnsw](#fromhnsw)  providing an iterator over data stored in a Hnsw structure and a binary implementing clustering from a Hnsw structure (see [hnsw_rs](https://crates.io/crates/hnsw_rs))
+- a module *nmi* providing quality assesment via Normalized Mutual Information
+- a module [fromhnsw](#fromhnsw)  providing an iterator over data stored in a Hnsw structure and a binary implementing clustering from a Hnsw structure (see [hnsw_rs](https://crates.io/crates/hnsw_rs))
+- a directory of examples with a module *mnist* providing io, benchmarks and examples on Mnist data.
 
 ## References to implemented algorithms
 
@@ -26,10 +26,12 @@ This package comes in the form of a crate library and some sub crates:
 2. The coreset construction relies on  [$\alpha$,$\beta$] approximation in **metric spaces**.  For this step we use the paper :
     - Streaming k-means on well clustered data.  
                 Braverman, Meyerson, Ostrovski, Roytman ACM-SIAM 2011
-                [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039)
+                [braverman-1](https://web.cs.ucla.edu/~rafail/PUBLIC/116.pdf) or [braverman-2](https://dl.acm.org/doi/10.5555/2133036.2133039).  
+It is implemented in the *bmor* module
 
 3. Normalized Mutual information is based on the paper:  
-    - Vinh.N.X Information Theoretic Measures for clustering comparison. [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)
+    - Vinh.N.X Information Theoretic Measures for clustering comparison. [Vinh 2010](https://jmlr.csail.mit.edu/papers/volume11/vinh10a/vinh10a.pdf)  
+It is implemented in the *nmi* module
 
 4. After obtaining the coreset we need an algorithm to provide a k-medoid on weighted data points and check quality of the approximating coreset.
    1. In module wkmedian we implemented the very simple algorithm (cited in Friedman Hastie Tibshirani **The elements of statistical learning 2001**, Kmedoids paragraph 14.3.10) with the following adaptations:
