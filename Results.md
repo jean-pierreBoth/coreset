@@ -1,10 +1,10 @@
 
-## Results
+# Results
 
 Examples provided are the standard Mnist-digits and Mnist-fashion.
 Results are obtained with sub-crate mnistcheck running on an AMD Ryzen 9 7950X 16-Core Processor (32 threads).
 
-### Coreset Construction
+## Coreset Construction
 
 The coreset points, with their weights attached are clustered by our simplistic kmedoid algorithm.  
 The cost of clustering with these centers is then compared with the cost of clustering the whole original data obtained
@@ -12,7 +12,7 @@ with the crate [kmedoids](https://crates.io/crates/kmedoids) using the parallel 
 
 The computation times, in seconds, given are system time elapsed and total cpu times (to account for parallelism)
 
-#### Results for coreset construction + basic weighted medoid  (L1 distance)
+### Results for coreset construction + basic weighted medoid  (L1 distance)
 
 The size of the coreset was set 0.11 * the number of data points. We asked 10 clusters.
 
@@ -22,7 +22,7 @@ The normalized mutual information used is the *sqrt* version see the doc related
 
 As the results are random for the coreset algorithm they are given in the form (mean +- sample standard deviation) obtained on a sample of 20 computations.  The incertitude on the mean is to divided by sqrt(sample size)
 
-#### Reference results for medoid computations (L1 distance) with par_fastermap
+### Reference results for medoid computations (L1 distance) with par_fastermap
 
 The timings take into account the computing of the distance matrix (fully multithreaded) which counts for more than 85% of time
 
@@ -31,7 +31,7 @@ The timings take into account the computing of the distance matrix (fully multit
 | digits  | 1.789 10^6 |   0.385    |     143     |    3800     |
 | fashion | 2.181 10^6 |    0.5     |     138     |    3805     |
 
-#### Results with 15 iterations in Kmedoids
+### Results with 15 iterations in Kmedoids
 
 |  mnist  |    cost (coreset)     |   cost (whole data)   | nmi +- sigma  | time(sys) s | time(cpu) s |
 | :-----: | :-------------------: | :-------------------: | :-----------: | :---------: | :---------: |
@@ -46,7 +46,7 @@ The timings take into account the computing of the distance matrix (fully multit
   
   * For the Fashion case :0.7 +- 0.048
 
-#### Results with 25 iterations in Kmedoids
+### Results with 25 iterations in Kmedoids
 
 |  mnist  |    cost (coreset)     |   cost (whole data)   |  nmi +- sigma  | time(sys) s | time(cpu) s |
 | :-----: | :-------------------: | :-------------------: | :------------: | :---------: | :---------: |
@@ -65,4 +65,4 @@ We see that the 2 algorithms are related in their classification as their mutual
 
 The use of Simd as a great impact on distance computations in these tests.
 
-##### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)
+#### Results on the [$\alpha$,$\beta$] approximation can be found [here](./bmor.md)

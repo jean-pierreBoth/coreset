@@ -10,7 +10,7 @@ A k-coreset is a sampled fraction summary of the whole data points called facili
 to the clustering of the whole data.
 But the selected points have now **weights** attached to the selected points, so we use a weighted point clustering method to produce final clusters.
 
-This package comes in the form of a crate library and some sub crates:  
+This package comes in the form of a crate library:  
 
 - a module *nmi* providing quality assesment via Normalized Mutual Information
 - a module [fromhnsw](#fromhnsw)  providing an iterator over data stored in a Hnsw structure and a binary implementing clustering from a Hnsw structure (see [hnsw_rs](https://crates.io/crates/hnsw_rs))
@@ -46,7 +46,7 @@ Results and examples are given in the *mnistcheck* sub-crate.
 
 We run a simple weighted k-median after the coreset construction and compare with those obtained with [par_fastermap](https://docs.rs/kmedoids/0.5.0/kmedoids/fn.par_fasterpam.html) running on the whole data.
 Comparison of the 2 algorithms classification is done using Normalised Information metrics
-implemented in the sub-crate **nmi**.  
+implemented in the module **nmi**.  
 Detailed results are given [here](./Results.md).
 
 #### Conclusion
@@ -72,7 +72,7 @@ pub trait MakeIter {
 
 The algorithm needs more than one pass on the data, so the algorithm takes as argument a structure  providing
 an iterator on the data when needed. (Typically the structure could provide file Io to iterates on data, or if there is no memory constraint just contain a reference to a Vec of data and provide an iterator on data reference).  
-**An example is found for mnist data** (Cf *module iter in crate member mnistcheck*).  
+**An example is found for mnist data** in the *examples* directory. (Cf *module iter* in examples).  
 
 The implementation does the buffering and parallelization internally.
 The most synthetic interface is provided in the module *clustercore*, but coreset construction and bmor algorithm can be accessed separately with
@@ -83,7 +83,7 @@ The distances are provided by the crate [anndists](https://crates.io/crates/annd
 
 ## Fromhnsw
 
-The workspace sub-crate *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). A binary *hcore* provides direct coreset or coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md).
+The module *fromhnsw* provides an implementation of the trait *MakeIter* to run the coreset algorithm on data stored in Hnsw structures of the crate [hnsw_rs](https://crates.io/crates/hnsw_rs). It is used in the binary *hcore* which provides direct coreset or coreset+kmedoid computations with output in the form of a csv file. See the [Readme](./fromhnsw/README.md).
 
 ## Building
 
