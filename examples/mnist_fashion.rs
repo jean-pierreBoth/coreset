@@ -73,7 +73,7 @@ fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
     }
     //
     // do we ask for a supplementary contraction pass
-    let contraction = false;
+    let contraction = true;
     let mut facilities = bmor_algo.end_data(contraction);
     //
     let (entropies, labels_distribution) = facilities.dispatch_labels(images, labels, None);

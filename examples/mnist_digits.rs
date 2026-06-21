@@ -100,7 +100,7 @@ fn bmor<Dist: Distance<f32> + Sync + Send + Clone>(
     let nb_facility = res.unwrap();
     log::info!("got nb facilities : {:?}", nb_facility);
     // do we ask for a supplementary contraction pass
-    let contraction = false;
+    let contraction = true;
     //============================
     let mut facilities = bmor_algo.end_data(contraction);
     //
